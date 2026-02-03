@@ -47,23 +47,4 @@ endif()
 # Export LLVM variables for use in the project
 set(LLVM_SOURCE_DIR ${LLVM_BUILD_MAIN_SRC_DIR} CACHE STRING "Location of LLVM source")
 
-# Function to add LLVM-based executable
-function(add_llvm_executable name)
-  add_executable(${name} ${ARGN})
-  target_link_libraries(${name} PRIVATE ${LLVM_AVAILABLE_LIBS})
-  set_target_properties(${name} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${LLVM_RUNTIME_OUTPUT_INTDIR}
-  )
-endfunction()
-
-# Function to add LLVM-based library
-function(add_llvm_library name)
-  add_library(${name} ${ARGN})
-  target_link_libraries(${name} PUBLIC ${LLVM_AVAILABLE_LIBS})
-  set_target_properties(${name} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${LLVM_LIBRARY_OUTPUT_INTDIR}
-    ARCHIVE_OUTPUT_DIRECTORY ${LLVM_LIBRARY_OUTPUT_INTDIR}
-  )
-endfunction()
-
 print_info("✓ LLVM configured successfully\n" "32")
