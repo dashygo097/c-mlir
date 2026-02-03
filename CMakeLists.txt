@@ -17,14 +17,14 @@ if(EXISTS "${CMAKE_BINARY_DIR}/config.cmake")
 endif()
 
 # Add cmake modules
-set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
-set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
-
 include(AppendLLVM)
 include(AppendMLIR)
 include(AppendClang)
 
 # Build the library
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+
 add_subdirectory(include)
 add_subdirectory(lib)
 

@@ -5,7 +5,7 @@ set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/llvm-project/build)
 set(USE_CCACHE ON)
 
 # Build options
-set(BUILD_EXECUTABLES OFF)
+set(BUILD_EXECUTABLES ON)
 set(ENABLE_TESTING OFF)
 
 # Derived paths
