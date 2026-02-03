@@ -24,7 +24,9 @@ include(AppendLLVM)
 include(AppendMLIR)
 include(AppendClang)
 
-include(LibraryTarget)
+# Build the library
+add_subdirectory(include)
+add_subdirectory(lib)
 
 # Executables
 if(BUILD_EXECUTABLES)
