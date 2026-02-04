@@ -8,4 +8,6 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 ## References
 
-[Polygeist](https://github.com/llvm/Polygeist.git)
+- [Polygeist](https://github.com/llvm/Polygeist.git)
+  - [ValueCategory.h](tools/cmlirc/Lib/ValueCategory.h)
+  - [ValueCategory.cpp](tools/cmlirc/Lib/ValueCategory.cpp)
