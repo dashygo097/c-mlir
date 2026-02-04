@@ -1,3 +1,6 @@
+#ifndef CMLIRC_FRONTEND_ACTION_H
+#define CMLIRC_FRONTEND_ACTION_H
+
 #include "./ASTConsumer.h"
 #include "clang/Frontend/FrontendActions.h"
 
@@ -13,3 +16,5 @@ public:
 };
 
 } // namespace cmlirc
+
+#endif // CMLIRC_FRONTEND_ACTION_H

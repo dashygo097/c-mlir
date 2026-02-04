@@ -5,15 +5,14 @@ using namespace clang;
 
 CMLIRCASTVisitor::CMLIRCASTVisitor(ASTContext *Context) : Context_(Context) {}
 
-bool CMLIRCASTVisitor::VisitFunctionDecl(FunctionDecl *FD) {
-  llvm::outs() << "Function: " << FD->getNameAsString() << "\n";
-  FD->dump();
-  return true;
-}
+bool CMLIRCASTVisitor::VisitFunctionDecl(FunctionDecl *FD) { return true; }
 
-bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *VD) {
-  llvm::outs() << "Variable: " << VD->getNameAsString() << "\n";
-  return true;
-}
+bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *VD) { return true; }
 
-}; // namespace cmlirc
+bool CMLIRCASTVisitor::VisitStmt(Stmt *S) { return true; }
+
+bool CMLIRCASTVisitor::VisitBinaryOperator(BinaryOperator *BO) { return true; }
+
+bool CMLIRCASTVisitor::VisitCallExpr(CallExpr *CE) { return true; }
+
+} // namespace cmlirc
