@@ -1,1 +1,1 @@
-add_mlir_dialect_library(cmlir Dialect.cc DEPENDS MLIRCMLIROpsIncGen)
+add_subdirectory(cmlir)
