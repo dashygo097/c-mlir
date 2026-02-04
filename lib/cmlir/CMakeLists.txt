@@ -1,1 +1,3 @@
+add_subdirectory(Passes)
+
 add_mlir_dialect_library(cmlir Dialect.cc DEPENDS MLIRCMLIROpsIncGen)

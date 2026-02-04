@@ -9,7 +9,7 @@ using namespace clang;
 
 class CMLIRCASTConsumer : public ASTConsumer {
 public:
-  explicit CMLIRCASTConsumer(ASTContext *Context) : Visitor_(Context) {}
+  explicit CMLIRCASTConsumer(ASTContext *Context) : Visitor(Context) {}
 
   void HandleTranslationUnit(ASTContext &Context) override {
     Context.getTranslationUnitDecl()->dump();
@@ -17,7 +17,7 @@ public:
   }
 
 private:
-  CMLIRCASTVisitor Visitor_;
+  CMLIRCASTVisitor Visitor;
 };
 
 } // namespace cmlirc

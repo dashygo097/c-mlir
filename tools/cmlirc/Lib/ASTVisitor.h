@@ -16,19 +16,7 @@ public:
   bool VisitBinaryOperator(BinaryOperator *BO);
   bool VisitCallExpr(CallExpr *CE);
 
-  [[nodiscard]] ASTContext *Context() const { return Context_; }
-
-private:
-  ASTContext *Context_;
-  unsigned IndentLevel_ = 0;
-
-  void printIndent() {
-    for (unsigned i = 0; i < IndentLevel_; ++i) {
-      llvm::outs() << " ";
-    }
-  }
-  void increaseIndent() { IndentLevel_ += 2; }
-  void decreaseIndent() { IndentLevel_ -= 2; }
+  ASTContext *Context;
 };
 
 } // namespace cmlirc

@@ -3,7 +3,7 @@
 namespace cmlirc {
 using namespace clang;
 
-CMLIRCASTVisitor::CMLIRCASTVisitor(ASTContext *Context) : Context_(Context) {}
+CMLIRCASTVisitor::CMLIRCASTVisitor(ASTContext *Context) : Context(Context) {}
 
 bool CMLIRCASTVisitor::VisitFunctionDecl(FunctionDecl *FD) { return true; }
 
