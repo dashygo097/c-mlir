@@ -3,8 +3,6 @@
 ## References
 
 - [Polygeist](https://github.com/llvm/Polygeist.git)
-  - [`tools/cmlirc/Lib/ValueCategory.h`](https://github.com/llvm/Polygeist/tree/main/tools/cgeist/Lib/ValueCategory.h)
-  - [`tools/cmlirc/Lib/ValueCategory.cpp`](https://github.com/llvm/Polygeist/tree/main/tools/cgeist/Lib/ValueCategory.cc)
 
 ## License
 

@@ -1,8 +1,9 @@
 add_clang_executable(cmlirc
-  Lib/ValueCategory.cpp
+  Lib/MLIRContextManager.cpp
+  Lib/TypeConverter.cpp
   Lib/ASTVisitor.cpp
 
-  cmlirc.cpp
+  driver.cpp
 )
 
 target_link_libraries(cmlirc PRIVATE
@@ -17,6 +18,7 @@ target_link_libraries(cmlirc PRIVATE
   MLIRArithDialect
   MLIRFuncDialect
   MLIRMemRefDialect
+  MLIRSCFDialect 
 
   # Clang Libraries
   clangSupport

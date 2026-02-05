@@ -5,19 +5,20 @@
 #include "clang/AST/ASTConsumer.h"
 
 namespace cmlirc {
-using namespace clang;
 
-class CMLIRCASTConsumer : public ASTConsumer {
+class CMLIRCASTConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRCASTConsumer(ASTContext *Context) : Visitor(Context) {}
+  explicit CMLIRCASTConsumer(clang::ASTContext *Context,
+                             MLIRContextManager &mlirContext)
+      : visitor_(Context, mlirContext) {}
+  ~CMLIRCASTConsumer() = default;
 
-  void HandleTranslationUnit(ASTContext &Context) override {
-    Context.getTranslationUnitDecl()->dump();
-    // Visitor_.TraverseDecl(Context.getTranslationUnitDecl());
+  void HandleTranslationUnit(clang::ASTContext &Context) override {
+    visitor_.TraverseDecl(Context.getTranslationUnitDecl());
   }
 
 private:
-  CMLIRCASTVisitor Visitor;
+  CMLIRCASTVisitor visitor_;
 };
 
 } // namespace cmlirc
