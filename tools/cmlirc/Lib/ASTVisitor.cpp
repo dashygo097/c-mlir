@@ -71,23 +71,30 @@ bool CMLIRCASTVisitor::TraverseStmt(clang::Stmt *stmt) {
     return RecursiveASTVisitor::TraverseStmt(stmt);
   }
 
-  // FIXME: This is a very naive way to handle expressions that produce side
-  // effects.
   if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
-    if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
-      if (binOp->isAssignmentOp()) {
-        generateExpr(expr);
-        return true;
-      }
-    }
-
-    if (llvm::isa<clang::CallExpr>(expr)) {
+    if (hasSideEffects(expr)) {
       generateExpr(expr);
       return true;
     }
   }
 
   return RecursiveASTVisitor::TraverseStmt(stmt);
+}
+
+bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
+  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+    return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
+  }
+
+  if (llvm::isa<clang::CallExpr>(expr)) {
+    return true;
+  }
+
+  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+    return unOp->isIncrementDecrementOp();
+  }
+
+  return false;
 }
 
 bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
