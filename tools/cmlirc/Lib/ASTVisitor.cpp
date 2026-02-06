@@ -1,4 +1,5 @@
 #include "./ASTVisitor.h"
+#include "./Conversions/Types.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -9,10 +10,8 @@
 namespace cmlirc {
 using namespace clang;
 
-CMLIRCASTVisitor::CMLIRCASTVisitor(clang::ASTContext *Context,
-                                   MLIRContextManager &mlir_context_manager)
-    : clang_context_(Context), mlir_context_manager_(mlir_context_manager),
-      type_converter_(mlir_context_manager.Builder()) {}
+CMLIRCASTVisitor::CMLIRCASTVisitor(ContextManager &ctx)
+    : context_manager_(ctx) {}
 
 bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   if (decl->isImplicit() || !decl->hasBody()) {
@@ -22,20 +21,20 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   llvm::outs() << "\n=== Processing Function: " << decl->getNameAsString()
                << " ===\n";
 
-  mlir::OpBuilder &builder = mlir_context_manager_.Builder();
-  builder.setInsertionPointToEnd(mlir_context_manager_.Module().getBody());
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  builder.setInsertionPointToEnd(context_manager_.Module().getBody());
 
   // Convert parameter types
   llvm::SmallVector<mlir::Type, 4> argTypes;
   for (auto *param : decl->parameters()) {
-    mlir::Type paramType = type_converter_.convertType(param->getType());
+    mlir::Type paramType = convertType(builder, param->getType());
     argTypes.push_back(paramType);
     llvm::outs() << "  Parameter: " << param->getNameAsString() << " : "
                  << param->getType().getAsString() << "\n";
   }
 
   // Convert return type
-  mlir::Type returnType = type_converter_.convertType(decl->getReturnType());
+  mlir::Type returnType = convertType(builder, decl->getReturnType());
   auto funcType = builder.getFunctionType(argTypes, {returnType});
 
   // Create function
@@ -84,17 +83,17 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   llvm::outs() << "  Local variable: " << decl->getNameAsString() << " : "
                << decl->getType().getAsString() << "\n";
 
-  SourceManager &SM = clang_context_->getSourceManager();
+  SourceManager &SM = context_manager_.ClangContext().getSourceManager();
   SourceLocation loc = decl->getLocation();
 
   auto mlirLoc = mlir::FileLineColLoc::get(
-      &mlir_context_manager_.Context(), SM.getFilename(loc),
+      &context_manager_.MLIRContext(), SM.getFilename(loc),
       SM.getSpellingLineNumber(loc), SM.getSpellingColumnNumber(loc));
 
-  mlir::OpBuilder &builder = mlir_context_manager_.Builder();
+  mlir::OpBuilder &builder = context_manager_.Builder();
 
   QualType clangType = decl->getType();
-  mlir::Type mlirType = type_converter_.convertType(clangType);
+  mlir::Type mlirType = convertType(builder, clangType);
 
   // Create alloca
   auto allocaOp = mlir::memref::AllocaOp::create(
@@ -123,7 +122,7 @@ bool CMLIRCASTVisitor::VisitReturnStmt(clang::ReturnStmt *stmt) {
 
   llvm::outs() << "  Return statement\n";
 
-  mlir::OpBuilder &builder = mlir_context_manager_.Builder();
+  mlir::OpBuilder &builder = context_manager_.Builder();
 
   mlir::Value retValue = nullptr;
   if (auto *retExpr = stmt->getRetValue()) {
@@ -147,13 +146,13 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
   if (!expr)
     return nullptr;
 
-  mlir::OpBuilder &builder = mlir_context_manager_.Builder();
+  mlir::OpBuilder &builder = context_manager_.Builder();
   expr = expr->IgnoreImpCasts();
 
   // Integer literal
   if (auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(expr)) {
     int64_t value = intLit->getValue().getSExtValue();
-    mlir::Type type = type_converter_.convertType(expr->getType());
+    mlir::Type type = convertType(builder, expr->getType());
     llvm::outs() << "      Integer literal: " << value << "\n";
     return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(),
                                            type,
@@ -164,7 +163,7 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
   // Float literal
   if (auto *floatLit = llvm::dyn_cast<clang::FloatingLiteral>(expr)) {
     llvm::APFloat value = floatLit->getValue();
-    mlir::Type type = type_converter_.convertType(expr->getType());
+    mlir::Type type = convertType(builder, expr->getType());
     llvm::outs() << "      Float literal\n";
     return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(),
                                            type,

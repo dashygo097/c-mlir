@@ -8,9 +8,8 @@ namespace cmlirc {
 
 class CMLIRCASTConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRCASTConsumer(clang::ASTContext *Context,
-                             MLIRContextManager &mlirContext)
-      : visitor_(Context, mlirContext) {}
+  explicit CMLIRCASTConsumer(ContextManager &mlirContext)
+      : visitor_(mlirContext) {}
   ~CMLIRCASTConsumer() = default;
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {
