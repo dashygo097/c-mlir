@@ -66,6 +66,30 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   return true;
 }
 
+bool CMLIRCASTVisitor::TraverseStmt(clang::Stmt *stmt) {
+  if (!stmt || !currentFunc) {
+    return RecursiveASTVisitor::TraverseStmt(stmt);
+  }
+
+  // FIXME: This is a very naive way to handle expressions that produce side
+  // effects.
+  if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
+    if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+      if (binOp->isAssignmentOp()) {
+        generateExpr(expr);
+        return true;
+      }
+    }
+
+    if (llvm::isa<clang::CallExpr>(expr)) {
+      generateExpr(expr);
+      return true;
+    }
+  }
+
+  return RecursiveASTVisitor::TraverseStmt(stmt);
+}
+
 bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   if (decl->isImplicit()) {
     return true;

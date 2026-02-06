@@ -13,6 +13,7 @@ public:
   ~CMLIRCASTVisitor() = default;
 
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
+  bool TraverseStmt(clang::Stmt *stmt);
 
   bool VisitVarDecl(clang::VarDecl *decl);
   bool VisitReturnStmt(clang::ReturnStmt *retStmt);
@@ -34,6 +35,8 @@ private:
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
+  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
+                                         bool needLValue);
 
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);

@@ -15,6 +15,9 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
     return generateFloatingLiteral(floatLit);
   } else if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
     return generateDeclRefExpr(declRef, needLValue);
+  } else if (auto *arraySubscript =
+                 llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
+    return generateArraySubscriptExpr(arraySubscript, needLValue);
   } else if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
     return generateUnaryOperator(unOp);
   } else if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
@@ -105,6 +108,41 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
   llvm::outs() << "        -> Unsupported DeclRefExpr type: "
                << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
+}
+
+mlir::Value
+CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
+                                             bool needLValue) {
+
+  llvm::outs() << "      Array subscript";
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  clang::Expr *baseExpr = expr->getBase();
+  mlir::Value base = generateExpr(baseExpr, true);
+
+  clang::Expr *idxExpr = expr->getIdx();
+  mlir::Value idx = generateExpr(idxExpr);
+
+  if (!base || !idx) {
+    llvm::outs() << "\n        ERROR: Failed to generate base or index\n";
+    return nullptr;
+  }
+
+  auto indexType = builder.getIndexType();
+  auto indexValue = mlir::arith::IndexCastOp::create(
+      builder, builder.getUnknownLoc(), indexType, idx);
+
+  if (needLValue) {
+    llvm::outs() << " (lvalue)\n";
+    return base;
+  } else {
+    llvm::outs() << " (rvalue - load)\n";
+    auto loadOp =
+        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), base,
+                                     mlir::ValueRange{indexValue.getResult()});
+    return loadOp.getResult();
+  }
 }
 
 mlir::Value
@@ -251,7 +289,7 @@ mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
 
   auto callOp = mlir::func::CallOp::create(
       builder, builder.getUnknownLoc(), calleeName,
-      mlir::TypeRange{mlirReturnType}, mlir::ValueRange{argValues});
+      mlir::TypeRange{returnTypes}, mlir::ValueRange{argValues});
 
   if (callOp.getNumResults() > 0) {
     llvm::outs() << "        Call with return value\n";
