@@ -1,10 +1,5 @@
 #include "./ASTVisitor.h"
 #include "./Conversions/Types.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
@@ -140,106 +135,6 @@ bool CMLIRCASTVisitor::VisitReturnStmt(clang::ReturnStmt *stmt) {
   }
 
   return true;
-}
-
-mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
-  if (!expr)
-    return nullptr;
-
-  mlir::OpBuilder &builder = context_manager_.Builder();
-  expr = expr->IgnoreImpCasts();
-
-  // Integer literal
-  if (auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(expr)) {
-    int64_t value = intLit->getValue().getSExtValue();
-    mlir::Type type = convertType(builder, expr->getType());
-    llvm::outs() << "      Integer literal: " << value << "\n";
-    return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(),
-                                           type,
-                                           builder.getIntegerAttr(type, value))
-        .getResult();
-  }
-
-  // Float literal
-  if (auto *floatLit = llvm::dyn_cast<clang::FloatingLiteral>(expr)) {
-    llvm::APFloat value = floatLit->getValue();
-    mlir::Type type = convertType(builder, expr->getType());
-    llvm::outs() << "      Float literal\n";
-    return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(),
-                                           type,
-                                           builder.getFloatAttr(type, value))
-        .getResult();
-  }
-
-  // Variable reference
-  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-    if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
-      llvm::outs() << "      Variable ref: " << varDecl->getNameAsString()
-                   << "\n";
-
-      if (auto *parmDecl = llvm::dyn_cast<clang::ParmVarDecl>(varDecl)) {
-        if (paramTable.count(parmDecl)) {
-          llvm::outs() << "        -> Function parameter\n";
-          return paramTable[parmDecl];
-        }
-      }
-
-      if (symbolTable.count(varDecl)) {
-        llvm::outs() << "        -> Local variable (load)\n";
-        mlir::Value memref = symbolTable[varDecl];
-        return mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
-                                            memref)
-            .getResult();
-      }
-
-      llvm::outs() << "        -> ERROR: Variable not found!\n";
-    }
-  }
-
-  // Binary operator
-  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
-    llvm::outs() << "      Binary operator: " << binOp->getOpcodeStr().str()
-                 << "\n";
-
-    mlir::Value lhs = generateExpr(binOp->getLHS());
-    mlir::Value rhs = generateExpr(binOp->getRHS());
-
-    if (!lhs || !rhs) {
-      llvm::outs() << "        ERROR: Failed to generate operands\n";
-      return nullptr;
-    }
-
-    switch (binOp->getOpcode()) {
-    case clang::BO_Add:
-      llvm::outs() << "        -> arith.addi\n";
-      return mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                         rhs)
-          .getResult();
-
-    case clang::BO_Sub:
-      return mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                         rhs)
-          .getResult();
-
-    case clang::BO_Mul:
-      return mlir::arith::MulIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                         rhs)
-          .getResult();
-
-    case clang::BO_Div:
-      return mlir::arith::DivSIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                          rhs)
-          .getResult();
-
-    default:
-      llvm::outs() << "        Unsupported operator\n";
-      return nullptr;
-    }
-  }
-
-  llvm::outs() << "      Unsupported expression\n";
-  expr->dump();
-  return nullptr;
 }
 
 } // namespace cmlirc
