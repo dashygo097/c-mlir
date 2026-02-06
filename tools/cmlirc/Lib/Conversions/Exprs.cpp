@@ -133,6 +133,54 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
+  if (binOp->isAssignmentOp()) {
+    llvm::outs() << "        Assignment operation\n";
+
+    clang::Expr *lhs = binOp->getLHS();
+    clang::Expr *rhs = binOp->getRHS();
+
+    mlir::Value rhsValue = generateExpr(rhs);
+    if (!rhsValue) {
+      llvm::outs() << "        ERROR: Failed to generate RHS\n";
+      return nullptr;
+    }
+
+    if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(lhs)) {
+      llvm::outs() << "        Assigning to array element\n";
+
+      mlir::Value base = generateExpr(arraySubscript->getBase(), true);
+      mlir::Value idx = generateExpr(arraySubscript->getIdx());
+
+      if (!base || !idx) {
+        llvm::outs() << "        ERROR: Failed to get base or index\n";
+        return nullptr;
+      }
+
+      auto indexValue = mlir::arith::IndexCastOp::create(
+          builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
+
+      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
+                                    base,
+                                    mlir::ValueRange{indexValue.getResult()});
+
+      llvm::outs() << "        Array assignment complete\n";
+      return rhsValue;
+
+    } else {
+      llvm::outs() << "        Assigning to variable\n";
+      mlir::Value lhsMemref = generateExpr(lhs, true);
+      if (!lhsMemref) {
+        llvm::outs() << "        ERROR: Failed to generate LHS\n";
+        return nullptr;
+      }
+
+      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
+                                    lhsMemref, mlir::ValueRange{});
+
+      return rhsValue;
+    }
+  }
+
   mlir::Value lhs = generateExpr(binOp->getLHS());
   mlir::Value rhs = generateExpr(binOp->getRHS());
 
@@ -196,16 +244,21 @@ mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
   clang::QualType returnType = calleeDecl->getReturnType();
   mlir::Type mlirReturnType = convertType(builder, returnType);
 
+  llvm::SmallVector<mlir::Type, 1> returnTypes;
+  if (!mlir::isa<mlir::NoneType>(mlirReturnType)) {
+    returnTypes.push_back(mlirReturnType);
+  }
+
   auto callOp = mlir::func::CallOp::create(
       builder, builder.getUnknownLoc(), calleeName,
       mlir::TypeRange{mlirReturnType}, mlir::ValueRange{argValues});
 
   if (callOp.getNumResults() > 0) {
-    llvm::outs() << "        Call generated with return value\n";
+    llvm::outs() << "        Call with return value\n";
     return callOp.getResult(0);
   }
 
-  llvm::outs() << "        Call generated (void return)\n";
+  llvm::outs() << "        Call (void)\n";
   return nullptr;
 }
 
