@@ -3,7 +3,7 @@
 
 namespace cmlirc {
 
-mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
+mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
   if (!expr)
     return nullptr;
 
@@ -14,14 +14,17 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
   } else if (auto *floatLit = llvm::dyn_cast<clang::FloatingLiteral>(expr)) {
     return generateFloatingLiteral(floatLit);
   } else if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-    return generateDeclRefExpr(declRef);
+    return generateDeclRefExpr(declRef, needLValue);
   } else if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
     return generateUnaryOperator(unOp);
   } else if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
     return generateBinaryOperator(binOp);
+  } else if (auto *callExpr = llvm::dyn_cast<clang::CallExpr>(expr)) {
+    return generateCallExpr(callExpr);
   }
 
-  llvm::outs() << "      Unsupported expression\n";
+  llvm::outs() << "Unsupported expression conversion for expr: "
+               << expr->getStmtClassName() << "\n";
   expr->dump();
   return nullptr;
 }
@@ -54,12 +57,13 @@ CMLIRCASTVisitor::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
       .getResult();
 }
 
-mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
+mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
+                                                  bool needLValue) {
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
     llvm::outs() << "      Variable ref: " << varDecl->getNameAsString()
-                 << "\n";
+                 << (needLValue ? " (lvalue)" : " (rvalue)") << "\n";
 
     if (auto *parmDecl = llvm::dyn_cast<clang::ParmVarDecl>(varDecl)) {
       if (paramTable.count(parmDecl)) {
@@ -69,18 +73,63 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
     }
 
     if (symbolTable.count(varDecl)) {
-      llvm::outs() << "        -> Local variable (load)\n";
       mlir::Value memref = symbolTable[varDecl];
-      return mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
-                                          memref)
-          .getResult();
+
+      if (needLValue) {
+        llvm::outs() << "        -> Local variable (memref)\n";
+        return memref;
+      } else {
+        llvm::outs() << "        -> Local variable (load)\n";
+        return mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
+                                            memref)
+            .getResult();
+      }
     }
 
     llvm::outs() << "        -> ERROR: Variable not found!\n";
   }
 
+  if (auto *funcDecl =
+          llvm::dyn_cast<clang::FunctionDecl>(declRef->getDecl())) {
+    llvm::outs() << "      Function ref: " << funcDecl->getNameAsString()
+                 << "\n";
+
+    if (functionTable.count(funcDecl)) {
+      llvm::outs() << "        -> Function found\n";
+      return functionTable[funcDecl];
+    }
+
+    llvm::outs() << "        -> ERROR: Function not found!\n";
+  }
+
+  llvm::outs() << "        -> Unsupported DeclRefExpr type: "
+               << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
 }
+
+// mlir::Value
+// CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
+//   llvm::outs() << "      Unary operator: "
+//                << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) <<
+//                "\n";
+//
+//   mlir::OpBuilder &builder = context_manager_.Builder();
+//
+//   clang::Expr *subExpr = unOp->getSubExpr();
+//   mlir::Value subValue = generateExpr(subExpr);
+//
+//   switch (unOp->getOpcode()) {
+//   case clang::UO_Minus: {
+//     return mlir::arith::NegFOp::create(builder, builder.getUnknownLoc(),
+//                                        subValue);
+//   }
+//   default:
+//     llvm::outs() << "Unsupported unary operator: "
+//                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
+//                  << "\n";
+//     return nullptr;
+//   }
+// }
 
 mlir::Value
 CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
@@ -88,20 +137,13 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
                << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) << "\n";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
-
   clang::Expr *subExpr = unOp->getSubExpr();
-  mlir::Value subValue = generateExpr(subExpr);
-
-  if (!subValue)
-    return nullptr;
 
   switch (unOp->getOpcode()) {
-  case clang::UO_Minus: {
-    return mlir::arith::NegFOp::create(builder, builder.getUnknownLoc(),
-                                       subValue);
-  }
+  case clang::UO_Plus:
+    return generateExpr(subExpr);
   default:
-    llvm::outs() << "Unsupported unary operator: "
+    llvm::outs() << "        Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
                  << "\n";
     return nullptr;
@@ -146,6 +188,49 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
                  << "\n";
     return nullptr;
   }
+}
+
+mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
+  llvm::outs() << "      Call expression\n";
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  const clang::FunctionDecl *calleeDecl = callExpr->getDirectCallee();
+  if (!calleeDecl) {
+    llvm::outs() << "        ERROR: Indirect calls not supported yet\n";
+    return nullptr;
+  }
+
+  std::string calleeName = calleeDecl->getNameAsString();
+  llvm::outs() << "        Calling function: " << calleeName << "\n";
+
+  llvm::SmallVector<mlir::Value, 4> argValues;
+  for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
+    clang::Expr *argExpr = callExpr->getArg(i);
+    mlir::Value argValue = generateExpr(argExpr);
+    if (!argValue) {
+      llvm::outs() << "        ERROR: Failed to generate argument " << i
+                   << "\n";
+      return nullptr;
+    }
+    argValues.push_back(argValue);
+    llvm::outs() << "        Argument " << i << " generated\n";
+  }
+
+  clang::QualType returnType = calleeDecl->getReturnType();
+  mlir::Type mlirReturnType = convertType(builder, returnType);
+
+  auto callOp = mlir::func::CallOp::create(
+      builder, builder.getUnknownLoc(), calleeName,
+      mlir::TypeRange{mlirReturnType}, mlir::ValueRange{argValues});
+
+  if (callOp.getNumResults() > 0) {
+    llvm::outs() << "        Call generated with return value\n";
+    return callOp.getResult(0);
+  }
+
+  llvm::outs() << "        Call generated (void return)\n";
+  return nullptr;
 }
 
 } // namespace cmlirc

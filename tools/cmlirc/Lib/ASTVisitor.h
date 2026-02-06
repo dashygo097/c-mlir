@@ -23,19 +23,22 @@ private:
   // states
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
+  llvm::DenseMap<const clang::FunctionDecl *, mlir::Value> functionTable;
   mlir::func::FuncOp currentFunc;
 
   // type traits
 
   // expr traits
-  mlir::Value generateExpr(clang::Expr *expr);
+  mlir::Value generateExpr(clang::Expr *expr, bool needLValue = false);
 
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
-  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
+  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
 
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
+
+  mlir::Value generateCallExpr(clang::CallExpr *callExpr);
 };
 
 } // namespace cmlirc
