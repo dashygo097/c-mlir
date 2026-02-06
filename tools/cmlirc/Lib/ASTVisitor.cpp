@@ -30,6 +30,12 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
 
   // Convert return type
   mlir::Type returnType = convertType(builder, decl->getReturnType());
+
+  llvm::SmallVector<mlir::Type, 1> returnTypes;
+  if (!mlir::isa<mlir::NoneType>(returnType)) {
+    returnTypes.push_back(returnType);
+  }
+
   auto funcType = builder.getFunctionType(argTypes, {returnType});
 
   // Create function
