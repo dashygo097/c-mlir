@@ -11,10 +11,10 @@ namespace cmlirc {
                                      clang::QualType type);
 [[nodiscard]] mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
                                             const clang::BuiltinType *type);
-[[nodiscard]] mlir::Type convertPointerType(mlir::OpBuilder &builder,
-                                            const clang::PointerType *type);
 [[nodiscard]] mlir::Type convertArrayType(mlir::OpBuilder &builder,
                                           const clang::ArrayType *type);
+[[nodiscard]] mlir::Type convertPointerType(mlir::OpBuilder &builder,
+                                            const clang::PointerType *type);
 
 } // namespace cmlirc
 
