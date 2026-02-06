@@ -25,8 +25,17 @@ private:
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
   mlir::func::FuncOp currentFunc;
 
-  // helpers
+  // type traits
+
+  // expr traits
   mlir::Value generateExpr(clang::Expr *expr);
+
+  mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
+  mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
+  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
+
+  mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
+  mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 };
 
 } // namespace cmlirc

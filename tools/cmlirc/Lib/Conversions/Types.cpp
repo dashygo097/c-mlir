@@ -9,17 +9,13 @@ mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
     return convertBuiltinType(builder, builtinType);
-  }
-
-  if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
+  } else if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
     return convertPointerType(builder, pointerType);
-  }
-
-  if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
+  } else if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
     return convertArrayType(builder, arrayType);
   }
 
-  llvm::errs() << "Unsupported type conversion for type: " << type.getAsString()
+  llvm::outs() << "Unsupported type conversion for type: " << type.getAsString()
                << "\n";
   return nullptr;
 }
