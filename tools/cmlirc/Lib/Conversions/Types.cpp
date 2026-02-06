@@ -1,24 +1,22 @@
-#include "./TypeConverter.h"
+#include "./Types.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 namespace cmlirc {
 
-TypeConverter::TypeConverter(mlir::OpBuilder &builder) : builder_(builder) {}
-
-mlir::Type TypeConverter::convertType(clang::QualType type) {
+mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
   const clang::Type *typePtr = type.getTypePtr();
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
-    return convertBuiltinType(builtinType);
+    return convertBuiltinType(builder, builtinType);
   }
 
   if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
-    return convertPointerType(pointerType);
+    return convertPointerType(builder, pointerType);
   }
 
   if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
-    return convertArrayType(arrayType);
+    return convertArrayType(builder, arrayType);
   }
 
   llvm::errs() << "Unsupported type conversion for type: " << type.getAsString()
@@ -26,55 +24,58 @@ mlir::Type TypeConverter::convertType(clang::QualType type) {
   return nullptr;
 }
 
-mlir::Type TypeConverter::convertBuiltinType(const clang::BuiltinType *type) {
+mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
+                              const clang::BuiltinType *type) {
   switch (type->getKind()) {
   case clang::BuiltinType::Void:
-    return builder_.getNoneType();
+    return builder.getNoneType();
 
   case clang::BuiltinType::Bool:
-    return builder_.getI1Type();
+    return builder.getI1Type();
 
   case clang::BuiltinType::Char_S:
   case clang::BuiltinType::Char_U:
   case clang::BuiltinType::SChar:
   case clang::BuiltinType::UChar:
-    return builder_.getI8Type();
+    return builder.getI8Type();
 
   case clang::BuiltinType::Short:
   case clang::BuiltinType::UShort:
-    return builder_.getI16Type();
+    return builder.getI16Type();
 
   case clang::BuiltinType::Int:
   case clang::BuiltinType::UInt:
-    return builder_.getI32Type();
+    return builder.getI32Type();
 
   case clang::BuiltinType::Long:
   case clang::BuiltinType::ULong:
   case clang::BuiltinType::LongLong:
   case clang::BuiltinType::ULongLong:
-    return builder_.getI64Type();
+    return builder.getI64Type();
 
   case clang::BuiltinType::Float:
-    return builder_.getF32Type();
+    return builder.getF32Type();
 
   case clang::BuiltinType::Double:
-    return builder_.getF64Type();
+    return builder.getF64Type();
 
   default:
     return nullptr;
   }
 }
 
-mlir::Type TypeConverter::convertPointerType(const clang::PointerType *type) {
+mlir::Type convertPointerType(mlir::OpBuilder &builder,
+                              const clang::PointerType *type) {
   clang::QualType pointeeType = type->getPointeeType();
-  mlir::Type elementType = convertType(pointeeType);
+  mlir::Type elementType = convertType(builder, pointeeType);
 
   return mlir::UnrankedMemRefType::get(elementType, 0);
 }
 
-mlir::Type TypeConverter::convertArrayType(const clang::ArrayType *type) {
+mlir::Type convertArrayType(mlir::OpBuilder &builder,
+                            const clang::ArrayType *type) {
   clang::QualType elementQualType = type->getElementType();
-  mlir::Type elementType = convertType(elementQualType);
+  mlir::Type elementType = convertType(builder, elementQualType);
 
   if (auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(type)) {
     int64_t size = constArrayType->getSize().getSExtValue();

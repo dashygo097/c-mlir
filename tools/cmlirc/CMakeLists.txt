@@ -1,6 +1,8 @@
 add_clang_executable(cmlirc
-  Lib/MLIRContextManager.cpp
-  Lib/TypeConverter.cpp
+  Lib/Conversions/Types.cpp
+  Lib/Conversions/Exprs.cpp
+
+  Lib/ContextManager.cpp
   Lib/ASTVisitor.cpp
 
   driver.cpp
