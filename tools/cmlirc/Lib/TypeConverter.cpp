@@ -21,7 +21,9 @@ mlir::Type TypeConverter::convertType(clang::QualType type) {
     return convertArrayType(arrayType);
   }
 
-  return builder_.getI32Type();
+  llvm::errs() << "Unsupported type conversion for type: " << type.getAsString()
+               << "\n";
+  return nullptr;
 }
 
 mlir::Type TypeConverter::convertBuiltinType(const clang::BuiltinType *type) {
@@ -59,7 +61,7 @@ mlir::Type TypeConverter::convertBuiltinType(const clang::BuiltinType *type) {
     return builder_.getF64Type();
 
   default:
-    return builder_.getI32Type();
+    return nullptr;
   }
 }
 

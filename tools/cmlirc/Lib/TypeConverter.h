@@ -13,6 +13,7 @@ public:
   ~TypeConverter() = default;
 
   [[nodiscard]] mlir::Type convertType(clang::QualType type);
+  [[nodiscard]] mlir::Value convertValue(clang::Expr *expr);
 
 private:
   mlir::OpBuilder &builder_;
@@ -20,6 +21,10 @@ private:
   [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
   [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);
   [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
+
+  [[nodiscard]] mlir::Value convertIntegerLiteral(clang::IntegerLiteral *expr);
+  [[nodiscard]] mlir::Value
+  convertFloatingLiteral(clang::FloatingLiteral *expr);
 };
 
 } // namespace cmlirc
