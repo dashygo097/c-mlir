@@ -137,11 +137,11 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
                << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) << "\n";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
-  clang::Expr *subExpr = unOp->getSubExpr();
 
   switch (unOp->getOpcode()) {
   case clang::UO_Plus:
-    return generateExpr(subExpr);
+    return generateExpr(unOp->getSubExpr());
+
   default:
     llvm::outs() << "        Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
