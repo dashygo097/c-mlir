@@ -27,6 +27,9 @@ private:
   llvm::DenseMap<const clang::FunctionDecl *, mlir::Value> functionTable;
   mlir::func::FuncOp currentFunc;
 
+  // helpers
+  [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
+
   // type traits
 
   // expr traits
