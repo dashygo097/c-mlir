@@ -5,18 +5,19 @@
 namespace cmlirc {
 
 mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
+  type = type.getCanonicalType();
+
   const clang::Type *typePtr = type.getTypePtr();
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
     return convertBuiltinType(builder, builtinType);
-  } else if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
-    return convertPointerType(builder, pointerType);
   } else if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
     return convertArrayType(builder, arrayType);
+  } else if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
+    return convertPointerType(builder, pointerType);
   }
 
-  llvm::outs() << "Unsupported type conversion for type: " << type.getAsString()
-               << "\n";
+  llvm::outs() << "Unsupported type: " << type.getAsString();
   return nullptr;
 }
 
@@ -56,16 +57,8 @@ mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
     return builder.getF64Type();
 
   default:
-    return nullptr;
+    return builder.getI32Type();
   }
-}
-
-mlir::Type convertPointerType(mlir::OpBuilder &builder,
-                              const clang::PointerType *type) {
-  clang::QualType pointeeType = type->getPointeeType();
-  mlir::Type elementType = convertType(builder, pointeeType);
-
-  return mlir::UnrankedMemRefType::get(elementType, 0);
 }
 
 mlir::Type convertArrayType(mlir::OpBuilder &builder,
@@ -77,6 +70,14 @@ mlir::Type convertArrayType(mlir::OpBuilder &builder,
     int64_t size = constArrayType->getSize().getSExtValue();
     return mlir::MemRefType::get({size}, elementType);
   }
+
+  return mlir::UnrankedMemRefType::get(elementType, 0);
+}
+
+mlir::Type convertPointerType(mlir::OpBuilder &builder,
+                              const clang::PointerType *type) {
+  clang::QualType pointeeQualType = type->getPointeeType();
+  mlir::Type elementType = convertType(builder, pointeeQualType);
 
   return mlir::UnrankedMemRefType::get(elementType, 0);
 }

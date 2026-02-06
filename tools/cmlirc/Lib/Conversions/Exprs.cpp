@@ -107,30 +107,6 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
   return nullptr;
 }
 
-// mlir::Value
-// CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
-//   llvm::outs() << "      Unary operator: "
-//                << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) <<
-//                "\n";
-//
-//   mlir::OpBuilder &builder = context_manager_.Builder();
-//
-//   clang::Expr *subExpr = unOp->getSubExpr();
-//   mlir::Value subValue = generateExpr(subExpr);
-//
-//   switch (unOp->getOpcode()) {
-//   case clang::UO_Minus: {
-//     return mlir::arith::NegFOp::create(builder, builder.getUnknownLoc(),
-//                                        subValue);
-//   }
-//   default:
-//     llvm::outs() << "Unsupported unary operator: "
-//                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
-//                  << "\n";
-//     return nullptr;
-//   }
-// }
-
 mlir::Value
 CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   llvm::outs() << "      Unary operator: "

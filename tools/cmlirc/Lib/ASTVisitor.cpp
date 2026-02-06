@@ -66,8 +66,6 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   }
 
   if (llvm::isa<clang::ParmVarDecl>(decl)) {
-    llvm::outs() << "  Skipping parameter VarDecl: " << decl->getNameAsString()
-                 << "\n";
     return true;
   }
 
@@ -76,7 +74,7 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   }
 
   llvm::outs() << "  Local variable: " << decl->getNameAsString() << " : "
-               << decl->getType().getAsString() << "\n";
+               << decl->getType().getAsString();
 
   SourceManager &SM = context_manager_.ClangContext().getSourceManager();
   SourceLocation loc = decl->getLocation();
@@ -90,9 +88,22 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   QualType clangType = decl->getType();
   mlir::Type mlirType = convertType(builder, clangType);
 
+  mlir::Type allocaType;
+  if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType)) {
+    allocaType = memrefType;
+    llvm::outs() << " -> ";
+    allocaType.print(llvm::outs());
+    llvm::outs() << "\n";
+  } else {
+    allocaType = mlir::MemRefType::get({}, mlirType);
+    llvm::outs() << " -> memref<";
+    mlirType.print(llvm::outs());
+    llvm::outs() << ">\n";
+  }
+
   // Create alloca
   auto allocaOp = mlir::memref::AllocaOp::create(
-      builder, mlirLoc, mlir::MemRefType::get({}, mlirType));
+      builder, mlirLoc, mlir::dyn_cast<mlir::MemRefType>(allocaType));
 
   symbolTable[decl] = allocaOp.getResult();
 
@@ -103,7 +114,6 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
     if (initValue) {
       mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
                                     allocaOp.getResult(), mlir::ValueRange{});
-      llvm::outs() << "    Initialized\n";
     }
   }
 
