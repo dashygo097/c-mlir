@@ -14,6 +14,11 @@ public:
                             MLIRContextManager &mlirCtx);
   ~CMLIRCASTVisitor() = default;
 
+  bool TraverseFunctionDecl(clang::FunctionDecl *D);
+
+  bool VisitVarDecl(clang::VarDecl *decl);
+  bool VisitReturnStmt(clang::ReturnStmt *retStmt);
+
   clang::ASTContext *clang_context_;
   MLIRContextManager &mlir_context_manager_;
   TypeConverter type_converter_;
@@ -21,7 +26,11 @@ public:
 private:
   // states
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;
+  llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
   mlir::func::FuncOp currentFunc;
+
+  // helpers
+  mlir::Value generateExpr(clang::Expr *expr);
 };
 
 } // namespace cmlirc

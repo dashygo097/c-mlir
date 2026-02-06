@@ -21,7 +21,7 @@ public:
   }
 
   void EndSourceFileAction() override {
-    llvm::outs() << "\n Generated MLIR: \n";
+    llvm::outs() << "\nGenerated MLIR: \n";
     mlir_context_manager_->dump();
     llvm::outs() << "\n";
   }

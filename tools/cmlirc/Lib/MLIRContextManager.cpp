@@ -20,6 +20,10 @@ MLIRContextManager::MLIRContextManager() {
       mlir::ModuleOp::create(builder_->getUnknownLoc()));
 }
 
-void MLIRContextManager::dump() { module_->dump(); }
+void MLIRContextManager::dump() {
+  mlir::OpPrintingFlags flags;
+
+  module_->print(llvm::outs(), flags);
+}
 
 } // namespace cmlirc
