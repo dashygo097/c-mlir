@@ -11,9 +11,11 @@ mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
     return convertBuiltinType(builder, builtinType);
-  } else if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
+  }
+  if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
     return convertArrayType(builder, arrayType);
-  } else if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
+  }
+  if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
     return convertPointerType(builder, pointerType);
   }
 
