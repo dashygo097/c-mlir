@@ -11,24 +11,28 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
 
   if (auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(expr)) {
     return generateIntegerLiteral(intLit);
-  } else if (auto *floatLit = llvm::dyn_cast<clang::FloatingLiteral>(expr)) {
+  }
+  if (auto *floatLit = llvm::dyn_cast<clang::FloatingLiteral>(expr)) {
     return generateFloatingLiteral(floatLit);
-  } else if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
+  }
+  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
     return generateDeclRefExpr(declRef, needLValue);
-  } else if (auto *arraySubscript =
-                 llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
+  }
+  if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
     return generateArraySubscriptExpr(arraySubscript, needLValue);
-  } else if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+  }
+  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
     return generateUnaryOperator(unOp);
-  } else if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+  }
+  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
     return generateBinaryOperator(binOp);
-  } else if (auto *callExpr = llvm::dyn_cast<clang::CallExpr>(expr)) {
+  }
+  if (auto *callExpr = llvm::dyn_cast<clang::CallExpr>(expr)) {
     return generateCallExpr(callExpr);
   }
 
   llvm::outs() << "Unsupported expression conversion for expr: "
                << expr->getStmtClassName() << "\n";
-  expr->dump();
   return nullptr;
 }
 
