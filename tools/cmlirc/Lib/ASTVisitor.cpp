@@ -81,23 +81,7 @@ bool CMLIRCASTVisitor::TraverseStmt(clang::Stmt *stmt) {
   return RecursiveASTVisitor::TraverseStmt(stmt);
 }
 
-bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
-  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
-    return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
-  }
-
-  if (llvm::isa<clang::CallExpr>(expr)) {
-    return true;
-  }
-
-  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
-    return unOp->isIncrementDecrementOp();
-  }
-
-  return false;
-}
-
-bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
+bool CMLIRCASTVisitor::TraverseVarDecl(VarDecl *decl) {
   if (decl->isImplicit()) {
     return true;
   }
@@ -157,7 +141,7 @@ bool CMLIRCASTVisitor::VisitVarDecl(VarDecl *decl) {
   return true;
 }
 
-bool CMLIRCASTVisitor::VisitReturnStmt(clang::ReturnStmt *stmt) {
+bool CMLIRCASTVisitor::TraverseReturnStmt(clang::ReturnStmt *stmt) {
   if (!currentFunc) {
     return true;
   }
@@ -182,6 +166,22 @@ bool CMLIRCASTVisitor::VisitReturnStmt(clang::ReturnStmt *stmt) {
   }
 
   return true;
+}
+
+bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
+  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+    return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
+  }
+
+  if (llvm::isa<clang::CallExpr>(expr)) {
+    return true;
+  }
+
+  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+    return unOp->isIncrementDecrementOp();
+  }
+
+  return false;
 }
 
 } // namespace cmlirc
