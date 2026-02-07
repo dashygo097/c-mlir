@@ -231,29 +231,49 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     return nullptr;
   }
 
-  switch (binOp->getOpcode()) {
-  case clang::BO_Add: {
-    return mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                       rhs);
+  mlir::Type resultType = lhs.getType();
+
+#define REGISTER_BIN_IOP(op)                                                   \
+  if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
+    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
+                                       rhs)                                    \
+        .getResult();                                                          \
   }
+
+#define REGISTER_BIN_FOP(op)                                                   \
+  if (mlir::isa<mlir::FloatType>(resultType)) {                                \
+    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
+                                       rhs)                                    \
+        .getResult();                                                          \
+  }
+
+  switch (binOp->getOpcode()) {
+  case clang::BO_Add:
+    REGISTER_BIN_IOP(AddI)
+    REGISTER_BIN_FOP(AddF)
+    break;
   case clang::BO_Sub:
-    return mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                       rhs)
-        .getResult();
+    REGISTER_BIN_IOP(SubI)
+    REGISTER_BIN_FOP(SubF)
+    break;
   case clang::BO_Mul:
-    return mlir::arith::MulIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                       rhs)
-        .getResult();
+    REGISTER_BIN_IOP(MulI)
+    REGISTER_BIN_FOP(MulF)
+    break;
   case clang::BO_Div:
-    return mlir::arith::DivSIOp::create(builder, builder.getUnknownLoc(), lhs,
-                                        rhs)
-        .getResult();
+    REGISTER_BIN_IOP(DivSI)
+    REGISTER_BIN_FOP(DivF)
+    break;
   default:
     llvm::outs() << "Unsupported binary operator: "
                  << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
                  << "\n";
-    return nullptr;
   }
+
+#undef REGISTER_BIN_IOP
+#undef REGISTER_BIN_FOP
+
+  return nullptr;
 }
 
 mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
