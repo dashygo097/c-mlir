@@ -123,23 +123,40 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
-  mlir::Value base = generateExpr(expr->getBase(), true);
-  mlir::Value idx = generateExpr(expr->getIdx());
+  llvm::SmallVector<mlir::Value, 4> indices;
+  clang::Expr *currentExpr = expr;
 
-  if (!base || !idx) {
-    llvm::errs() << "Failed to generate base or index\n ";
+  while (auto *arraySubscript =
+             llvm::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {
+    mlir::Value idx = generateExpr(arraySubscript->getIdx());
+    if (!idx) {
+      llvm::errs() << "\nFailed to generate index\n";
+      return nullptr;
+    }
+
+    indices.insert(indices.begin(), idx);
+    currentExpr = arraySubscript->getBase()->IgnoreImpCasts();
+  }
+
+  mlir::Value base = generateExpr(currentExpr, /*needLValue=*/true);
+  if (!base) {
+    llvm::errs() << "\nFailed to generate base\n";
     return nullptr;
   }
 
-  auto indexValue = mlir::arith::IndexCastOp::create(
-      builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
+  llvm::SmallVector<mlir::Value, 4> indexValues;
+  for (mlir::Value idx : indices) {
+    auto indexValue = mlir::arith::IndexCastOp::create(
+        builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
+    indexValues.push_back(indexValue.getResult());
+  }
 
   if (needLValue) {
+    lastArrayAccess_ = ArrayAccessInfo{base, indexValues};
     return base;
   } else {
-    auto loadOp =
-        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), base,
-                                     mlir::ValueRange{indexValue.getResult()});
+    auto loadOp = mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
+                                               base, indexValues);
     return loadOp.getResult();
   }
 }

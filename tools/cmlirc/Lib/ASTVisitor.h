@@ -26,6 +26,12 @@ private:
   llvm::DenseMap<const clang::FunctionDecl *, mlir::Value> functionTable;
   mlir::func::FuncOp currentFunc;
 
+  struct ArrayAccessInfo {
+    mlir::Value base;
+    llvm::SmallVector<mlir::Value, 4> indices;
+  };
+  std::optional<ArrayAccessInfo> lastArrayAccess_;
+
   // helpers
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
 
