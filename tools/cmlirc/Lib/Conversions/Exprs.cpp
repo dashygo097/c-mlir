@@ -1,3 +1,4 @@
+#include "../../ArgumentList.h"
 #include "../ASTVisitor.h"
 #include "./Types.h"
 
@@ -43,7 +44,8 @@ CMLIRCASTVisitor::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
   int64_t value = intLit->getValue().getSExtValue();
   mlir::Type type = convertType(builder, intLit->getType());
 
-  llvm::outs() << "      Integer literal: " << value << "\n";
+  if (options::Verbose)
+    llvm::outs() << "      Integer literal: " << value << "\n";
 
   return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
                                          builder.getIntegerAttr(type, value))
@@ -57,7 +59,8 @@ CMLIRCASTVisitor::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   double value = floatLit->getValue().convertToDouble();
   mlir::Type type = convertType(builder, floatLit->getType());
 
-  llvm::outs() << "      Floating literal: " << value << "\n";
+  if (options::Verbose)
+    llvm::outs() << "      Floating literal: " << value << "\n";
 
   return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
                                          builder.getFloatAttr(type, value))
@@ -69,12 +72,14 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
-    llvm::outs() << "      Variable ref: " << varDecl->getNameAsString()
-                 << (needLValue ? " (lvalue)" : " (rvalue)") << "\n";
+    if (options::Verbose)
+      llvm::outs() << "      Variable ref: " << varDecl->getNameAsString()
+                   << (needLValue ? " (lvalue)" : " (rvalue)") << "\n";
 
     if (auto *parmDecl = llvm::dyn_cast<clang::ParmVarDecl>(varDecl)) {
       if (paramTable.count(parmDecl)) {
-        llvm::outs() << "        -> Function parameter\n";
+        if (options::Verbose)
+          llvm::outs() << "        -> Function parameter\n";
         return paramTable[parmDecl];
       }
     }
@@ -83,33 +88,37 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
       mlir::Value memref = symbolTable[varDecl];
 
       if (needLValue) {
-        llvm::outs() << "        -> Local variable (memref)\n";
+        if (options::Verbose)
+          llvm::outs() << "        -> Local variable (memref)\n";
         return memref;
       } else {
-        llvm::outs() << "        -> Local variable (load)\n";
+        if (options::Verbose)
+          llvm::outs() << "        -> Local variable (load)\n";
         return mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
                                             memref)
             .getResult();
       }
     }
 
-    llvm::outs() << "        -> ERROR: Variable not found!\n";
+    llvm::errs() << "Variable not found!\n";
   }
 
   if (auto *funcDecl =
           llvm::dyn_cast<clang::FunctionDecl>(declRef->getDecl())) {
-    llvm::outs() << "      Function ref: " << funcDecl->getNameAsString()
-                 << "\n";
+    if (options::Verbose)
+      llvm::outs() << "      Function ref: " << funcDecl->getNameAsString()
+                   << "\n";
 
     if (functionTable.count(funcDecl)) {
-      llvm::outs() << "        -> Function found\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> Function found\n";
       return functionTable[funcDecl];
     }
 
-    llvm::outs() << "        -> ERROR: Function not found!\n";
+    llvm::errs() << "Function not found!\n";
   }
 
-  llvm::outs() << "        -> Unsupported DeclRefExpr type: "
+  llvm::errs() << "Unsupported DeclRefExpr type: "
                << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
 }
@@ -118,7 +127,8 @@ mlir::Value
 CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
                                              bool needLValue) {
 
-  llvm::outs() << "      Array subscript";
+  if (options::Verbose)
+    llvm::outs() << "      Array subscript";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
@@ -126,7 +136,7 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
   mlir::Value idx = generateExpr(expr->getIdx());
 
   if (!base || !idx) {
-    llvm::outs() << "\n        ERROR: Failed to generate base or index\n";
+    llvm::errs() << "Failed to generate base or index\n ";
     return nullptr;
   }
 
@@ -134,10 +144,12 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
       builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
 
   if (needLValue) {
-    llvm::outs() << " (lvalue)\n";
+    if (options::Verbose)
+      llvm::outs() << " (lvalue)\n";
     return base;
   } else {
-    llvm::outs() << " (rvalue - load)\n";
+    if (options::Verbose)
+      llvm::outs() << " (rvalue - load)\n";
     auto loadOp =
         mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), base,
                                      mlir::ValueRange{indexValue.getResult()});

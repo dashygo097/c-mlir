@@ -2,7 +2,6 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/raw_ostream.h"
@@ -62,9 +61,6 @@ struct ConstantMergePass
   void runOnOperation() override {
     auto funcOp = getOperation();
 
-    llvm::outs() << "\n=== Running Constant Merge Pass on function: "
-                 << funcOp.getName() << " ===\n";
-
     llvm::DenseMap<ConstantKey, mlir::arith::ConstantOp> constantMap;
 
     llvm::SmallVector<mlir::arith::ConstantOp, 4> toErase;
@@ -77,12 +73,6 @@ struct ConstantMergePass
       auto it = constantMap.find(key);
       if (it != constantMap.end()) {
         mlir::arith::ConstantOp existingConst = it->second;
-
-        llvm::outs() << "  Merging duplicate constant: ";
-        constOp.print(llvm::outs());
-        llvm::outs() << "\n    with: ";
-        existingConst.print(llvm::outs());
-        llvm::outs() << "\n";
 
         constOp.replaceAllUsesWith(existingConst.getResult());
 
@@ -97,9 +87,6 @@ struct ConstantMergePass
     for (auto constOp : toErase) {
       constOp.erase();
     }
-
-    llvm::outs() << "=== Merged " << mergedCount
-                 << " duplicate constants ===\n\n";
   }
 };
 

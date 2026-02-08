@@ -19,7 +19,7 @@ mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
     return convertPointerType(builder, pointerType);
   }
 
-  llvm::outs() << "Unsupported type: " << type.getAsString();
+  llvm::errs() << "Unsupported type: " << type.getAsString();
   return nullptr;
 }
 
