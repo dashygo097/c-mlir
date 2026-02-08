@@ -1,3 +1,4 @@
+#include "../../ArgumentList.h"
 #include "../ASTVisitor.h"
 #include "./Types.h"
 
@@ -10,8 +11,7 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
 
   mlir::Value lvalue = generateExpr(expr, /*needLValue=*/true);
   if (!lvalue) {
-    llvm::outs()
-        << "        ERROR: Cannot get lvalue for increment/decrement\n";
+    llvm::errs() << "Cannot get lvalue for increment/decrement\n";
     return nullptr;
   }
 
@@ -37,19 +37,21 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
         mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
                                         builder.getFloatAttr(type, 1.0));
   } else {
-    llvm::outs() << "        ERROR: Unsupported type for increment/decrement\n";
+    llvm::errs() << "Unsupported type for increment/decrement\n";
     return nullptr;
   }
 
   mlir::Value newValue;
   if (mlir::isa<mlir::IntegerType>(type)) {
     if (isIncrement) {
-      llvm::outs() << "        -> arith.addi\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.addi\n";
       newValue = mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(),
                                              oldValue, one)
                      .getResult();
     } else {
-      llvm::outs() << "        -> arith.subi\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.subi\n";
       newValue = mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
 
                                              oldValue, one)
@@ -57,12 +59,14 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
     }
   } else {
     if (isIncrement) {
-      llvm::outs() << "        -> arith.addf\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.addf\n";
       newValue = mlir::arith::AddFOp::create(builder, builder.getUnknownLoc(),
                                              oldValue, one)
                      .getResult();
     } else {
-      llvm::outs() << "        -> arith.subf\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.subf\n";
       newValue = mlir::arith::SubFOp::create(builder, builder.getUnknownLoc(),
                                              oldValue, one)
                      .getResult();
@@ -83,18 +87,22 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
   }
 
   if (isPrefix) {
-    llvm::outs() << "        -> returning new value\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> returning new value\n";
     return newValue;
   } else {
-    llvm::outs() << "        -> returning old value\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> returning old value\n";
     return oldValue;
   }
 }
 
 mlir::Value
 CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
-  llvm::outs() << "      Unary operator: "
-               << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) << "\n";
+  if (options::Verbose)
+    llvm::outs() << "      Unary operator: "
+                 << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
+                 << "\n";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
   clang::Expr *subExpr = unOp->getSubExpr();
@@ -102,11 +110,13 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   switch (unOp->getOpcode()) {
 
   case clang::UO_Plus:
-    llvm::outs() << "        -> unary plus (identity)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> unary plus (identity)\n";
     return generateExpr(subExpr);
 
   case clang::UO_Minus: {
-    llvm::outs() << "        -> unary minus (negation)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> unary minus (negation)\n";
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
@@ -117,46 +127,54 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
       mlir::Value zero = mlir::arith::ConstantOp::create(
           builder, builder.getUnknownLoc(), type,
           builder.getIntegerAttr(type, 0));
-      llvm::outs() << "        -> arith.subi(0, x)\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.subi(0, x)\n";
       return mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(), zero,
                                          operand)
           .getResult();
     } else if (mlir::isa<mlir::FloatType>(type)) {
-      llvm::outs() << "        -> arith.negf\n";
+      if (options::Verbose)
+        llvm::outs() << "        -> arith.negf\n";
       return mlir::arith::NegFOp::create(builder, builder.getUnknownLoc(),
                                          operand);
     }
 
-    llvm::outs() << "        ERROR: Unsupported type for negation\n";
+    if (options::Verbose)
+      llvm::outs() << "        ERROR: Unsupported type for negation\n";
     return nullptr;
   }
 
   case clang::UO_PreInc: {
-    llvm::outs() << "        -> pre-increment (++i)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> pre-increment (++i)\n";
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/true);
   }
 
   case clang::UO_PostInc: {
-    llvm::outs() << "        -> post-increment (i++)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> post-increment (i++)\n";
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/false);
   }
 
   case clang::UO_PreDec: {
-    llvm::outs() << "        -> pre-decrement (--i)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> pre-decrement (--i)\n";
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/true);
   }
 
   case clang::UO_PostDec: {
-    llvm::outs() << "        -> post-decrement (i--)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> post-decrement (i--)\n";
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/false);
   }
 
   case clang::UO_LNot: {
-    llvm::outs() << "        -> logical not (!x)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> logical not (!x)\n";
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
@@ -185,7 +203,8 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 
   case clang::UO_Not: {
-    llvm::outs() << "        -> bitwise not (~x)\n";
+    if (options::Verbose)
+      llvm::outs() << "        -> bitwise not (~x)\n";
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
@@ -200,12 +219,13 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
           .getResult();
     }
 
-    llvm::outs() << "        ERROR: Bitwise not requires integer type\n";
+    if (options::Verbose)
+      llvm::errs() << "Bitwise not requires integer type\n";
     return nullptr;
   }
 
   default:
-    llvm::outs() << "        Unsupported unary operator: "
+    llvm::errs() << "Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
                  << "\n";
     return nullptr;

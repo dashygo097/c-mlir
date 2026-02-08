@@ -1,3 +1,4 @@
+#include "../../ArgumentList.h"
 #include "../ASTVisitor.h"
 #include "./Types.h"
 
@@ -5,31 +6,34 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
-  llvm::outs() << "      Binary operator: " << binOp->getOpcodeStr().str()
-               << "\n";
+  if (options::Verbose)
+    llvm::outs() << "      Binary operator: " << binOp->getOpcodeStr().str()
+                 << "\n";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   if (binOp->isAssignmentOp()) {
-    llvm::outs() << "        Assignment operation\n";
+    if (options::Verbose)
+      llvm::outs() << "        Assignment operation\n";
 
     clang::Expr *lhs = binOp->getLHS();
     clang::Expr *rhs = binOp->getRHS();
 
     mlir::Value rhsValue = generateExpr(rhs);
     if (!rhsValue) {
-      llvm::outs() << "        ERROR: Failed to generate RHS\n";
+      llvm::outs() << "  Failed to generate RHS\n";
       return nullptr;
     }
 
     if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(lhs)) {
-      llvm::outs() << "        Assigning to array element\n";
+      if (options::Verbose)
+        llvm::outs() << "        Assigning to array element\n";
 
       mlir::Value base = generateExpr(arraySubscript->getBase(), true);
       mlir::Value idx = generateExpr(arraySubscript->getIdx());
 
       if (!base || !idx) {
-        llvm::outs() << "        ERROR: Failed to get base or index\n";
+        llvm::errs() << "Failed to get base or index\n";
         return nullptr;
       }
 
@@ -40,14 +44,16 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
                                     base,
                                     mlir::ValueRange{indexValue.getResult()});
 
-      llvm::outs() << "        Array assignment complete\n";
+      if (options::Verbose)
+        llvm::outs() << "        Array assignment complete\n";
       return rhsValue;
 
     } else {
-      llvm::outs() << "        Assigning to variable\n";
+      if (options::Verbose)
+        llvm::outs() << "        Assigning to variable\n";
       mlir::Value lhsMemref = generateExpr(lhs, true);
       if (!lhsMemref) {
-        llvm::outs() << "        ERROR: Failed to generate LHS\n";
+        llvm::errs() << "Failed to generate LHS\n";
         return nullptr;
       }
 
@@ -62,7 +68,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   mlir::Value rhs = generateExpr(binOp->getRHS());
 
   if (!lhs || !rhs) {
-    llvm::outs() << "        ERROR: Failed to generate LHS or RHS\n";
+    llvm::errs() << "Failed to generate LHS or RHS\n";
     return nullptr;
   }
 
@@ -100,7 +106,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     REGISTER_BIN_FOP(DivF)
     break;
   default:
-    llvm::outs() << "Unsupported binary operator: "
+    llvm::errs() << "Unsupported binary operator: "
                  << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
                  << "\n";
   }
@@ -112,30 +118,32 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 }
 
 mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
-  llvm::outs() << "      Call expression\n";
+  if (options::Verbose)
+    llvm::outs() << "      Call expression\n";
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   const clang::FunctionDecl *calleeDecl = callExpr->getDirectCallee();
   if (!calleeDecl) {
-    llvm::outs() << "        ERROR: Indirect calls not supported yet\n";
+    llvm::errs() << "Indirect calls not supported yet\n";
     return nullptr;
   }
 
   std::string calleeName = calleeDecl->getNameAsString();
-  llvm::outs() << "        Calling function: " << calleeName << "\n";
+  if (options::Verbose)
+    llvm::outs() << "        Calling function: " << calleeName << "\n";
 
   llvm::SmallVector<mlir::Value, 4> argValues;
   for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
     clang::Expr *argExpr = callExpr->getArg(i);
     mlir::Value argValue = generateExpr(argExpr);
     if (!argValue) {
-      llvm::outs() << "        ERROR: Failed to generate argument " << i
-                   << "\n";
+      llvm::errs() << "Failed to generate argument " << i << "\n";
       return nullptr;
     }
     argValues.push_back(argValue);
-    llvm::outs() << "        Argument " << i << " generated\n";
+    if (options::Verbose)
+      llvm::outs() << "        Argument " << i << " generated\n";
   }
 
   clang::QualType returnType = calleeDecl->getReturnType();
@@ -151,11 +159,13 @@ mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
       mlir::TypeRange{returnTypes}, mlir::ValueRange{argValues});
 
   if (callOp.getNumResults() > 0) {
-    llvm::outs() << "        Call with return value\n";
+    if (options::Verbose)
+      llvm::outs() << "        Call with return value\n";
     return callOp.getResult(0);
   }
 
-  llvm::outs() << "        Call (void)\n";
+  if (options::Verbose)
+    llvm::outs() << "        Call (void)\n";
   return nullptr;
 }
 } // namespace cmlirc
