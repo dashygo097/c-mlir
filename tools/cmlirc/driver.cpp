@@ -15,6 +15,11 @@ llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                             llvm::cl::desc("Enable verbose"),
                             llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<std::string>
+    FunctionName("function", llvm::cl::init(""),
+                 llvm::cl::desc("Name of the function to compile"),
+                 llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> MergeConstants(
     "merge-consts", llvm::cl::init(true),
     llvm::cl::desc("Merge constant operations in the generated MLIR"),
