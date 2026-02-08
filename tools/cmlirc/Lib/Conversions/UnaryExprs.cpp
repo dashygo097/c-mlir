@@ -2,7 +2,6 @@
 #include "./Types.h"
 
 namespace cmlirc {
-
 mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
                                                          bool isIncrement,
                                                          bool isPrefix) {
@@ -19,19 +18,7 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
   mlir::Value oldValue;
 
   if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
-    mlir::Value base = generateExpr(arraySubscript->getBase(), true);
-    mlir::Value idx = generateExpr(arraySubscript->getIdx());
-
-    auto indexValue = mlir::arith::IndexCastOp::create(
-        builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
-
-    oldValue =
-        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), base,
-                                     mlir::ValueRange{indexValue.getResult()})
-            .getResult();
-
-    lvalue = base;
-
+    oldValue = generateArraySubscriptExpr(arraySubscript, /*needLValue=*/false);
   } else {
     oldValue =
         mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), lvalue)

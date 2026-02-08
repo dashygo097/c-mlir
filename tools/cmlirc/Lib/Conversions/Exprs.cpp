@@ -122,20 +122,16 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
-  clang::Expr *baseExpr = expr->getBase();
-  mlir::Value base = generateExpr(baseExpr, true);
-
-  clang::Expr *idxExpr = expr->getIdx();
-  mlir::Value idx = generateExpr(idxExpr);
+  mlir::Value base = generateExpr(expr->getBase(), true);
+  mlir::Value idx = generateExpr(expr->getIdx());
 
   if (!base || !idx) {
     llvm::outs() << "\n        ERROR: Failed to generate base or index\n";
     return nullptr;
   }
 
-  auto indexType = builder.getIndexType();
   auto indexValue = mlir::arith::IndexCastOp::create(
-      builder, builder.getUnknownLoc(), indexType, idx);
+      builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
 
   if (needLValue) {
     llvm::outs() << " (lvalue)\n";
