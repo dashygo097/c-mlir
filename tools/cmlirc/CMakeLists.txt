@@ -4,6 +4,8 @@ add_clang_executable(cmlirc
   Lib/Conversions/BinaryExprs.cpp
   Lib/Conversions/Exprs.cpp
 
+  Lib/Pragmas/PragmaHandler.cpp
+
   Lib/ContextManager.cpp
   Lib/ASTVisitor.cpp
 
