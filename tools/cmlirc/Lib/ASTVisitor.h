@@ -34,6 +34,7 @@ private:
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr, bool needLValue = false);
 
+  mlir::Value generateBoolLiteral(clang::CXXBoolLiteralExpr *boolLit);
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
