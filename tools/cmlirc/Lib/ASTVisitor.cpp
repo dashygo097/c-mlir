@@ -57,21 +57,6 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   return true;
 }
 
-bool CMLIRCASTVisitor::TraverseStmt(clang::Stmt *stmt) {
-  if (!stmt || !currentFunc) {
-    return RecursiveASTVisitor::TraverseStmt(stmt);
-  }
-
-  if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
-    if (hasSideEffects(expr)) {
-      generateExpr(expr);
-      return true;
-    }
-  }
-
-  return RecursiveASTVisitor::TraverseStmt(stmt);
-}
-
 bool CMLIRCASTVisitor::TraverseVarDecl(VarDecl *decl) {
   if (decl->isImplicit()) {
     return true;
@@ -121,6 +106,21 @@ bool CMLIRCASTVisitor::TraverseVarDecl(VarDecl *decl) {
   }
 
   return true;
+}
+
+bool CMLIRCASTVisitor::TraverseStmt(clang::Stmt *stmt) {
+  if (!stmt || !currentFunc) {
+    return RecursiveASTVisitor::TraverseStmt(stmt);
+  }
+
+  if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
+    if (hasSideEffects(expr)) {
+      generateExpr(expr);
+      return true;
+    }
+  }
+
+  return RecursiveASTVisitor::TraverseStmt(stmt);
 }
 
 bool CMLIRCASTVisitor::TraverseReturnStmt(clang::ReturnStmt *stmt) {
