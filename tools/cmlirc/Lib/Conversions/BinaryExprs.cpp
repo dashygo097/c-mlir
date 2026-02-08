@@ -1,6 +1,8 @@
 #include "../../ArgumentList.h"
 #include "../ASTVisitor.h"
 #include "./Types.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
 
@@ -76,37 +78,47 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   }
 
   switch (binOp->getOpcode()) {
-  case clang::BO_Add:
+  case clang::BO_Add: {
     REGISTER_BIN_IOP(AddI)
     REGISTER_BIN_FOP(AddF)
     break;
-  case clang::BO_Sub:
+  }
+  case clang::BO_Sub: {
     REGISTER_BIN_IOP(SubI)
     REGISTER_BIN_FOP(SubF)
     break;
-  case clang::BO_Mul:
+  }
+  case clang::BO_Mul: {
     REGISTER_BIN_IOP(MulI)
     REGISTER_BIN_FOP(MulF)
     break;
-  case clang::BO_Div:
+  }
+  case clang::BO_Div: {
     REGISTER_BIN_IOP(DivSI)
     REGISTER_BIN_FOP(DivF)
     break;
-  case clang::BO_And:
+  }
+  case clang::BO_And: {
     REGISTER_BIN_IOP(AndI)
     break;
-  case clang::BO_Or:
+  }
+  case clang::BO_Or: {
     REGISTER_BIN_IOP(OrI)
     break;
-  case clang::BO_Xor:
+  }
+  case clang::BO_Xor: {
     REGISTER_BIN_IOP(XOrI)
     break;
-  case clang::BO_Shl:
+  }
+  case clang::BO_Shl: {
     REGISTER_BIN_IOP(ShLI)
     break;
-  case clang::BO_Shr:
+  }
+  case clang::BO_Shr: {
     REGISTER_BIN_IOP(ShRSI)
     break;
+  }
+
   default:
     llvm::errs() << "Unsupported binary operator: "
                  << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
