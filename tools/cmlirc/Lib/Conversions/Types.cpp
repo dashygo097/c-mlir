@@ -6,7 +6,6 @@ namespace cmlirc {
 
 mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
   type = type.getCanonicalType();
-
   const clang::Type *typePtr = type.getTypePtr();
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
@@ -65,15 +64,26 @@ mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
 
 mlir::Type convertArrayType(mlir::OpBuilder &builder,
                             const clang::ArrayType *type) {
-  clang::QualType elementQualType = type->getElementType();
-  mlir::Type elementType = convertType(builder, elementQualType);
 
-  if (auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(type)) {
-    int64_t size = constArrayType->getSize().getSExtValue();
-    return mlir::MemRefType::get({size}, elementType);
+  llvm::SmallVector<int64_t, 4> dimensions;
+  clang::QualType currentType = clang::QualType(type, 0);
+
+  while (auto *arrayType =
+             llvm::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
+    if (auto *constArrayType =
+            llvm::dyn_cast<clang::ConstantArrayType>(arrayType)) {
+      int64_t size = constArrayType->getSize().getSExtValue();
+      dimensions.push_back(size);
+      currentType = constArrayType->getElementType();
+    } else {
+      dimensions.push_back(-1);
+      currentType = arrayType->getElementType();
+    }
   }
 
-  return mlir::UnrankedMemRefType::get(elementType, 0);
+  mlir::Type elementType = convertType(builder, currentType);
+
+  return mlir::MemRefType::get(dimensions, elementType);
 }
 
 mlir::Type convertPointerType(mlir::OpBuilder &builder,
