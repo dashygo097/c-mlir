@@ -13,8 +13,8 @@ public:
   ~CMLIRCASTVisitor() = default;
 
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
-  bool TraverseStmt(clang::Stmt *stmt);
   bool TraverseVarDecl(clang::VarDecl *decl);
+  bool TraverseStmt(clang::Stmt *stmt);
   bool TraverseReturnStmt(clang::ReturnStmt *retStmt);
 
   ContextManager &context_manager_;
@@ -43,6 +43,10 @@ private:
   mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
                                          bool isPrefix);
 
+  mlir::Value generateComparisonOperator(clang::BinaryOperator *binOp);
+  mlir::Value generateLogicalAnd(clang::BinaryOperator *binOp);
+  mlir::Value generateLogicalOr(clang::BinaryOperator *binOp);
+  mlir::Value convertToBool(mlir::Value value);
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 

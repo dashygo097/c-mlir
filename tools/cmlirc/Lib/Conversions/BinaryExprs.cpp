@@ -1,7 +1,7 @@
 #include "../../ArgumentList.h"
 #include "../ASTVisitor.h"
 #include "./Types.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
@@ -52,6 +52,16 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     }
   }
 
+  if (binOp->isComparisonOp()) {
+    return generateComparisonOperator(binOp);
+  }
+  if (binOp->getOpcode() == clang::BO_LAnd) {
+    return generateLogicalAnd(binOp);
+  }
+  if (binOp->getOpcode() == clang::BO_LOr) {
+    return generateLogicalOr(binOp);
+  }
+
   mlir::Value lhs = generateExpr(binOp->getLHS());
   mlir::Value rhs = generateExpr(binOp->getRHS());
 
@@ -98,6 +108,10 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     REGISTER_BIN_FOP(DivF)
     break;
   }
+  case clang::BO_Rem: {
+    REGISTER_BIN_IOP(RemSI)
+    break;
+  }
   case clang::BO_And: {
     REGISTER_BIN_IOP(AndI)
     break;
@@ -128,6 +142,183 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 #undef REGISTER_BIN_IOP
 #undef REGISTER_BIN_FOP
 
+  return nullptr;
+}
+
+mlir::Value
+CMLIRCASTVisitor::generateComparisonOperator(clang::BinaryOperator *binOp) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  mlir::Value lhs = generateExpr(binOp->getLHS());
+  mlir::Value rhs = generateExpr(binOp->getRHS());
+
+  if (!lhs || !rhs) {
+    llvm::errs() << "Failed to generate LHS or RHS for comparison\n";
+    return nullptr;
+  }
+
+  mlir::Type type = lhs.getType();
+
+  if (mlir::isa<mlir::IntegerType>(type)) {
+    mlir::arith::CmpIPredicate pred;
+
+    switch (binOp->getOpcode()) {
+    case clang::BO_LT:
+      pred = mlir::arith::CmpIPredicate::slt; // signed less than
+      break;
+    case clang::BO_LE:
+      pred = mlir::arith::CmpIPredicate::sle; // signed less or equal
+      break;
+    case clang::BO_GT:
+      pred = mlir::arith::CmpIPredicate::sgt; // signed greater than
+      break;
+    case clang::BO_GE:
+      pred = mlir::arith::CmpIPredicate::sge; // signed greater or equal
+      break;
+    case clang::BO_EQ:
+      pred = mlir::arith::CmpIPredicate::eq; // equal
+      break;
+    case clang::BO_NE:
+      pred = mlir::arith::CmpIPredicate::ne; // not equal
+      break;
+    default:
+      llvm::errs() << "Unsupported integer comparison\n";
+      return nullptr;
+    }
+
+    return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(), pred,
+                                       lhs, rhs)
+        .getResult();
+  }
+
+  if (mlir::isa<mlir::FloatType>(type)) {
+    mlir::arith::CmpFPredicate pred;
+
+    switch (binOp->getOpcode()) {
+    case clang::BO_LT:
+      pred = mlir::arith::CmpFPredicate::OLT; // Ordered Less Than
+      break;
+    case clang::BO_LE:
+      pred = mlir::arith::CmpFPredicate::OLE; // Ordered Less or Equal
+      break;
+    case clang::BO_GT:
+      pred = mlir::arith::CmpFPredicate::OGT; // Ordered Greater Than
+      break;
+    case clang::BO_GE:
+      pred = mlir::arith::CmpFPredicate::OGE; // Ordered Greater or Equal
+      break;
+    case clang::BO_EQ:
+      pred = mlir::arith::CmpFPredicate::OEQ; // Ordered Equal
+      break;
+    case clang::BO_NE:
+      pred = mlir::arith::CmpFPredicate::ONE; // Ordered Not Equal
+      break;
+    default:
+      llvm::errs() << "Unsupported float comparison\n";
+      return nullptr;
+    }
+
+    return mlir::arith::CmpFOp::create(builder, builder.getUnknownLoc(), pred,
+                                       lhs, rhs)
+        .getResult();
+  }
+
+  llvm::errs() << "Unsupported comparison type\n";
+  return nullptr;
+}
+
+mlir::Value CMLIRCASTVisitor::generateLogicalAnd(clang::BinaryOperator *binOp) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  mlir::Value lhs = generateExpr(binOp->getLHS());
+  if (!lhs)
+    return nullptr;
+
+  mlir::Value lhsCond = convertToBool(lhs);
+
+  auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+                                      /*resultTypes=*/builder.getI1Type(),
+                                      /*cond=*/lhsCond,
+                                      /*withElseRegion=*/true);
+
+  builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+  mlir::Value rhs = generateExpr(binOp->getRHS());
+  if (!rhs)
+    return nullptr;
+  mlir::Value rhsCond = convertToBool(rhs);
+  mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), rhsCond);
+
+  builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
+  mlir::Value falseBool = mlir::arith::ConstantOp::create(
+      builder, builder.getUnknownLoc(), builder.getI1Type(),
+      builder.getBoolAttr(false));
+  mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), falseBool);
+
+  builder.setInsertionPointAfter(ifOp);
+  return ifOp.getResult(0);
+}
+
+mlir::Value CMLIRCASTVisitor::generateLogicalOr(clang::BinaryOperator *binOp) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  mlir::Value lhs = generateExpr(binOp->getLHS());
+  if (!lhs)
+    return nullptr;
+
+  mlir::Value lhsCond = convertToBool(lhs);
+
+  auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+                                      /*resultTypes=*/builder.getI1Type(),
+                                      /*cond=*/lhsCond,
+                                      /*withElseRegion=*/true);
+
+  builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+  mlir::Value trueBool = mlir::arith::ConstantOp::create(
+      builder, builder.getUnknownLoc(), builder.getI1Type(),
+      builder.getBoolAttr(true));
+  mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), trueBool);
+
+  builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
+  mlir::Value rhs = generateExpr(binOp->getRHS());
+  if (!rhs)
+    return nullptr;
+  mlir::Value rhsCond = convertToBool(rhs);
+  mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), rhsCond);
+
+  builder.setInsertionPointAfter(ifOp);
+  return ifOp.getResult(0);
+}
+
+mlir::Value CMLIRCASTVisitor::convertToBool(mlir::Value value) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Type type = value.getType();
+
+  if (type.isInteger(1)) {
+    return value;
+  }
+
+  if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getIntegerAttr(type, 0));
+    return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(),
+                                       mlir::arith::CmpIPredicate::ne, value,
+                                       zero)
+        .getResult();
+  }
+
+  if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getFloatAttr(type, 0.0));
+    return mlir::arith::CmpFOp::create(
+               builder, builder.getUnknownLoc(),
+               mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
+               value, zero)
+        .getResult();
+  }
+
+  llvm::errs() << "Cannot convert type to bool\n";
   return nullptr;
 }
 
@@ -171,4 +362,5 @@ mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
 
   return nullptr;
 }
+
 } // namespace cmlirc

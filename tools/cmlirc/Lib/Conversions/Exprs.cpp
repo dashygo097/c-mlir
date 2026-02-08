@@ -10,6 +10,9 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
 
   expr = expr->IgnoreImpCasts();
 
+  if (auto parenExpr = llvm::dyn_cast<clang::ParenExpr>(expr)) {
+    return generateExpr(parenExpr->getSubExpr(), needLValue);
+  }
   if (auto *boolLit = llvm::dyn_cast<clang::CXXBoolLiteralExpr>(expr)) {
     return generateBoolLiteral(boolLit);
   }
