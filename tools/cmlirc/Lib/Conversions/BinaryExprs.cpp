@@ -20,26 +20,31 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       return nullptr;
     }
 
-    if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(lhs)) {
-      mlir::Value base = generateExpr(arraySubscript->getBase(), true);
-      mlir::Value idx = generateExpr(arraySubscript->getIdx());
-
-      if (!base || !idx) {
-        llvm::errs() << "Failed to get base or index\n";
+    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
+      mlir::Value lhsBase = generateExpr(lhs, /*needLValue=*/true);
+      if (!lhsBase) {
+        llvm::errs() << "Failed to generate LHS\n";
         return nullptr;
       }
 
-      auto indexValue = mlir::arith::IndexCastOp::create(
-          builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
+      if (!lastArrayAccess_) {
+        llvm::errs() << "Error: Array access info not saved\n";
+        return nullptr;
+      }
 
       mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
-                                    base,
-                                    mlir::ValueRange{indexValue.getResult()});
+                                    lastArrayAccess_->base,
+                                    lastArrayAccess_->indices);
+
+      lastArrayAccess_.reset();
+
+      if (options::Verbose)
+        llvm::outs() << "        Array assignment complete\n";
 
       return rhsValue;
 
     } else {
-      mlir::Value lhsMemref = generateExpr(lhs, true);
+      mlir::Value lhsMemref = generateExpr(lhs, /*needLValue=*/true);
       if (!lhsMemref) {
         llvm::errs() << "Failed to generate LHS\n";
         return nullptr;

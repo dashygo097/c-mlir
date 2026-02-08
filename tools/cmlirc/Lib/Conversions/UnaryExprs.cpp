@@ -3,86 +3,6 @@
 #include "./Types.h"
 
 namespace cmlirc {
-mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
-                                                         bool isIncrement,
-                                                         bool isPrefix) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
-
-  mlir::Value lvalue = generateExpr(expr, /*needLValue=*/true);
-  if (!lvalue) {
-    llvm::errs() << "Cannot get lvalue for increment/decrement\n";
-    return nullptr;
-  }
-
-  mlir::Value oldValue;
-
-  if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
-    oldValue = generateArraySubscriptExpr(arraySubscript, /*needLValue=*/false);
-  } else {
-    oldValue =
-        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), lvalue)
-            .getResult();
-  }
-
-  mlir::Type type = oldValue.getType();
-
-  mlir::Value one;
-  if (mlir::isa<mlir::IntegerType>(type)) {
-    one =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getIntegerAttr(type, 1));
-  } else if (mlir::isa<mlir::FloatType>(type)) {
-    one =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getFloatAttr(type, 1.0));
-  } else {
-    llvm::errs() << "Unsupported type for increment/decrement\n";
-    return nullptr;
-  }
-
-  mlir::Value newValue;
-  if (mlir::isa<mlir::IntegerType>(type)) {
-    if (isIncrement) {
-      newValue = mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    } else {
-      newValue = mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    }
-  } else {
-    if (isIncrement) {
-      newValue = mlir::arith::AddFOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    } else {
-      newValue = mlir::arith::SubFOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    }
-  }
-
-  if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
-    mlir::Value idx = generateExpr(arraySubscript->getIdx());
-    auto indexValue = mlir::arith::IndexCastOp::create(
-        builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
-
-    mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
-                                  lvalue,
-                                  mlir::ValueRange{indexValue.getResult()});
-  } else {
-    mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
-                                  lvalue, mlir::ValueRange{});
-  }
-
-  if (isPrefix) {
-    return newValue;
-  } else {
-    return oldValue;
-  }
-}
-
 mlir::Value
 CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   mlir::OpBuilder &builder = context_manager_.Builder();
@@ -187,6 +107,91 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
                  << "\n";
     return nullptr;
   }
+}
+
+mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
+                                                         bool isIncrement,
+                                                         bool isPrefix) {
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  mlir::Value lvalue = generateExpr(expr, /*needLValue=*/true);
+  if (!lvalue) {
+    llvm::errs() << "Cannot get lvalue for increment/decrement\n";
+    return nullptr;
+  }
+
+  mlir::Value oldValue;
+
+  if (llvm::isa<clang::ArraySubscriptExpr>(expr)) {
+    if (!lastArrayAccess_) {
+      llvm::errs() << "Error: Array access info not available\n";
+      return nullptr;
+    }
+
+    oldValue = mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
+                                            lastArrayAccess_->base,
+                                            lastArrayAccess_->indices)
+                   .getResult();
+
+  } else {
+    oldValue =
+        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), lvalue)
+            .getResult();
+  }
+
+  mlir::Type type = oldValue.getType();
+
+  mlir::Value one;
+  if (mlir::isa<mlir::IntegerType>(type)) {
+    one =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getIntegerAttr(type, 1));
+  } else if (mlir::isa<mlir::FloatType>(type)) {
+    one =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getFloatAttr(type, 1.0));
+  } else {
+    llvm::errs() << "Unsupported type for increment/decrement\n";
+    return nullptr;
+  }
+
+  mlir::Value newValue;
+  if (mlir::isa<mlir::IntegerType>(type)) {
+    if (isIncrement) {
+      newValue = mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(),
+                                             oldValue, one)
+                     .getResult();
+    } else {
+      newValue = mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
+                                             oldValue, one)
+                     .getResult();
+    }
+  } else {
+    if (isIncrement) {
+      newValue = mlir::arith::AddFOp::create(builder, builder.getUnknownLoc(),
+                                             oldValue, one)
+                     .getResult();
+    } else {
+      newValue = mlir::arith::SubFOp::create(builder, builder.getUnknownLoc(),
+                                             oldValue, one)
+                     .getResult();
+    }
+  }
+
+  if (llvm::isa<clang::ArraySubscriptExpr>(expr)) {
+    if (lastArrayAccess_) {
+      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
+                                    lastArrayAccess_->base,
+                                    lastArrayAccess_->indices);
+      lastArrayAccess_.reset();
+    }
+  } else {
+    mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
+                                  lvalue, mlir::ValueRange{});
+  }
+
+  return isPrefix ? newValue : oldValue;
 }
 
 } // namespace cmlirc
