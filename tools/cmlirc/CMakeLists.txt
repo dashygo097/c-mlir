@@ -23,10 +23,11 @@ target_link_libraries(cmlirc PRIVATE
   MLIRFuncDialect
   MLIRMemRefDialect
   MLIRSCFDialect 
+  MLIRTransforms
 
   # Clang Libraries
   clangSupport
   clangTooling
 )
 
-add_dependencies(cmlirc MLIRCMLIROpsIncGen)
+add_dependencies(cmlirc MLIRCMLIROpsIncGen MLIRCMLIRTransformsIncGen)

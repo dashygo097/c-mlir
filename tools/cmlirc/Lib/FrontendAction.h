@@ -2,7 +2,13 @@
 #define CMLIRC_FRONTEND_ACTION_H
 
 #include "./ASTConsumer.h"
+#include "cmlir/Transforms/Passes.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Tooling/Tooling.h"
 
 namespace cmlirc {
 
@@ -20,6 +26,15 @@ public:
 
   void EndSourceFileAction() override {
     llvm::outs() << "\nGenerated MLIR: \n";
+
+    mlir::PassManager pm(&context_manager_->MLIRContext());
+    mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
+    funcPM.addPass(cmlir::createConstantMergePass());
+
+    if (mlir::failed(pm.run(context_manager_->Module()))) {
+      llvm::errs() << "Failed to run optimization passes\n";
+    }
+
     context_manager_->dump();
     llvm::outs() << "\n";
   }
