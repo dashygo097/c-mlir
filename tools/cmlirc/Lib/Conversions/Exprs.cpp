@@ -10,6 +10,9 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
 
   expr = expr->IgnoreImpCasts();
 
+  if (auto *boolLit = llvm::dyn_cast<clang::CXXBoolLiteralExpr>(expr)) {
+    return generateBoolLiteral(boolLit);
+  }
   if (auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(expr)) {
     return generateIntegerLiteral(intLit);
   }
@@ -35,6 +38,23 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
   llvm::outs() << "Unsupported expression conversion for expr: "
                << expr->getStmtClassName() << "\n";
   return nullptr;
+}
+
+mlir::Value
+CMLIRCASTVisitor::generateBoolLiteral(clang::CXXBoolLiteralExpr *boolLit) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  bool value = boolLit->getValue();
+  mlir::Type type = convertType(builder, boolLit->getType());
+
+  if (options::Verbose)
+    llvm::outs() << "      Boolean literal: " << (value ? "true" : "false")
+                 << "\n";
+
+  return mlir::arith::ConstantOp::create(
+             builder, builder.getUnknownLoc(), type,
+             builder.getIntegerAttr(type, value ? 1 : 0))
+      .getResult();
 }
 
 mlir::Value

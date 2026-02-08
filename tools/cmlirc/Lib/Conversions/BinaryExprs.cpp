@@ -74,6 +74,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 
   mlir::Type resultType = lhs.getType();
 
+  // TODO: signed/unsigned distinction for integer operations
 #define REGISTER_BIN_IOP(op)                                                   \
   if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
     return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
@@ -104,6 +105,21 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   case clang::BO_Div:
     REGISTER_BIN_IOP(DivSI)
     REGISTER_BIN_FOP(DivF)
+    break;
+  case clang::BO_And:
+    REGISTER_BIN_IOP(AndI)
+    break;
+  case clang::BO_Or:
+    REGISTER_BIN_IOP(OrI)
+    break;
+  case clang::BO_Xor:
+    REGISTER_BIN_IOP(XOrI)
+    break;
+  case clang::BO_Shl:
+    REGISTER_BIN_IOP(ShLI)
+    break;
+  case clang::BO_Shr:
+    REGISTER_BIN_IOP(ShRSI)
     break;
   default:
     llvm::errs() << "Unsupported binary operator: "
