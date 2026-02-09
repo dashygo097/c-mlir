@@ -143,40 +143,33 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
   mlir::Type type = oldValue.getType();
 
   mlir::Value one;
+  mlir::Value newValue;
+
   if (mlir::isa<mlir::IntegerType>(type)) {
     one =
         mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
                                         builder.getIntegerAttr(type, 1));
+    newValue = isIncrement
+                   ? mlir::arith::AddIOp::create(
+                         builder, builder.getUnknownLoc(), oldValue, one)
+                         .getResult()
+                   : mlir::arith::SubIOp::create(
+                         builder, builder.getUnknownLoc(), oldValue, one)
+                         .getResult();
   } else if (mlir::isa<mlir::FloatType>(type)) {
     one =
         mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
                                         builder.getFloatAttr(type, 1.0));
+    newValue = isIncrement
+                   ? mlir::arith::AddFOp::create(
+                         builder, builder.getUnknownLoc(), oldValue, one)
+                         .getResult()
+                   : mlir::arith::SubFOp::create(
+                         builder, builder.getUnknownLoc(), oldValue, one)
+                         .getResult();
   } else {
     llvm::errs() << "Unsupported type for increment/decrement\n";
     return nullptr;
-  }
-
-  mlir::Value newValue;
-  if (mlir::isa<mlir::IntegerType>(type)) {
-    if (isIncrement) {
-      newValue = mlir::arith::AddIOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    } else {
-      newValue = mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    }
-  } else {
-    if (isIncrement) {
-      newValue = mlir::arith::AddFOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    } else {
-      newValue = mlir::arith::SubFOp::create(builder, builder.getUnknownLoc(),
-                                             oldValue, one)
-                     .getResult();
-    }
   }
 
   if (llvm::isa<clang::ArraySubscriptExpr>(expr)) {
