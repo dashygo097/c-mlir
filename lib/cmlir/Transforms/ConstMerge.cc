@@ -11,8 +11,6 @@ namespace cmlir {
 #define GEN_PASS_DEF_CONSTANTMERGEPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
-namespace {
-
 struct ConstantKey {
   mlir::Type type;
   mlir::Attribute value;
@@ -21,8 +19,6 @@ struct ConstantKey {
     return type == other.type && value == other.value;
   }
 };
-
-} // namespace
 
 } // namespace cmlir
 
@@ -52,8 +48,6 @@ template <> struct DenseMapInfo<cmlir::ConstantKey> {
 } // namespace llvm
 
 namespace cmlir {
-
-namespace {
 
 struct ConstantMergePass
     : public impl::ConstantMergePassBase<ConstantMergePass> {
@@ -89,8 +83,6 @@ struct ConstantMergePass
     }
   }
 };
-
-} // namespace
 
 std::unique_ptr<mlir::Pass> createConstantMergePass() {
   return std::make_unique<ConstantMergePass>();
