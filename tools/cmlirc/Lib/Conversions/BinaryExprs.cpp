@@ -9,17 +9,17 @@ namespace cmlirc {
 mlir::Value
 CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   // TODO: signed/unsigned distinction for integer operations
-#define REGISTER_BIN_IOP(op)                                                   \
+#define REGISTER_BIN_IOP(op, ...)                                              \
   if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
-    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
-                                       rhs)                                    \
+    return mlir::arith::op::create(builder, builder.getUnknownLoc(),           \
+                                   __VA_ARGS__)                                \
         .getResult();                                                          \
   }
 
-#define REGISTER_BIN_FOP(op)                                                   \
+#define REGISTER_BIN_FOP(op, ...)                                              \
   if (mlir::isa<mlir::FloatType>(resultType)) {                                \
-    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
-                                       rhs)                                    \
+    return mlir::arith::op::create(builder, builder.getUnknownLoc(),           \
+                                   __VA_ARGS__)                                \
         .getResult();                                                          \
   }
 
@@ -54,7 +54,6 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       lastArrayAccess_.reset();
 
       return rhsValue;
-
     } else {
       mlir::Value lhsMemref = generateExpr(lhs, /*needLValue=*/true);
       if (!lhsMemref) {
@@ -69,9 +68,6 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     }
   }
 
-  if (binOp->isComparisonOp()) {
-    return generateComparisonOperator(binOp);
-  }
   if (binOp->getOpcode() == clang::BO_LAnd) {
     return generateLogicalAnd(binOp);
   }
@@ -91,47 +87,77 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 
   switch (binOp->getOpcode()) {
   case clang::BO_Add: {
-    REGISTER_BIN_IOP(AddI)
-    REGISTER_BIN_FOP(AddF)
+    REGISTER_BIN_IOP(AddIOp, lhs, rhs)
+    REGISTER_BIN_FOP(AddFOp, lhs, rhs)
     break;
   }
   case clang::BO_Sub: {
-    REGISTER_BIN_IOP(SubI)
-    REGISTER_BIN_FOP(SubF)
+    REGISTER_BIN_IOP(SubIOp, lhs, rhs)
+    REGISTER_BIN_FOP(SubFOp, lhs, rhs)
     break;
   }
   case clang::BO_Mul: {
-    REGISTER_BIN_IOP(MulI)
-    REGISTER_BIN_FOP(MulF)
+    REGISTER_BIN_IOP(MulIOp, lhs, rhs)
+    REGISTER_BIN_FOP(MulFOp, lhs, rhs)
     break;
   }
   case clang::BO_Div: {
-    REGISTER_BIN_IOP(DivSI)
-    REGISTER_BIN_FOP(DivF)
+    REGISTER_BIN_IOP(DivSIOp, lhs, rhs)
+    REGISTER_BIN_FOP(DivFOp, lhs, rhs)
     break;
   }
   case clang::BO_Rem: {
-    REGISTER_BIN_IOP(RemSI)
+    REGISTER_BIN_IOP(RemSIOp, lhs, rhs)
     break;
   }
   case clang::BO_And: {
-    REGISTER_BIN_IOP(AndI)
+    REGISTER_BIN_IOP(AndIOp, lhs, rhs)
     break;
   }
   case clang::BO_Or: {
-    REGISTER_BIN_IOP(OrI)
+    REGISTER_BIN_IOP(OrIOp, lhs, rhs)
     break;
   }
   case clang::BO_Xor: {
-    REGISTER_BIN_IOP(XOrI)
+    REGISTER_BIN_IOP(XOrIOp, lhs, rhs)
     break;
   }
   case clang::BO_Shl: {
-    REGISTER_BIN_IOP(ShLI)
+    REGISTER_BIN_IOP(ShLIOp, lhs, rhs)
     break;
   }
   case clang::BO_Shr: {
-    REGISTER_BIN_IOP(ShRSI)
+    REGISTER_BIN_IOP(ShRSIOp, lhs, rhs)
+    break;
+  }
+  case clang::BO_LT: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::slt, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::OLT, lhs, rhs)
+    break;
+  }
+  case clang::BO_LE: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::sle, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::OLE, lhs, rhs)
+    break;
+  }
+  case clang::BO_GT: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::sgt, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::OGT, lhs, rhs)
+    break;
+  }
+  case clang::BO_GE: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::sge, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::OGE, lhs, rhs)
+    break;
+  }
+  case clang::BO_EQ: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::eq, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::OEQ, lhs, rhs)
+    break;
+  }
+  case clang::BO_NE: {
+    REGISTER_BIN_IOP(CmpIOp, mlir::arith::CmpIPredicate::ne, lhs, rhs)
+    REGISTER_BIN_FOP(CmpFOp, mlir::arith::CmpFPredicate::ONE, lhs, rhs)
     break;
   }
 
@@ -144,88 +170,6 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
 #undef REGISTER_BIN_IOP
 #undef REGISTER_BIN_FOP
 
-  return nullptr;
-}
-
-mlir::Value
-CMLIRCASTVisitor::generateComparisonOperator(clang::BinaryOperator *binOp) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
-
-  mlir::Value lhs = generateExpr(binOp->getLHS());
-  mlir::Value rhs = generateExpr(binOp->getRHS());
-
-  if (!lhs || !rhs) {
-    llvm::errs() << "Failed to generate LHS or RHS for comparison\n";
-    return nullptr;
-  }
-
-  mlir::Type type = lhs.getType();
-
-  if (mlir::isa<mlir::IntegerType>(type)) {
-    mlir::arith::CmpIPredicate pred;
-
-    switch (binOp->getOpcode()) {
-    case clang::BO_LT:
-      pred = mlir::arith::CmpIPredicate::slt; // signed less than
-      break;
-    case clang::BO_LE:
-      pred = mlir::arith::CmpIPredicate::sle; // signed less or equal
-      break;
-    case clang::BO_GT:
-      pred = mlir::arith::CmpIPredicate::sgt; // signed greater than
-      break;
-    case clang::BO_GE:
-      pred = mlir::arith::CmpIPredicate::sge; // signed greater or equal
-      break;
-    case clang::BO_EQ:
-      pred = mlir::arith::CmpIPredicate::eq; // equal
-      break;
-    case clang::BO_NE:
-      pred = mlir::arith::CmpIPredicate::ne; // not equal
-      break;
-    default:
-      llvm::errs() << "Unsupported integer comparison\n";
-      return nullptr;
-    }
-
-    return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(), pred,
-                                       lhs, rhs)
-        .getResult();
-  }
-
-  if (mlir::isa<mlir::FloatType>(type)) {
-    mlir::arith::CmpFPredicate pred;
-
-    switch (binOp->getOpcode()) {
-    case clang::BO_LT:
-      pred = mlir::arith::CmpFPredicate::OLT; // Ordered Less Than
-      break;
-    case clang::BO_LE:
-      pred = mlir::arith::CmpFPredicate::OLE; // Ordered Less or Equal
-      break;
-    case clang::BO_GT:
-      pred = mlir::arith::CmpFPredicate::OGT; // Ordered Greater Than
-      break;
-    case clang::BO_GE:
-      pred = mlir::arith::CmpFPredicate::OGE; // Ordered Greater or Equal
-      break;
-    case clang::BO_EQ:
-      pred = mlir::arith::CmpFPredicate::OEQ; // Ordered Equal
-      break;
-    case clang::BO_NE:
-      pred = mlir::arith::CmpFPredicate::ONE; // Ordered Not Equal
-      break;
-    default:
-      llvm::errs() << "Unsupported float comparison\n";
-      return nullptr;
-    }
-
-    return mlir::arith::CmpFOp::create(builder, builder.getUnknownLoc(), pred,
-                                       lhs, rhs)
-        .getResult();
-  }
-
-  llvm::errs() << "Unsupported comparison type\n";
   return nullptr;
 }
 
