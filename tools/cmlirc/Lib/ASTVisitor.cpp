@@ -180,37 +180,190 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
   bool hasElse = ifStmt->getElse() != nullptr;
 
   auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
-                                      /*resultTypes=*/mlir::TypeRange{},
-                                      /*cond=*/condBool,
-                                      /*withElseRegion=*/hasElse);
+                                      mlir::TypeRange{}, condBool, hasElse);
 
-  builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+  mlir::Block *thenBlock = &ifOp.getThenRegion().front();
+  builder.setInsertionPointToStart(thenBlock);
 
   TraverseStmt(ifStmt->getThen());
 
-  if (ifOp.getThenRegion().front().empty() ||
-      !ifOp.getThenRegion()
-           .front()
-           .back()
-           .hasTrait<mlir::OpTrait::IsTerminator>()) {
+  builder.setInsertionPointToEnd(thenBlock);
+
+  if (thenBlock->empty() ||
+      !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
     mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
   }
 
   if (hasElse) {
-    builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
+    mlir::Block *elseBlock = &ifOp.getElseRegion().front();
+    builder.setInsertionPointToStart(elseBlock);
 
     TraverseStmt(ifStmt->getElse());
 
-    if (ifOp.getElseRegion().front().empty() ||
-        !ifOp.getElseRegion()
-             .front()
-             .back()
-             .hasTrait<mlir::OpTrait::IsTerminator>()) {
+    builder.setInsertionPointToEnd(elseBlock);
+
+    if (elseBlock->empty() ||
+        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
     }
   }
 
   builder.setInsertionPointAfter(ifOp);
+
+  return true;
+}
+
+bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
+  if (!currentFunc) {
+    return true;
+  }
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  if (forStmt->getInit()) {
+    TraverseStmt(forStmt->getInit());
+  }
+
+  bool isSimpleCountingLoop = false;
+  mlir::Value lowerBound, upperBound, step;
+  const clang::VarDecl *inductionVar = nullptr;
+
+  if (auto *init =
+          llvm::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit())) {
+    if (init->isSingleDecl()) {
+      if (auto *varDecl =
+              llvm::dyn_cast<clang::VarDecl>(init->getSingleDecl())) {
+        if (varDecl->hasInit()) {
+          if (auto *cond = llvm::dyn_cast_or_null<clang::BinaryOperator>(
+                  forStmt->getCond())) {
+            if (cond->getOpcode() == clang::BO_LT ||
+                cond->getOpcode() == clang::BO_LE) {
+              if (auto *inc = llvm::dyn_cast_or_null<clang::UnaryOperator>(
+                      forStmt->getInc())) {
+                if (inc->getOpcode() == clang::UO_PostInc ||
+                    inc->getOpcode() == clang::UO_PreInc) {
+                  isSimpleCountingLoop = true;
+                  inductionVar = varDecl;
+
+                  if (symbolTable.count(varDecl)) {
+                    mlir::Value memref = symbolTable[varDecl];
+                    lowerBound = mlir::memref::LoadOp::create(
+                        builder, builder.getUnknownLoc(), memref);
+                  } else {
+                    lowerBound = generateExpr(varDecl->getInit());
+                  }
+
+                  upperBound = generateExpr(cond->getRHS());
+                  step = mlir::arith::ConstantOp::create(
+                      builder, builder.getUnknownLoc(), builder.getIndexType(),
+                      builder.getIndexAttr(1));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (isSimpleCountingLoop && lowerBound && upperBound && step &&
+      inductionVar) {
+    auto lowerIdx = mlir::arith::IndexCastOp::create(
+        builder, builder.getUnknownLoc(), builder.getIndexType(), lowerBound);
+    auto upperIdx = mlir::arith::IndexCastOp::create(
+        builder, builder.getUnknownLoc(), builder.getIndexType(), upperBound);
+
+    auto forOp = mlir::scf::ForOp::create(builder, builder.getUnknownLoc(),
+                                          lowerIdx, upperIdx, step);
+
+    builder.setInsertionPointToStart(forOp.getBody());
+
+    mlir::Value inductionValue = forOp.getInductionVar();
+
+    mlir::Type origType = convertType(builder, inductionVar->getType());
+    if (!origType.isIndex()) {
+      inductionValue = mlir::arith::IndexCastOp::create(
+          builder, builder.getUnknownLoc(), origType, inductionValue);
+    }
+
+    if (symbolTable.count(inductionVar)) {
+      mlir::Value memref = symbolTable[inductionVar];
+      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(),
+                                    inductionValue, memref);
+    }
+
+    loopStack_.push_back({forOp.getBody(), nullptr});
+    TraverseStmt(forStmt->getBody());
+    loopStack_.pop_back();
+
+    mlir::Block *bodyBlock = forOp.getBody();
+    mlir::Block::iterator it = bodyBlock->end();
+    bool needsYield = true;
+
+    if (!bodyBlock->empty()) {
+      --it;
+      if (it->hasTrait<mlir::OpTrait::IsTerminator>()) {
+        needsYield = false;
+      }
+    }
+
+    if (needsYield) {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    }
+
+    builder.setInsertionPointAfter(forOp);
+
+  } else {
+    auto whileOp =
+        mlir::scf::WhileOp::create(builder, builder.getUnknownLoc(),
+                                   mlir::TypeRange{}, mlir::ValueRange{});
+
+    mlir::Block *beforeBlock = &whileOp.getBefore().front();
+    builder.setInsertionPointToStart(beforeBlock);
+
+    mlir::Value condition;
+    if (forStmt->getCond()) {
+      condition = generateExpr(forStmt->getCond());
+      condition = convertToBool(condition);
+    } else {
+      condition = mlir::arith::ConstantOp::create(
+          builder, builder.getUnknownLoc(), builder.getI1Type(),
+          builder.getBoolAttr(true));
+    }
+
+    mlir::scf::ConditionOp::create(builder, builder.getUnknownLoc(), condition,
+                                   mlir::ValueRange{});
+
+    mlir::Block *afterBlock = &whileOp.getAfter().front();
+    builder.setInsertionPointToStart(afterBlock);
+
+    loopStack_.push_back({beforeBlock, afterBlock});
+
+    TraverseStmt(forStmt->getBody());
+
+    if (forStmt->getInc()) {
+      generateExpr(forStmt->getInc());
+    }
+
+    loopStack_.pop_back();
+
+    mlir::Block::iterator it = afterBlock->end();
+    bool needsYield = true;
+
+    if (!afterBlock->empty()) {
+      --it;
+      if (it->hasTrait<mlir::OpTrait::IsTerminator>()) {
+        needsYield = false;
+      }
+    }
+
+    if (needsYield) {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
+                                 mlir::ValueRange{});
+    }
+
+    builder.setInsertionPointAfter(whileOp);
+  }
 
   return true;
 }

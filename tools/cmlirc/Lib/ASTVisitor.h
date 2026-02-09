@@ -23,7 +23,7 @@ public:
   bool TraverseIfStmt(clang::IfStmt *ifStmt);
   // bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
   // bool TraverseDoStmt(clang::DoStmt *doStmt);
-  // bool TraverseForStmt(clang::ForStmt *forStmt);
+  bool TraverseForStmt(clang::ForStmt *forStmt);
   // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
@@ -41,6 +41,12 @@ private:
     llvm::SmallVector<mlir::Value, 4> indices;
   };
   std::optional<ArrayAccessInfo> lastArrayAccess_;
+
+  struct LoopContext {
+    mlir::Block *headerBlock;
+    mlir::Block *exitBlock;
+  };
+  llvm::SmallVector<LoopContext, 4> loopStack_;
 
   // helpers
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
