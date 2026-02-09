@@ -3,8 +3,8 @@
 
 #include "../ArgumentList.h"
 #include "./ASTConsumer.h"
-#include "cmlir/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
@@ -28,10 +28,28 @@ public:
       llvm::outs() << "\nGenerated MLIR: \n";
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
-    mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
+    // mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
 
-    if (options::MergeConstants)
-      funcPM.addPass(cmlir::createConstantMergePass());
+    if (options::FuncInline)
+      pm.addPass(mlir::createInlinerPass());
+
+    if (options::SSCP)
+      pm.addPass(mlir::createSCCPPass());
+
+    if (options::Canonicalize)
+      pm.addPass(mlir::createCanonicalizerPass());
+
+    if (options::CSE)
+      pm.addPass(mlir::createCSEPass());
+
+    if (options::LICM)
+      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+
+    if (options::Canonicalize)
+      pm.addPass(mlir::createCanonicalizerPass());
+
+    if (options::SymbolDCE)
+      pm.addPass(mlir::createSymbolDCEPass());
 
     if (mlir::failed(pm.run(context_manager_->Module()))) {
       llvm::errs() << "Failed to run optimization passes\n";

@@ -8,7 +8,13 @@ extern llvm::cl::OptionCategory toolOptions;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<std::string> FunctionName;
-extern llvm::cl::opt<bool> MergeConstants;
+
+extern llvm::cl::opt<bool> FuncInline;
+extern llvm::cl::opt<bool> SSCP;
+extern llvm::cl::opt<bool> Canonicalize;
+extern llvm::cl::opt<bool> CSE;
+extern llvm::cl::opt<bool> LICM;
+extern llvm::cl::opt<bool> SymbolDCE;
 
 extern llvm::cl::extrahelp CommonHelp;
 } // namespace cmlirc::options
