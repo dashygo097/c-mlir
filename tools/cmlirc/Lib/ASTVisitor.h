@@ -69,7 +69,6 @@ private:
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateLogicalAnd(clang::BinaryOperator *binOp);
   mlir::Value generateLogicalOr(clang::BinaryOperator *binOp);
-  mlir::Value generateComparisonOperator(clang::BinaryOperator *binOp);
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
