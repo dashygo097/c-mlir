@@ -20,10 +20,33 @@ llvm::cl::opt<std::string>
                  llvm::cl::desc("Name of the function to compile"),
                  llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> MergeConstants(
-    "merge-consts", llvm::cl::init(true),
-    llvm::cl::desc("Merge constant operations in the generated MLIR"),
-    llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
+                               llvm::cl::desc("Enable function inlining"),
+                               llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    SSCP("sscp", llvm::cl::init(false),
+         llvm::cl::desc("Enable sparse simple constant propagation (SSCP)"),
+         llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
+                                 llvm::cl::desc("Enable canonicalization"),
+                                 llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    CSE("cse", llvm::cl::init(false),
+        llvm::cl::desc("Enable common subexpression elimination (CSE)"),
+        llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    LICM("licm", llvm::cl::init(false),
+         llvm::cl::desc("Enable loop-invariant code motion (LICM)"),
+         llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    SymbolDCE("symdce", llvm::cl::init(false),
+              llvm::cl::desc("Enable symbol dead code elimination"),
+              llvm::cl::cat(toolOptions));
 
 llvm::cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
