@@ -8,6 +8,21 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
+  // TODO: signed/unsigned distinction for integer operations
+#define REGISTER_BIN_IOP(op)                                                   \
+  if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
+    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
+                                       rhs)                                    \
+        .getResult();                                                          \
+  }
+
+#define REGISTER_BIN_FOP(op)                                                   \
+  if (mlir::isa<mlir::FloatType>(resultType)) {                                \
+    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
+                                       rhs)                                    \
+        .getResult();                                                          \
+  }
+
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   if (binOp->isAssignmentOp()) {
@@ -37,9 +52,6 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
                                     lastArrayAccess_->indices);
 
       lastArrayAccess_.reset();
-
-      if (options::Verbose)
-        llvm::outs() << "        Array assignment complete\n";
 
       return rhsValue;
 
@@ -76,21 +88,6 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   }
 
   mlir::Type resultType = lhs.getType();
-
-  // TODO: signed/unsigned distinction for integer operations
-#define REGISTER_BIN_IOP(op)                                                   \
-  if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
-    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
-                                       rhs)                                    \
-        .getResult();                                                          \
-  }
-
-#define REGISTER_BIN_FOP(op)                                                   \
-  if (mlir::isa<mlir::FloatType>(resultType)) {                                \
-    return mlir::arith::op##Op::create(builder, builder.getUnknownLoc(), lhs,  \
-                                       rhs)                                    \
-        .getResult();                                                          \
-  }
 
   switch (binOp->getOpcode()) {
   case clang::BO_Add: {
