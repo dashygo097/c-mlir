@@ -1,6 +1,7 @@
 #include "./ASTVisitor.h"
 #include "../ArgumentList.h"
 #include "./Conversions/Types.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
@@ -159,6 +160,59 @@ bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
   }
 
   return false;
+}
+
+bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
+  if (!currentFunc) {
+    return true;
+  }
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
+  mlir::Value condition = generateExpr(ifStmt->getCond());
+  if (!condition) {
+    llvm::errs() << "Failed to generate if condition\n";
+    return false;
+  }
+
+  mlir::Value condBool = convertToBool(condition);
+
+  bool hasElse = ifStmt->getElse() != nullptr;
+
+  auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+                                      /*resultTypes=*/mlir::TypeRange{},
+                                      /*cond=*/condBool,
+                                      /*withElseRegion=*/hasElse);
+
+  builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+
+  TraverseStmt(ifStmt->getThen());
+
+  if (ifOp.getThenRegion().front().empty() ||
+      !ifOp.getThenRegion()
+           .front()
+           .back()
+           .hasTrait<mlir::OpTrait::IsTerminator>()) {
+    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+  }
+
+  if (hasElse) {
+    builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
+
+    TraverseStmt(ifStmt->getElse());
+
+    if (ifOp.getElseRegion().front().empty() ||
+        !ifOp.getElseRegion()
+             .front()
+             .back()
+             .hasTrait<mlir::OpTrait::IsTerminator>()) {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    }
+  }
+
+  builder.setInsertionPointAfter(ifOp);
+
+  return true;
 }
 
 } // namespace cmlirc

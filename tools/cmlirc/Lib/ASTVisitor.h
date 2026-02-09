@@ -15,7 +15,17 @@ public:
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
   bool TraverseVarDecl(clang::VarDecl *decl);
   bool TraverseStmt(clang::Stmt *stmt);
+
+  // return
   bool TraverseReturnStmt(clang::ReturnStmt *retStmt);
+
+  // control flow
+  bool TraverseIfStmt(clang::IfStmt *ifStmt);
+  // bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
+  // bool TraverseDoStmt(clang::DoStmt *doStmt);
+  // bool TraverseForStmt(clang::ForStmt *forStmt);
+  // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
+  // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   ContextManager &context_manager_;
 
