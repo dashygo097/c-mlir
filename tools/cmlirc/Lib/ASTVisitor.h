@@ -61,6 +61,8 @@ private:
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
+  mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr,
+                                       bool needLValue);
   mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
                                          bool needLValue);
 
