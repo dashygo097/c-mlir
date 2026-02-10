@@ -147,16 +147,16 @@ bool CMLIRCASTVisitor::TraverseReturnStmt(clang::ReturnStmt *stmt) {
 }
 
 bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
+  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+    return unOp->isIncrementDecrementOp();
+  }
+
   if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
     return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
   }
 
   if (llvm::isa<clang::CallExpr>(expr)) {
     return true;
-  }
-
-  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
-    return unOp->isIncrementDecrementOp();
   }
 
   return false;

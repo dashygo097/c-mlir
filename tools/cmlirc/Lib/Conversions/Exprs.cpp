@@ -8,8 +8,6 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
   if (!expr)
     return nullptr;
 
-  expr = expr->IgnoreImpCasts();
-
   if (auto parenExpr = llvm::dyn_cast<clang::ParenExpr>(expr)) {
     return generateExpr(parenExpr->getSubExpr(), needLValue);
   }
@@ -24,6 +22,9 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
   }
   if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
     return generateDeclRefExpr(declRef, needLValue);
+  }
+  if (auto *implicitCast = llvm::dyn_cast<clang::ImplicitCastExpr>(expr)) {
+    return generateImplicitCastExpr(implicitCast, needLValue);
   }
   if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
     return generateArraySubscriptExpr(arraySubscript, needLValue);
@@ -115,6 +116,12 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
   llvm::errs() << "Unsupported DeclRefExpr type: "
                << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
+}
+
+mlir::Value
+CMLIRCASTVisitor::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr,
+                                           bool needLValue) {
+  return generateExpr(castExpr->getSubExpr(), needLValue);
 }
 
 mlir::Value
