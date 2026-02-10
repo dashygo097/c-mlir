@@ -4,12 +4,12 @@
 
 namespace cmlirc {
 
-mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
+mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
   if (!expr)
     return nullptr;
 
   if (auto parenExpr = llvm::dyn_cast<clang::ParenExpr>(expr)) {
-    return generateExpr(parenExpr->getSubExpr(), needLValue);
+    return generateExpr(parenExpr->getSubExpr());
   }
   if (auto *boolLit = llvm::dyn_cast<clang::CXXBoolLiteralExpr>(expr)) {
     return generateBoolLiteral(boolLit);
@@ -21,13 +21,13 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr, bool needLValue) {
     return generateFloatingLiteral(floatLit);
   }
   if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-    return generateDeclRefExpr(declRef, needLValue);
+    return generateDeclRefExpr(declRef);
   }
   if (auto *implicitCast = llvm::dyn_cast<clang::ImplicitCastExpr>(expr)) {
-    return generateImplicitCastExpr(implicitCast, needLValue);
+    return generateImplicitCastExpr(implicitCast);
   }
   if (auto *arraySubscript = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
-    return generateArraySubscriptExpr(arraySubscript, needLValue);
+    return generateArraySubscriptExpr(arraySubscript);
   }
   if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
     return generateUnaryOperator(unOp);
@@ -81,10 +81,7 @@ CMLIRCASTVisitor::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
       .getResult();
 }
 
-mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
-                                                  bool needLValue) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
-
+mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
   if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
     if (auto *parmDecl = llvm::dyn_cast<clang::ParmVarDecl>(varDecl)) {
       if (paramTable.count(parmDecl)) {
@@ -93,24 +90,21 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
     }
 
     if (symbolTable.count(varDecl)) {
-      mlir::Value memref = symbolTable[varDecl];
-      return needLValue ? memref
-                        : mlir::memref::LoadOp::create(
-                              builder, builder.getUnknownLoc(), memref)
-                              .getResult();
+      return symbolTable[varDecl];
     }
 
-    llvm::errs() << "Variable not found!\n";
+    llvm::errs() << "Variable not found: " << varDecl->getName() << "\n";
+    return nullptr;
   }
 
   if (auto *funcDecl =
           llvm::dyn_cast<clang::FunctionDecl>(declRef->getDecl())) {
-
     if (functionTable.count(funcDecl)) {
       return functionTable[funcDecl];
     }
 
-    llvm::errs() << "Function not found!\n";
+    llvm::errs() << "Function not found: " << funcDecl->getName() << "\n";
+    return nullptr;
   }
 
   llvm::errs() << "Unsupported DeclRefExpr type: "
@@ -119,16 +113,139 @@ mlir::Value CMLIRCASTVisitor::generateDeclRefExpr(clang::DeclRefExpr *declRef,
 }
 
 mlir::Value
-CMLIRCASTVisitor::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr,
-                                           bool needLValue) {
-  return generateExpr(castExpr->getSubExpr(), needLValue);
+CMLIRCASTVisitor::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+  clang::CastKind castKind = castExpr->getCastKind();
+
+  mlir::Value subValue = generateExpr(castExpr->getSubExpr());
+  if (!subValue) {
+    return nullptr;
+  }
+
+  mlir::Type targetType = convertType(builder, castExpr->getType());
+
+  switch (castKind) {
+  case clang::CK_LValueToRValue: {
+    if (mlir::isa<mlir::MemRefType>(subValue.getType())) {
+      return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
+    }
+    return subValue;
+  }
+
+  case clang::CK_IntegralToFloating: {
+    bool isSigned = castExpr->getSubExpr()->getType()->isSignedIntegerType();
+    if (isSigned) {
+      return mlir::arith::SIToFPOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    } else {
+      return mlir::arith::UIToFPOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    }
+  }
+
+  case clang::CK_FloatingToIntegral: {
+    bool isSigned = castExpr->getType()->isSignedIntegerType();
+    if (isSigned) {
+      return mlir::arith::FPToSIOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    } else {
+      return mlir::arith::FPToUIOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    }
+  }
+
+  case clang::CK_IntegralCast: {
+    auto srcIntType = mlir::dyn_cast<mlir::IntegerType>(subValue.getType());
+    auto dstIntType = mlir::dyn_cast<mlir::IntegerType>(targetType);
+
+    if (!srcIntType || !dstIntType) {
+      return subValue;
+    }
+
+    unsigned srcWidth = srcIntType.getWidth();
+    unsigned dstWidth = dstIntType.getWidth();
+
+    if (srcWidth < dstWidth) {
+      bool isSigned = castExpr->getSubExpr()->getType()->isSignedIntegerType();
+      if (isSigned) {
+        return mlir::arith::ExtSIOp::create(builder, loc, targetType, subValue)
+            .getResult();
+      } else {
+        return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
+            .getResult();
+      }
+    } else if (srcWidth > dstWidth) {
+      return mlir::arith::TruncIOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    }
+
+    return subValue;
+  }
+
+  case clang::CK_FloatingCast: {
+    auto srcFloatType = mlir::dyn_cast<mlir::FloatType>(subValue.getType());
+    auto dstFloatType = mlir::dyn_cast<mlir::FloatType>(targetType);
+
+    if (!srcFloatType || !dstFloatType) {
+      return subValue;
+    }
+
+    if (srcFloatType.getWidth() < dstFloatType.getWidth()) {
+      return mlir::arith::ExtFOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    } else if (srcFloatType.getWidth() > dstFloatType.getWidth()) {
+      return mlir::arith::TruncFOp::create(builder, loc, targetType, subValue)
+          .getResult();
+    }
+
+    return subValue;
+  }
+
+  case clang::CK_IntegralToBoolean: {
+    auto zeroAttr = builder.getIntegerAttr(subValue.getType(), 0);
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+    return mlir::arith::CmpIOp::create(
+               builder, loc, mlir::arith::CmpIPredicate::ne, subValue, zero)
+        .getResult();
+  }
+
+  case clang::CK_FloatingToBoolean: {
+    auto zeroAttr = builder.getFloatAttr(subValue.getType(), 0.0);
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+    return mlir::arith::CmpFOp::create(
+               builder, loc, mlir::arith::CmpFPredicate::UNE, subValue, zero)
+        .getResult();
+  }
+
+  case clang::CK_BooleanToSignedIntegral: {
+    return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
+        .getResult();
+  }
+
+  case clang::CK_BitCast: {
+    return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
+        .getResult();
+  }
+
+  case clang::CK_NoOp:
+  case clang::CK_ArrayToPointerDecay:
+  case clang::CK_FunctionToPointerDecay:
+    return subValue;
+
+  default:
+    llvm::errs() << "Unsupported cast kind: "
+                 << clang::ImplicitCastExpr::getCastKindName(castKind) << "\n";
+    return subValue;
+  }
 }
 
 mlir::Value
-CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
-                                             bool needLValue) {
-
+CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   llvm::SmallVector<mlir::Value, 4> indices;
   clang::Expr *currentExpr = expr;
@@ -137,7 +254,7 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
              llvm::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {
     mlir::Value idx = generateExpr(arraySubscript->getIdx());
     if (!idx) {
-      llvm::errs() << "\nFailed to generate index\n";
+      llvm::errs() << "Failed to generate index\n";
       return nullptr;
     }
 
@@ -145,31 +262,28 @@ CMLIRCASTVisitor::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
     currentExpr = arraySubscript->getBase()->IgnoreImpCasts();
   }
 
-  mlir::Value base = generateExpr(currentExpr, /*needLValue=*/true);
+  mlir::Value base = generateExpr(currentExpr);
   if (!base) {
-    llvm::errs() << "\nFailed to generate base\n";
+    llvm::errs() << "Failed to generate base\n";
     return nullptr;
   }
 
   llvm::SmallVector<mlir::Value, 4> indexValues;
   for (mlir::Value idx : indices) {
     auto indexValue = mlir::arith::IndexCastOp::create(
-        builder, builder.getUnknownLoc(), builder.getIndexType(), idx);
-    indexValues.push_back(indexValue.getResult());
+                          builder, loc, builder.getIndexType(), idx)
+                          .getResult();
+    indexValues.push_back(indexValue);
   }
 
-  if (needLValue) {
-    lastArrayAccess_ = ArrayAccessInfo{base, indexValues};
-    return base;
-  } else {
-    auto loadOp = mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
-                                               base, indexValues);
-    return loadOp.getResult();
-  }
+  lastArrayAccess_ = ArrayAccessInfo{base, indexValues};
+
+  return base;
 }
 
 mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   const clang::FunctionDecl *calleeDecl = callExpr->getDirectCallee();
   if (!calleeDecl) {
@@ -198,9 +312,9 @@ mlir::Value CMLIRCASTVisitor::generateCallExpr(clang::CallExpr *callExpr) {
     returnTypes.push_back(mlirReturnType);
   }
 
-  auto callOp = mlir::func::CallOp::create(
-      builder, builder.getUnknownLoc(), calleeName,
-      mlir::TypeRange{returnTypes}, mlir::ValueRange{argValues});
+  auto callOp = mlir::func::CallOp::create(builder, loc, calleeName,
+                                           mlir::TypeRange{returnTypes},
+                                           mlir::ValueRange{argValues});
 
   if (callOp.getNumResults() > 0) {
     return callOp.getResult(0);

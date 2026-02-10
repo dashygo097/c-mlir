@@ -8,61 +8,66 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
-  // TODO: signed/unsigned distinction for integer operations
 #define REGISTER_BIN_IOP(op, ...)                                              \
   if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
-    return mlir::arith::op::create(builder, builder.getUnknownLoc(),           \
-                                   __VA_ARGS__)                                \
-        .getResult();                                                          \
+    return mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();     \
   }
 
 #define REGISTER_BIN_FOP(op, ...)                                              \
   if (mlir::isa<mlir::FloatType>(resultType)) {                                \
-    return mlir::arith::op::create(builder, builder.getUnknownLoc(),           \
-                                   __VA_ARGS__)                                \
-        .getResult();                                                          \
+    return mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();     \
   }
 
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   clang::Expr *lhs = binOp->getLHS();
   clang::Expr *rhs = binOp->getRHS();
-  mlir::Value lhsValue = generateExpr(lhs);
-  mlir::Value rhsValue = generateExpr(rhs);
 
-  mlir::Type resultType = lhsValue.getType();
+  if (binOp->isAssignmentOp()) {
+    clang::Expr *lhsLValue = lhs->IgnoreParenImpCasts();
+    mlir::Value lhsBase = generateExpr(lhsLValue);
 
-  if (!lhs || !rhs) {
-    llvm::errs() << "Failed to generate LHS or RHS\n";
-    return nullptr;
-  }
-
-  switch (binOp->getOpcode()) {
-  case clang::BO_Assign: {
-    mlir::Value lhsBase = generateExpr(lhs, /*needLValue=*/true);
     if (!lhsBase) {
       llvm::errs() << "Failed to generate LHS\n";
       return nullptr;
     }
 
-    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
+    mlir::Value rhsValue = generateExpr(rhs);
+    if (!rhsValue) {
+      llvm::errs() << "Failed to generate RHS\n";
+      return nullptr;
+    }
+
+    if (llvm::isa<clang::ArraySubscriptExpr>(lhsLValue)) {
       if (!lastArrayAccess_) {
         llvm::errs() << "Error: Array access info not saved\n";
         return nullptr;
       }
 
-      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
+      mlir::memref::StoreOp::create(builder, loc, rhsValue,
                                     lastArrayAccess_->base,
                                     lastArrayAccess_->indices);
       lastArrayAccess_.reset();
     } else {
-      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
-                                    lhsBase, mlir::ValueRange{});
+      mlir::memref::StoreOp::create(builder, loc, rhsValue, lhsBase,
+                                    mlir::ValueRange{});
     }
 
     return rhsValue;
-    break;
   }
+
+  mlir::Value lhsValue = generateExpr(lhs);
+  mlir::Value rhsValue = generateExpr(rhs);
+
+  if (!lhsValue || !rhsValue) {
+    llvm::errs() << "Failed to generate LHS or RHS\n";
+    return nullptr;
+  }
+
+  mlir::Type resultType = lhsValue.getType();
+
+  switch (binOp->getOpcode()) {
   case clang::BO_Add: {
     REGISTER_BIN_IOP(AddIOp, lhsValue, rhsValue)
     REGISTER_BIN_FOP(AddFOp, lhsValue, rhsValue)
@@ -149,20 +154,21 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   }
   case clang::BO_LAnd: {
     mlir::Value lhsCond = convertToBool(lhsValue);
-    auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+    auto ifOp = mlir::scf::IfOp::create(builder, loc,
                                         /*resultTypes=*/builder.getI1Type(),
                                         /*cond=*/lhsCond,
                                         /*withElseRegion=*/true);
 
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
     mlir::Value rhsCond = convertToBool(rhsValue);
-    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), rhsCond);
+    mlir::scf::YieldOp::create(builder, loc, rhsCond);
 
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    mlir::Value falseBool = mlir::arith::ConstantOp::create(
-        builder, builder.getUnknownLoc(), builder.getI1Type(),
-        builder.getBoolAttr(false));
-    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), falseBool);
+    mlir::Value falseBool =
+        mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
+                                        builder.getBoolAttr(false))
+            .getResult();
+    mlir::scf::YieldOp::create(builder, loc, falseBool);
 
     builder.setInsertionPointAfter(ifOp);
     return ifOp.getResult(0);
@@ -170,20 +176,21 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   case clang::BO_LOr: {
     mlir::Value lhsCond = convertToBool(lhsValue);
 
-    auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+    auto ifOp = mlir::scf::IfOp::create(builder, loc,
                                         /*resultTypes=*/builder.getI1Type(),
                                         /*cond=*/lhsCond,
                                         /*withElseRegion=*/true);
 
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-    mlir::Value trueBool = mlir::arith::ConstantOp::create(
-        builder, builder.getUnknownLoc(), builder.getI1Type(),
-        builder.getBoolAttr(true));
-    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), trueBool);
+    mlir::Value trueBool =
+        mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
+                                        builder.getBoolAttr(true))
+            .getResult();
+    mlir::scf::YieldOp::create(builder, loc, trueBool);
 
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
     mlir::Value rhsCond = convertToBool(rhsValue);
-    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(), rhsCond);
+    mlir::scf::YieldOp::create(builder, loc, rhsCond);
 
     builder.setInsertionPointAfter(ifOp);
     return ifOp.getResult(0);
