@@ -3,9 +3,11 @@
 #include "./Types.h"
 
 namespace cmlirc {
+
 mlir::Value
 CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = unOp->getSubExpr();
 
   switch (unOp->getOpcode()) {
@@ -21,15 +23,14 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
     mlir::Type type = operand.getType();
 
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value zero = mlir::arith::ConstantOp::create(
-          builder, builder.getUnknownLoc(), type,
-          builder.getIntegerAttr(type, 0));
-      return mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(), zero,
-                                         operand)
+      mlir::Value zero =
+          mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getIntegerAttr(type, 0))
+              .getResult();
+      return mlir::arith::SubIOp::create(builder, loc, zero, operand)
           .getResult();
     } else if (mlir::isa<mlir::FloatType>(type)) {
-      return mlir::arith::NegFOp::create(builder, builder.getUnknownLoc(),
-                                         operand);
+      return mlir::arith::NegFOp::create(builder, loc, operand).getResult();
     }
 
     return nullptr;
@@ -63,20 +64,20 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
     mlir::Type type = operand.getType();
 
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value zero = mlir::arith::ConstantOp::create(
-          builder, builder.getUnknownLoc(), type,
-          builder.getIntegerAttr(type, 0));
-      return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(),
-                                         mlir::arith::CmpIPredicate::eq,
-                                         operand, zero)
+      mlir::Value zero =
+          mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getIntegerAttr(type, 0))
+              .getResult();
+      return mlir::arith::CmpIOp::create(
+                 builder, loc, mlir::arith::CmpIPredicate::eq, operand, zero)
           .getResult();
     } else if (mlir::isa<mlir::FloatType>(type)) {
-      mlir::Value zero = mlir::arith::ConstantOp::create(
-          builder, builder.getUnknownLoc(), type,
-          builder.getFloatAttr(type, 0.0));
-      return mlir::arith::CmpFOp::create(builder, builder.getUnknownLoc(),
-                                         mlir::arith::CmpFPredicate::OEQ,
-                                         operand, zero)
+      mlir::Value zero =
+          mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getFloatAttr(type, 0.0))
+              .getResult();
+      return mlir::arith::CmpFOp::create(
+                 builder, loc, mlir::arith::CmpFPredicate::OEQ, operand, zero)
           .getResult();
     }
 
@@ -90,11 +91,11 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     mlir::Type type = operand.getType();
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value allOnes = mlir::arith::ConstantOp::create(
-          builder, builder.getUnknownLoc(), type,
-          builder.getIntegerAttr(type, -1));
-      return mlir::arith::XOrIOp::create(builder, builder.getUnknownLoc(),
-                                         operand, allOnes)
+      mlir::Value allOnes =
+          mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getIntegerAttr(type, -1))
+              .getResult();
+      return mlir::arith::XOrIOp::create(builder, loc, operand, allOnes)
           .getResult();
     }
 
@@ -112,10 +113,12 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
 mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
                                                          bool isIncrement,
                                                          bool isPrefix) {
-
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
-  mlir::Value lvalue = generateExpr(expr, /*needLValue=*/true);
+  clang::Expr *lvalueExpr = expr->IgnoreParenImpCasts();
+  mlir::Value lvalue = generateExpr(lvalueExpr);
+
   if (!lvalue) {
     llvm::errs() << "Cannot get lvalue for increment/decrement\n";
     return nullptr;
@@ -123,65 +126,58 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
 
   mlir::Value oldValue;
 
-  if (llvm::isa<clang::ArraySubscriptExpr>(expr)) {
+  if (llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr)) {
     if (!lastArrayAccess_) {
       llvm::errs() << "Error: Array access info not available\n";
       return nullptr;
     }
 
-    oldValue = mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(),
-                                            lastArrayAccess_->base,
-                                            lastArrayAccess_->indices)
-                   .getResult();
+    oldValue =
+        mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
+                                     lastArrayAccess_->indices)
+            .getResult();
 
   } else {
-    oldValue =
-        mlir::memref::LoadOp::create(builder, builder.getUnknownLoc(), lvalue)
-            .getResult();
+    oldValue = mlir::memref::LoadOp::create(builder, loc, lvalue).getResult();
   }
 
   mlir::Type type = oldValue.getType();
-
   mlir::Value one;
   mlir::Value newValue;
 
   if (mlir::isa<mlir::IntegerType>(type)) {
-    one =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getIntegerAttr(type, 1));
+    one = mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getIntegerAttr(type, 1))
+              .getResult();
     newValue = isIncrement
-                   ? mlir::arith::AddIOp::create(
-                         builder, builder.getUnknownLoc(), oldValue, one)
+                   ? mlir::arith::AddIOp::create(builder, loc, oldValue, one)
                          .getResult()
-                   : mlir::arith::SubIOp::create(
-                         builder, builder.getUnknownLoc(), oldValue, one)
+                   : mlir::arith::SubIOp::create(builder, loc, oldValue, one)
                          .getResult();
   } else if (mlir::isa<mlir::FloatType>(type)) {
-    one =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getFloatAttr(type, 1.0));
+    one = mlir::arith::ConstantOp::create(builder, loc, type,
+                                          builder.getFloatAttr(type, 1.0))
+              .getResult();
     newValue = isIncrement
-                   ? mlir::arith::AddFOp::create(
-                         builder, builder.getUnknownLoc(), oldValue, one)
+                   ? mlir::arith::AddFOp::create(builder, loc, oldValue, one)
                          .getResult()
-                   : mlir::arith::SubFOp::create(
-                         builder, builder.getUnknownLoc(), oldValue, one)
+                   : mlir::arith::SubFOp::create(builder, loc, oldValue, one)
                          .getResult();
   } else {
     llvm::errs() << "Unsupported type for increment/decrement\n";
     return nullptr;
   }
 
-  if (llvm::isa<clang::ArraySubscriptExpr>(expr)) {
+  if (llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr)) {
     if (lastArrayAccess_) {
-      mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
+      mlir::memref::StoreOp::create(builder, loc, newValue,
                                     lastArrayAccess_->base,
                                     lastArrayAccess_->indices);
       lastArrayAccess_.reset();
     }
   } else {
-    mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), newValue,
-                                  lvalue, mlir::ValueRange{});
+    mlir::memref::StoreOp::create(builder, loc, newValue, lvalue,
+                                  mlir::ValueRange{});
   }
 
   return isPrefix ? newValue : oldValue;

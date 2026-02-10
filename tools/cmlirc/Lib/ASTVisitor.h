@@ -55,16 +55,14 @@ private:
   mlir::Value convertToBool(mlir::Value value);
 
   // expr traits
-  mlir::Value generateExpr(clang::Expr *expr, bool needLValue = false);
+  mlir::Value generateExpr(clang::Expr *expr);
 
   mlir::Value generateBoolLiteral(clang::CXXBoolLiteralExpr *boolLit);
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
-  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
-  mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr,
-                                       bool needLValue);
-  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
-                                         bool needLValue);
+  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
+  mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
+  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   // unary
   mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
