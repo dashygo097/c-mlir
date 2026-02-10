@@ -37,10 +37,10 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   clang::Expr *rhs = binOp->getRHS();
 
   if (binOp->isAssignmentOp()) {
-    clang::Expr *lhsLValue = lhs->IgnoreParenImpCasts();
-    mlir::Value lhsBase = generateExpr(lhsLValue);
+    lhs = lhs->IgnoreParenImpCasts();
 
-    if (!lhsBase) {
+    mlir::Value lhsValue = generateExpr(lhs);
+    if (!lhsValue) {
       llvm::errs() << "Failed to generate LHS\n";
       return nullptr;
     }
@@ -56,7 +56,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     if (binOp->getOpcode() != clang::BO_Assign) {
       mlir::Value oldValue;
 
-      if (llvm::isa<clang::ArraySubscriptExpr>(lhsLValue)) {
+      if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
         if (!lastArrayAccess_) {
           llvm::errs() << "Error: Array access info not available\n";
           return nullptr;
@@ -67,7 +67,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
                 .getResult();
       } else {
         oldValue =
-            mlir::memref::LoadOp::create(builder, loc, lhsBase).getResult();
+            mlir::memref::LoadOp::create(builder, loc, lhsValue).getResult();
       }
 
       mlir::Type valueType = oldValue.getType();
@@ -126,7 +126,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       }
     }
 
-    if (llvm::isa<clang::ArraySubscriptExpr>(lhsLValue)) {
+    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
       if (!lastArrayAccess_) {
         llvm::errs() << "Error: Array access info not saved\n";
         return nullptr;
@@ -137,7 +137,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
                                     lastArrayAccess_->indices);
       lastArrayAccess_.reset();
     } else {
-      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsBase,
+      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsValue,
                                     mlir::ValueRange{});
     }
 
@@ -290,7 +290,9 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   }
 
 #undef REGISTER_BIN_IOP
+#undef REGISTER_ASSIGN_IOP
 #undef REGISTER_BIN_FOP
+#undef REGISTER_ASSIGN_FOP
 
   return nullptr;
 }
