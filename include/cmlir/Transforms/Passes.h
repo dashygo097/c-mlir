@@ -4,15 +4,9 @@
 #include "mlir/Pass/Pass.h"
 #include <memory>
 
-namespace mlir {
-namespace func {
-class FuncOp;
-} // namespace func
-} // namespace mlir
-
 namespace cmlir {
 
-std::unique_ptr<mlir::Pass> createConstantMergePass();
+std::unique_ptr<mlir::Pass> createMem2RegPass();
 
 void registerTransformPasses();
 
