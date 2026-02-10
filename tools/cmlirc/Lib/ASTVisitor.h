@@ -65,13 +65,14 @@ private:
   mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
                                          bool isPrefix);
 
-  mlir::Value convertToBool(mlir::Value value);
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateLogicalAnd(clang::BinaryOperator *binOp);
   mlir::Value generateLogicalOr(clang::BinaryOperator *binOp);
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
+
+  mlir::Value convertToBool(mlir::Value value);
 };
 
 } // namespace cmlirc
