@@ -30,34 +30,29 @@ public:
     mlir::PassManager pm(&context_manager_->MLIRContext());
     // mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::FuncInline)
       pm.addPass(mlir::createInlinerPass());
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::SSCP)
       pm.addPass(mlir::createSCCPPass());
 
-    pm.addPass(mlir::createMem2Reg());
+    if (options::Mem2Reg)
+      pm.addPass(mlir::createMem2Reg());
+
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::LICM)
       pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
-    pm.addPass(mlir::createMem2Reg());
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());
-    pm.addPass(mlir::createMem2Reg());
 
     if (mlir::failed(pm.run(context_manager_->Module()))) {
       llvm::errs() << "Failed to run optimization passes\n";

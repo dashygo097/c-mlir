@@ -29,6 +29,11 @@ llvm::cl::opt<bool>
          llvm::cl::desc("Enable sparse simple constant propagation (SSCP)"),
          llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<bool>
+    Mem2Reg("mem2reg", llvm::cl::init(false),
+            llvm::cl::desc("Enable memory to register promotion (mem2reg)"),
+            llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
                                  llvm::cl::desc("Enable canonicalization"),
                                  llvm::cl::cat(toolOptions));
