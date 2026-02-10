@@ -13,9 +13,21 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     return mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();     \
   }
 
+#define REGISTER_ASSIGN_IOP(op, ...)                                           \
+  if (mlir::isa<mlir::IntegerType>(valueType)) {                               \
+    resultValue =                                                              \
+        mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();        \
+  }
+
 #define REGISTER_BIN_FOP(op, ...)                                              \
   if (mlir::isa<mlir::FloatType>(resultType)) {                                \
     return mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();     \
+  }
+
+#define REGISTER_ASSIGN_FOP(op, ...)                                           \
+  if (mlir::isa<mlir::FloatType>(valueType)) {                                 \
+    resultValue =                                                              \
+        mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();        \
   }
 
   mlir::OpBuilder &builder = context_manager_.Builder();
@@ -39,22 +51,97 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       return nullptr;
     }
 
+    mlir::Value resultValue = rhsValue;
+
+    if (binOp->getOpcode() != clang::BO_Assign) {
+      mlir::Value oldValue;
+
+      if (llvm::isa<clang::ArraySubscriptExpr>(lhsLValue)) {
+        if (!lastArrayAccess_) {
+          llvm::errs() << "Error: Array access info not available\n";
+          return nullptr;
+        }
+        oldValue =
+            mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
+                                         lastArrayAccess_->indices)
+                .getResult();
+      } else {
+        oldValue =
+            mlir::memref::LoadOp::create(builder, loc, lhsBase).getResult();
+      }
+
+      mlir::Type valueType = oldValue.getType();
+
+      switch (binOp->getOpcode()) {
+      case clang::BO_AddAssign: {
+        REGISTER_ASSIGN_IOP(AddIOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_FOP(AddFOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_SubAssign: {
+        REGISTER_ASSIGN_IOP(SubIOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_FOP(SubFOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_MulAssign: {
+        REGISTER_ASSIGN_IOP(MulIOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_FOP(MulFOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_DivAssign: {
+        REGISTER_ASSIGN_IOP(DivSIOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_FOP(DivFOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_RemAssign: {
+        REGISTER_ASSIGN_IOP(RemSIOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_AndAssign: {
+        REGISTER_ASSIGN_IOP(AndIOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_OrAssign: {
+        REGISTER_ASSIGN_IOP(OrIOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_XorAssign: {
+        REGISTER_ASSIGN_IOP(XOrIOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_ShlAssign: {
+        REGISTER_ASSIGN_IOP(ShLIOp, oldValue, rhsValue)
+        break;
+      }
+      case clang::BO_ShrAssign: {
+        REGISTER_ASSIGN_IOP(ShRSIOp, oldValue, rhsValue)
+        break;
+      }
+
+      default:
+        llvm::errs() << "Unsupported compound assignment operator: "
+                     << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
+                     << "\n";
+        return nullptr;
+      }
+    }
+
     if (llvm::isa<clang::ArraySubscriptExpr>(lhsLValue)) {
       if (!lastArrayAccess_) {
         llvm::errs() << "Error: Array access info not saved\n";
         return nullptr;
       }
 
-      mlir::memref::StoreOp::create(builder, loc, rhsValue,
+      mlir::memref::StoreOp::create(builder, loc, resultValue,
                                     lastArrayAccess_->base,
                                     lastArrayAccess_->indices);
       lastArrayAccess_.reset();
     } else {
-      mlir::memref::StoreOp::create(builder, loc, rhsValue, lhsBase,
+      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsBase,
                                     mlir::ValueRange{});
     }
 
-    return rhsValue;
+    return resultValue;
   }
 
   mlir::Value lhsValue = generateExpr(lhs);

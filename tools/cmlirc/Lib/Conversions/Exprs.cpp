@@ -128,7 +128,16 @@ CMLIRCASTVisitor::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
   switch (castKind) {
   case clang::CK_LValueToRValue: {
     if (mlir::isa<mlir::MemRefType>(subValue.getType())) {
-      return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
+      if (lastArrayAccess_ && lastArrayAccess_->base == subValue) {
+        mlir::Value result =
+            mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
+                                         lastArrayAccess_->indices)
+                .getResult();
+        lastArrayAccess_.reset();
+        return result;
+      } else {
+        return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
+      }
     }
     return subValue;
   }
