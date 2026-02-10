@@ -88,10 +88,10 @@ mlir::Type convertArrayType(mlir::OpBuilder &builder,
 
 mlir::Type convertPointerType(mlir::OpBuilder &builder,
                               const clang::PointerType *type) {
-  clang::QualType pointeeQualType = type->getPointeeType();
-  mlir::Type elementType = convertType(builder, pointeeQualType);
+  clang::QualType pointeeType = type->getPointeeType();
+  mlir::Type elementType = convertType(builder, pointeeType);
 
-  return mlir::UnrankedMemRefType::get(elementType, 0);
+  return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 
 } // namespace cmlirc

@@ -127,18 +127,29 @@ CMLIRCASTVisitor::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
 
   switch (castKind) {
   case clang::CK_LValueToRValue: {
-    if (mlir::isa<mlir::MemRefType>(subValue.getType())) {
-      if (lastArrayAccess_ && lastArrayAccess_->base == subValue) {
-        mlir::Value result =
-            mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
-                                         lastArrayAccess_->indices)
-                .getResult();
-        lastArrayAccess_.reset();
-        return result;
-      } else {
+    if (auto memrefType =
+            mlir::dyn_cast<mlir::MemRefType>(subValue.getType())) {
+      if (memrefType.hasRank() && memrefType.getRank() == 0) {
         return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
+      } else if (memrefType.hasRank() && memrefType.getRank() > 0) {
+        if (lastArrayAccess_ && lastArrayAccess_->base == subValue) {
+          mlir::Value result =
+              mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
+                                           lastArrayAccess_->indices)
+                  .getResult();
+          lastArrayAccess_.reset();
+          return result;
+        } else {
+          llvm::errs() << "Loading array without indices\n";
+          return subValue;
+        }
+      } else {
+        return subValue;
       }
+    } else if (mlir::isa<mlir::UnrankedMemRefType>(subValue.getType())) {
+      return subValue;
     }
+
     return subValue;
   }
 
