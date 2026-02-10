@@ -1,7 +1,7 @@
 add_subdirectory(Transforms)
 
 add_mlir_dialect_library(cmlir 
-  Transforms/ConstMerge.cc
+  Transforms/Mem2Reg.cc
   Dialect.cc
 
   DEPENDS 
