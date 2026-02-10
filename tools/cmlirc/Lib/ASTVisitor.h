@@ -52,6 +52,7 @@ private:
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
 
   // type traits
+  mlir::Value convertToBool(mlir::Value value);
 
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr, bool needLValue = false);
@@ -62,17 +63,17 @@ private:
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef, bool needLValue);
   mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
                                          bool needLValue);
+
+  // unary
   mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
                                          bool isPrefix);
-
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
-  mlir::Value generateLogicalAnd(clang::BinaryOperator *binOp);
-  mlir::Value generateLogicalOr(clang::BinaryOperator *binOp);
+
+  // binary
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 
+  // call
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
-
-  mlir::Value convertToBool(mlir::Value value);
 };
 
 } // namespace cmlirc

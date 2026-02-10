@@ -3,6 +3,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/UnaryExprs.cpp
   Lib/Conversions/BinaryExprs.cpp
   Lib/Conversions/Exprs.cpp
+  Lib/Conversions/Casts.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
 
