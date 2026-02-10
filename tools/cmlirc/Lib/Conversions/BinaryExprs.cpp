@@ -37,22 +37,22 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   mlir::Value lhsValue = generateExpr(lhs);
   mlir::Value rhsValue = generateExpr(rhs);
 
+  mlir::Type resultType = lhsValue.getType();
+
   if (!lhs || !rhs) {
     llvm::errs() << "Failed to generate LHS or RHS\n";
     return nullptr;
   }
 
-  mlir::Type resultType = lhsValue.getType();
-
   switch (binOp->getOpcode()) {
-  case clang::BO_Assign:
-    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
-      mlir::Value lhsBase = generateExpr(lhs, /*needLValue=*/true);
-      if (!lhsBase) {
-        llvm::errs() << "Failed to generate LHS\n";
-        return nullptr;
-      }
+  case clang::BO_Assign: {
+    mlir::Value lhsBase = generateExpr(lhs, /*needLValue=*/true);
+    if (!lhsBase) {
+      llvm::errs() << "Failed to generate LHS\n";
+      return nullptr;
+    }
 
+    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
       if (!lastArrayAccess_) {
         llvm::errs() << "Error: Array access info not saved\n";
         return nullptr;
@@ -61,22 +61,15 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
                                     lastArrayAccess_->base,
                                     lastArrayAccess_->indices);
-
       lastArrayAccess_.reset();
-
-      return rhsValue;
     } else {
-      mlir::Value lhsMemref = generateExpr(lhs, /*needLValue=*/true);
-      if (!lhsMemref) {
-        llvm::errs() << "Failed to generate LHS\n";
-        return nullptr;
-      }
-
       mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(), rhsValue,
-                                    lhsMemref, mlir::ValueRange{});
-
-      return rhsValue;
+                                    lhsBase, mlir::ValueRange{});
     }
+
+    return rhsValue;
+    break;
+  }
 
   case clang::BO_Add: {
     REGISTER_BIN_IOP(AddIOp, lhsValue, rhsValue)
