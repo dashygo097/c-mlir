@@ -133,7 +133,7 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
       savedArrayAccess = lastArrayAccess_;
       lastArrayAccess_.reset();
     } else {
-      llvm::errs() << "Error: Array access info not available\n";
+      llvm::errs() << "Array access info not available\n";
       return nullptr;
     }
   }

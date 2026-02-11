@@ -16,8 +16,6 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   }
 
   mlir::OpBuilder &builder = context_manager_.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
-
   builder.setInsertionPointToEnd(context_manager_.Module().getBody());
 
   // Convert parameter types
@@ -35,10 +33,10 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
     returnTypes.push_back(returnType);
   }
 
-  auto funcType = builder.getFunctionType(argTypes, {returnType});
+  auto funcType = builder.getFunctionType(argTypes, returnTypes);
 
   // Create function
-  auto funcOp = mlir::func::FuncOp::create(builder, loc,
+  auto funcOp = mlir::func::FuncOp::create(builder, builder.getUnknownLoc(),
                                            decl->getNameAsString(), funcType);
 
   // Create entry block
@@ -56,7 +54,13 @@ bool CMLIRCASTVisitor::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   // Traverse function body manually
   TraverseStmt(decl->getBody());
 
-  // Return true, but we've already handled traversal manually
+  // Ensure the function has a terminator
+  builder.setInsertionPointToEnd(entryBlock);
+  if (entryBlock->empty() ||
+      !entryBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+    mlir::func::ReturnOp::create(builder, builder.getUnknownLoc());
+  }
+
   return true;
 }
 

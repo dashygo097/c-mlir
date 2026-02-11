@@ -53,7 +53,7 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
         savedLHSAccess = lastArrayAccess_;
         lastArrayAccess_.reset();
       } else {
-        llvm::errs() << "Error: Failed to get array access info for LHS\n";
+        llvm::errs() << "Failed to get array access info for LHS\n";
         return nullptr;
       }
     }
