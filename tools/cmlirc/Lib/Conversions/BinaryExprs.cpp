@@ -39,10 +39,23 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
   if (binOp->isAssignmentOp()) {
     lhs = lhs->IgnoreParenImpCasts();
 
+    bool isArrayLHS = llvm::isa<clang::ArraySubscriptExpr>(lhs);
+    std::optional<ArrayAccessInfo> savedLHSAccess;
+
     mlir::Value lhsValue = generateExpr(lhs);
     if (!lhsValue) {
       llvm::errs() << "Failed to generate LHS\n";
       return nullptr;
+    }
+
+    if (isArrayLHS) {
+      if (lastArrayAccess_) {
+        savedLHSAccess = lastArrayAccess_;
+        lastArrayAccess_.reset();
+      } else {
+        llvm::errs() << "Error: Failed to get array access info for LHS\n";
+        return nullptr;
+      }
     }
 
     mlir::Value rhsValue = generateExpr(rhs);
@@ -56,16 +69,12 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
     if (binOp->getOpcode() != clang::BO_Assign) {
       mlir::Value oldValue;
 
-      if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
-        if (!lastArrayAccess_) {
-          llvm::errs() << "Error: Array access info not available\n";
-          return nullptr;
-        }
+      if (isArrayLHS && savedLHSAccess) {
         oldValue =
-            mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
-                                         lastArrayAccess_->indices)
+            mlir::memref::LoadOp::create(builder, loc, savedLHSAccess->base,
+                                         savedLHSAccess->indices)
                 .getResult();
-      } else {
+      } else if (!isArrayLHS) {
         oldValue =
             mlir::memref::LoadOp::create(builder, loc, lhsValue).getResult();
       }
@@ -126,17 +135,11 @@ CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
       }
     }
 
-    if (llvm::isa<clang::ArraySubscriptExpr>(lhs)) {
-      if (!lastArrayAccess_) {
-        llvm::errs() << "Error: Array access info not saved\n";
-        return nullptr;
-      }
-
+    if (isArrayLHS && savedLHSAccess) {
       mlir::memref::StoreOp::create(builder, loc, resultValue,
-                                    lastArrayAccess_->base,
-                                    lastArrayAccess_->indices);
-      lastArrayAccess_.reset();
-    } else {
+                                    savedLHSAccess->base,
+                                    savedLHSAccess->indices);
+    } else if (!isArrayLHS) {
       mlir::memref::StoreOp::create(builder, loc, resultValue, lhsValue,
                                     mlir::ValueRange{});
     }
