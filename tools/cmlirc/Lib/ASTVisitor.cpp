@@ -136,6 +136,11 @@ bool CMLIRCASTVisitor::TraverseReturnStmt(clang::ReturnStmt *stmt) {
     retValue = generateExpr(retExpr);
   }
 
+  if (returnValueCapture) {
+    *returnValueCapture = retValue;
+    return true;
+  }
+
   if (retValue) {
     mlir::func::ReturnOp::create(builder, builder.getUnknownLoc(),
                                  mlir::ValueRange{retValue});
@@ -144,22 +149,6 @@ bool CMLIRCASTVisitor::TraverseReturnStmt(clang::ReturnStmt *stmt) {
   }
 
   return true;
-}
-
-bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
-  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
-    return unOp->isIncrementDecrementOp();
-  }
-
-  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
-    return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
-  }
-
-  if (llvm::isa<clang::CallExpr>(expr)) {
-    return true;
-  }
-
-  return false;
 }
 
 bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
@@ -175,40 +164,105 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
     return false;
   }
 
-  mlir::Value condBool = convertToBool(condition);
+  mlir::Value condBool = convertToBool(builder, condition);
 
   bool hasElse = ifStmt->getElse() != nullptr;
 
-  auto ifOp = mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
-                                      mlir::TypeRange{}, condBool, hasElse);
+  bool thenHasReturn = branchEndsWithReturn(ifStmt->getThen());
+  bool elseHasReturn = hasElse && branchEndsWithReturn(ifStmt->getElse());
+  bool bothReturn = thenHasReturn && elseHasReturn;
+
+  llvm::SmallVector<mlir::Type, 1> resultTypes;
+  if (bothReturn && currentFunc.getFunctionType().getNumResults() > 0) {
+    resultTypes.push_back(currentFunc.getFunctionType().getResult(0));
+  }
+
+  auto ifOp =
+      mlir::scf::IfOp::create(builder, builder.getUnknownLoc(),
+                              mlir::TypeRange{resultTypes}, condBool, hasElse);
 
   mlir::Block *thenBlock = &ifOp.getThenRegion().front();
   builder.setInsertionPointToStart(thenBlock);
 
+  mlir::Value thenReturnValue = nullptr;
+  if (bothReturn) {
+    returnValueCapture = &thenReturnValue;
+  }
+
   TraverseStmt(ifStmt->getThen());
+
+  if (bothReturn) {
+    returnValueCapture = nullptr;
+  }
 
   builder.setInsertionPointToEnd(thenBlock);
 
   if (thenBlock->empty() ||
       !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-    mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    if (bothReturn && thenReturnValue) {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
+                                 thenReturnValue);
+    } else {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    }
+  } else if (bothReturn && llvm::isa<mlir::func::ReturnOp>(thenBlock->back())) {
+    // Replace func.return with scf.yield
+    auto returnOp = llvm::cast<mlir::func::ReturnOp>(thenBlock->back());
+    mlir::ValueRange returnOperands = returnOp.getOperands();
+    returnOp.erase();
+    if (!returnOperands.empty()) {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
+                                 returnOperands[0]);
+    } else {
+      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    }
   }
 
   if (hasElse) {
     mlir::Block *elseBlock = &ifOp.getElseRegion().front();
     builder.setInsertionPointToStart(elseBlock);
 
+    mlir::Value elseReturnValue = nullptr;
+    if (bothReturn) {
+      returnValueCapture = &elseReturnValue;
+    }
+
     TraverseStmt(ifStmt->getElse());
+
+    if (bothReturn) {
+      returnValueCapture = nullptr;
+    }
 
     builder.setInsertionPointToEnd(elseBlock);
 
     if (elseBlock->empty() ||
         !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+      if (bothReturn && elseReturnValue) {
+        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
+                                   elseReturnValue);
+      } else {
+        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+      }
+    } else if (bothReturn &&
+               llvm::isa<mlir::func::ReturnOp>(elseBlock->back())) {
+      auto returnOp = llvm::cast<mlir::func::ReturnOp>(elseBlock->back());
+      mlir::ValueRange returnOperands = returnOp.getOperands();
+      returnOp.erase();
+      if (!returnOperands.empty()) {
+        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
+                                   returnOperands[0]);
+      } else {
+        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+      }
     }
   }
 
   builder.setInsertionPointAfter(ifOp);
+
+  if (bothReturn && ifOp.getNumResults() > 0) {
+    mlir::func::ReturnOp::create(builder, builder.getUnknownLoc(),
+                                 ifOp.getResult(0));
+  }
 
   return true;
 }
@@ -225,13 +279,11 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
     TraverseStmt(forStmt->getInit());
   }
 
-  // Analyze loop to determine if it's a simple counting loop
   bool isSimpleLoop = false;
   bool isIncrementing = true;
   const clang::VarDecl *inductionVar = nullptr;
   mlir::Value lowerBound, upperBound, step;
 
-  // Check if init is a single variable declaration
   if (auto *init =
           llvm::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit())) {
     if (init->isSingleDecl()) {
@@ -239,18 +291,15 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
               llvm::dyn_cast<clang::VarDecl>(init->getSingleDecl())) {
         if (varDecl->hasInit()) {
 
-          // Check condition is a binary comparison
           if (auto *cond = llvm::dyn_cast_or_null<clang::BinaryOperator>(
                   forStmt->getCond())) {
 
-            // Verify condition LHS references the induction variable
             auto *condLHS = cond->getLHS()->IgnoreImpCasts();
             if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condLHS)) {
               if (declRef->getDecl() == varDecl) {
 
                 clang::BinaryOperatorKind condOp = cond->getOpcode();
 
-                // Determine loop direction from condition operator
                 bool validCondition = false;
                 if (condOp == clang::BO_LT || condOp == clang::BO_LE) {
                   isIncrementing = true;
@@ -261,7 +310,6 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
                 }
 
                 if (validCondition) {
-                  // Analyze increment/decrement expression
                   mlir::Value stepValue = nullptr;
                   bool validIncrement = false;
 
@@ -334,7 +382,6 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
                           }
                         }
 
-                        // Convert step to index type if needed
                         if (validIncrement && stepValue &&
                             !stepValue.getType().isIndex()) {
                           stepValue = mlir::arith::IndexCastOp::create(
@@ -351,7 +398,6 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
                     inductionVar = varDecl;
                     step = stepValue;
 
-                    // Extract bounds from init and condition
                     mlir::Value initVal = generateExpr(varDecl->getInit());
                     mlir::Value condVal = generateExpr(cond->getRHS());
 
@@ -387,7 +433,6 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
                                          upperBound, one)
                                          .getResult();
                       } else if (condOp == clang::BO_GT) {
-                        // i > end: lowerBound = end + 1, upperBound = start + 1
                         mlir::Type lbType = lowerBound.getType();
                         mlir::Value one =
                             mlir::arith::ConstantOp::create(
@@ -420,9 +465,7 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
     }
   }
 
-  // Generate code based on analysis
   if (isSimpleLoop && lowerBound && upperBound && step && inductionVar) {
-    // Convert bounds to index type
     if (!lowerBound.getType().isIndex()) {
       lowerBound =
           mlir::arith::IndexCastOp::create(builder, builder.getUnknownLoc(),
@@ -436,13 +479,11 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
               .getResult();
     }
 
-    // Create scf.for operation
     auto forOp = mlir::scf::ForOp::create(builder, builder.getUnknownLoc(),
                                           lowerBound, upperBound, step);
 
     builder.setInsertionPointToStart(forOp.getBody());
 
-    // Compute actual induction variable value
     mlir::Value inductionValue = forOp.getInductionVar();
     mlir::Type origType = convertType(builder, inductionVar->getType());
 
@@ -468,7 +509,6 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
               .getResult();
     }
 
-    // Cast to original type if needed
     if (!origType.isIndex()) {
       inductionValue =
           mlir::arith::IndexCastOp::create(builder, builder.getUnknownLoc(),
@@ -476,19 +516,16 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
               .getResult();
     }
 
-    // Store induction variable value
     if (symbolTable.count(inductionVar)) {
       mlir::Value memref = symbolTable[inductionVar];
       mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(),
                                     inductionValue, memref, mlir::ValueRange{});
     }
 
-    // Traverse loop body
     loopStack_.push_back({forOp.getBody(), nullptr});
     TraverseStmt(forStmt->getBody());
     loopStack_.pop_back();
 
-    // Ensure terminator exists
     builder.setInsertionPointToEnd(forOp.getBody());
     if (forOp.getBody()->empty() ||
         !forOp.getBody()->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
@@ -502,16 +539,14 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
         mlir::scf::WhileOp::create(builder, builder.getUnknownLoc(),
                                    mlir::TypeRange{}, mlir::ValueRange{});
 
-    // Before region: condition evaluation
     mlir::Block *beforeBlock = &whileOp.getBefore().front();
     builder.setInsertionPointToStart(beforeBlock);
 
     mlir::Value condition;
     if (forStmt->getCond()) {
       condition = generateExpr(forStmt->getCond());
-      condition = convertToBool(condition);
+      condition = convertToBool(builder, condition);
     } else {
-      // No condition = infinite loop
       condition = mlir::arith::ConstantOp::create(
                       builder, builder.getUnknownLoc(), builder.getI1Type(),
                       builder.getBoolAttr(true))
@@ -521,23 +556,19 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
     mlir::scf::ConditionOp::create(builder, builder.getUnknownLoc(), condition,
                                    mlir::ValueRange{});
 
-    // After region: loop body + increment
     mlir::Block *afterBlock = &whileOp.getAfter().front();
     builder.setInsertionPointToStart(afterBlock);
 
     loopStack_.push_back({beforeBlock, afterBlock});
 
-    // Execute loop body
     TraverseStmt(forStmt->getBody());
 
-    // Execute increment expression
     if (forStmt->getInc()) {
       generateExpr(forStmt->getInc());
     }
 
     loopStack_.pop_back();
 
-    // Ensure terminator exists
     builder.setInsertionPointToEnd(afterBlock);
     if (afterBlock->empty() ||
         !afterBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
@@ -549,6 +580,45 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
   }
 
   return true;
+}
+
+bool CMLIRCASTVisitor::hasSideEffects(clang::Expr *expr) const {
+  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+    return unOp->isIncrementDecrementOp();
+  }
+
+  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+    return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
+  }
+
+  if (llvm::isa<clang::CallExpr>(expr)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool CMLIRCASTVisitor::branchEndsWithReturn(clang::Stmt *stmt) {
+  if (!stmt)
+    return false;
+
+  if (llvm::isa<clang::ReturnStmt>(stmt)) {
+    return true;
+  }
+
+  if (auto *compound = llvm::dyn_cast<clang::CompoundStmt>(stmt)) {
+    if (compound->body_empty())
+      return false;
+    return branchEndsWithReturn(compound->body_back());
+  }
+
+  if (auto *ifStmt = llvm::dyn_cast<clang::IfStmt>(stmt)) {
+    return branchEndsWithReturn(ifStmt->getThen()) &&
+           (ifStmt->getElse() ? branchEndsWithReturn(ifStmt->getElse())
+                              : false);
+  }
+
+  return false;
 }
 
 } // namespace cmlirc

@@ -16,6 +16,10 @@ namespace cmlirc {
 [[nodiscard]] mlir::Type convertPointerType(mlir::OpBuilder &builder,
                                             const clang::PointerType *type);
 
+// helpers
+[[nodiscard]]
+mlir::Value convertToBool(mlir::OpBuilder &builder, mlir::Value value);
+
 } // namespace cmlirc
 
 #endif // CMLIRC_TYPE_CONVERTER_H

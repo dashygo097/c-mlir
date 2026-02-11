@@ -35,6 +35,7 @@ private:
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
   llvm::DenseMap<const clang::FunctionDecl *, mlir::Value> functionTable;
   mlir::func::FuncOp currentFunc;
+  mlir::Value *returnValueCapture;
 
   struct ArrayAccessInfo {
     mlir::Value base;
@@ -50,9 +51,9 @@ private:
 
   // helpers
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
+  bool branchEndsWithReturn(clang::Stmt *stmt);
 
   // type traits
-  mlir::Value convertToBool(mlir::Value value);
 
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr);
