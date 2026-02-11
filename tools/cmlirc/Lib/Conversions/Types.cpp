@@ -94,4 +94,37 @@ mlir::Type convertPointerType(mlir::OpBuilder &builder,
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 
+// helpers
+mlir::Value convertToBool(mlir::OpBuilder &builder, mlir::Value value) {
+  mlir::Type type = value.getType();
+
+  if (type.isInteger(1)) {
+    return value;
+  }
+
+  if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getIntegerAttr(type, 0));
+    return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(),
+                                       mlir::arith::CmpIPredicate::ne, value,
+                                       zero)
+        .getResult();
+  }
+
+  if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+                                        builder.getFloatAttr(type, 0.0));
+    return mlir::arith::CmpFOp::create(
+               builder, builder.getUnknownLoc(),
+               mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
+               value, zero)
+        .getResult();
+  }
+
+  llvm::errs() << "Cannot convert type to bool\n";
+  return nullptr;
+}
+
 } // namespace cmlirc
