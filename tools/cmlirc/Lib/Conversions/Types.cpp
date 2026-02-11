@@ -96,6 +96,7 @@ mlir::Type convertPointerType(mlir::OpBuilder &builder,
 
 // helpers
 mlir::Value convertToBool(mlir::OpBuilder &builder, mlir::Value value) {
+  mlir::Location loc = builder.getUnknownLoc();
   mlir::Type type = value.getType();
 
   if (type.isInteger(1)) {
@@ -103,21 +104,18 @@ mlir::Value convertToBool(mlir::OpBuilder &builder, mlir::Value value) {
   }
 
   if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
-    mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getIntegerAttr(type, 0));
-    return mlir::arith::CmpIOp::create(builder, builder.getUnknownLoc(),
-                                       mlir::arith::CmpIPredicate::ne, value,
-                                       zero)
+    mlir::Value zero = mlir::arith::ConstantOp::create(
+        builder, loc, type, builder.getIntegerAttr(type, 0));
+    return mlir::arith::CmpIOp::create(
+               builder, loc, mlir::arith::CmpIPredicate::ne, value, zero)
         .getResult();
   }
 
   if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
-    mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
-                                        builder.getFloatAttr(type, 0.0));
+    mlir::Value zero = mlir::arith::ConstantOp::create(
+        builder, loc, type, builder.getFloatAttr(type, 0.0));
     return mlir::arith::CmpFOp::create(
-               builder, builder.getUnknownLoc(),
+               builder, loc,
                mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
                value, zero)
         .getResult();
