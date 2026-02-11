@@ -7,7 +7,7 @@ set(USE_CCACHE ON)
 
 # Build options
 set(BUILD_EXECUTABLES ON)
-set(ENABLE_TESTING OFF)
+set(ENABLE_TESTING ON)
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
