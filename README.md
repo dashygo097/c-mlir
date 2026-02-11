@@ -5,6 +5,7 @@
 - `C/C++ toolchains` (compiler, linker etc.)
 - `cmake`
 - `make` or `ninja`.
+- `lit`(optional for testing)
 
 ## Installation
 
@@ -92,6 +93,16 @@ ninja
 ```
 
 ## Run Tests
+
+**1. Install `lit`**
+
+Activate your python virtual env(`venv`, `conda`, `uv` etc.) and install `lit` using `pip`:
+
+```bash
+pip install lit
+```
+
+**2. Run tests**
 
 ```bash
 make test
