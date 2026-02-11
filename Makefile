@@ -50,11 +50,6 @@ clean:
 	@echo "==> Cleaning build directory..."
 	@rm -rf $(BUILD_DIR)
 
-# Run tests
-test: build
-	@echo "==> Running tests..."
-	@cd $(BUILD_DIR) && ctest --output-on-failure -j$(JOBS)
-
 # Help message
 help:
 	@echo "Available targets:"

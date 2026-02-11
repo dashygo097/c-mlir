@@ -30,11 +30,11 @@ add_subdirectory(lib)
 
 # Executables
 if(BUILD_EXECUTABLES)
+  set(CMLIR_TOOLS_DIR "${CMAKE_BINARY_DIR}/bin")
   add_subdirectory(tools)
 endif()
 
 # Tests
-if(ENABLE_TESTING)
-  enable_testing()
+if(BUILD_EXECUTABLES AND ENABLE_TESTING)
   add_subdirectory(tests)
 endif()
