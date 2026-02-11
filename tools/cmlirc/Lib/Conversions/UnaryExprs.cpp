@@ -117,6 +117,10 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::Expr *lvalueExpr = expr->IgnoreParenImpCasts();
+
+  bool isArrayAccess = llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr);
+  std::optional<ArrayAccessInfo> savedArrayAccess;
+
   mlir::Value lvalue = generateExpr(lvalueExpr);
 
   if (!lvalue) {
@@ -124,19 +128,23 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
     return nullptr;
   }
 
-  mlir::Value oldValue;
-
-  if (llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr)) {
-    if (!lastArrayAccess_) {
+  if (isArrayAccess) {
+    if (lastArrayAccess_) {
+      savedArrayAccess = lastArrayAccess_;
+      lastArrayAccess_.reset();
+    } else {
       llvm::errs() << "Error: Array access info not available\n";
       return nullptr;
     }
+  }
 
+  mlir::Value oldValue;
+
+  if (isArrayAccess && savedArrayAccess) {
     oldValue =
-        mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
-                                     lastArrayAccess_->indices)
+        mlir::memref::LoadOp::create(builder, loc, savedArrayAccess->base,
+                                     savedArrayAccess->indices)
             .getResult();
-
   } else {
     oldValue = mlir::memref::LoadOp::create(builder, loc, lvalue).getResult();
   }
@@ -168,13 +176,10 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
     return nullptr;
   }
 
-  if (llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr)) {
-    if (lastArrayAccess_) {
-      mlir::memref::StoreOp::create(builder, loc, newValue,
-                                    lastArrayAccess_->base,
-                                    lastArrayAccess_->indices);
-      lastArrayAccess_.reset();
-    }
+  if (isArrayAccess && savedArrayAccess) {
+    mlir::memref::StoreOp::create(builder, loc, newValue,
+                                  savedArrayAccess->base,
+                                  savedArrayAccess->indices);
   } else {
     mlir::memref::StoreOp::create(builder, loc, newValue, lvalue,
                                   mlir::ValueRange{});
