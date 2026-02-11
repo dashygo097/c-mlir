@@ -4,5 +4,7 @@
 .vscode/
 .Trash-*/
 
+.venv/
 __pycache__/
+
 build/
