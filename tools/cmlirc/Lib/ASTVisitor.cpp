@@ -220,43 +220,197 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
 
   mlir::OpBuilder &builder = context_manager_.Builder();
 
+  // Process initialization
   if (forStmt->getInit()) {
     TraverseStmt(forStmt->getInit());
   }
 
-  bool isSimpleCountingLoop = false;
-  mlir::Value lowerBound, upperBound, step;
+  // Analyze loop to determine if it's a simple counting loop
+  bool isSimpleLoop = false;
+  bool isIncrementing = true;
   const clang::VarDecl *inductionVar = nullptr;
+  mlir::Value lowerBound, upperBound, step;
 
+  // Check if init is a single variable declaration
   if (auto *init =
           llvm::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit())) {
     if (init->isSingleDecl()) {
       if (auto *varDecl =
               llvm::dyn_cast<clang::VarDecl>(init->getSingleDecl())) {
         if (varDecl->hasInit()) {
+
+          // Check condition is a binary comparison
           if (auto *cond = llvm::dyn_cast_or_null<clang::BinaryOperator>(
                   forStmt->getCond())) {
-            if (cond->getOpcode() == clang::BO_LT ||
-                cond->getOpcode() == clang::BO_LE) {
-              if (auto *inc = llvm::dyn_cast_or_null<clang::UnaryOperator>(
-                      forStmt->getInc())) {
-                if (inc->getOpcode() == clang::UO_PostInc ||
-                    inc->getOpcode() == clang::UO_PreInc) {
-                  isSimpleCountingLoop = true;
-                  inductionVar = varDecl;
 
-                  if (symbolTable.count(varDecl)) {
-                    mlir::Value memref = symbolTable[varDecl];
-                    lowerBound = mlir::memref::LoadOp::create(
-                        builder, builder.getUnknownLoc(), memref);
-                  } else {
-                    lowerBound = generateExpr(varDecl->getInit());
+            // Verify condition LHS references the induction variable
+            auto *condLHS = cond->getLHS()->IgnoreImpCasts();
+            if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condLHS)) {
+              if (declRef->getDecl() == varDecl) {
+
+                clang::BinaryOperatorKind condOp = cond->getOpcode();
+
+                // Determine loop direction from condition operator
+                bool validCondition = false;
+                if (condOp == clang::BO_LT || condOp == clang::BO_LE) {
+                  isIncrementing = true;
+                  validCondition = true;
+                } else if (condOp == clang::BO_GT || condOp == clang::BO_GE) {
+                  isIncrementing = false;
+                  validCondition = true;
+                }
+
+                if (validCondition) {
+                  // Analyze increment/decrement expression
+                  mlir::Value stepValue = nullptr;
+                  bool validIncrement = false;
+
+                  if (auto *inc = llvm::dyn_cast_or_null<clang::UnaryOperator>(
+                          forStmt->getInc())) {
+                    auto *incSubExpr = inc->getSubExpr()->IgnoreImpCasts();
+                    if (auto *incVar =
+                            llvm::dyn_cast<clang::DeclRefExpr>(incSubExpr)) {
+                      if (incVar->getDecl() == varDecl) {
+                        clang::UnaryOperatorKind incOp = inc->getOpcode();
+
+                        if ((incOp == clang::UO_PostInc ||
+                             incOp == clang::UO_PreInc) &&
+                            isIncrementing) {
+                          validIncrement = true;
+                          stepValue = mlir::arith::ConstantOp::create(
+                                          builder, builder.getUnknownLoc(),
+                                          builder.getIndexType(),
+                                          builder.getIndexAttr(1))
+                                          .getResult();
+                        } else if ((incOp == clang::UO_PostDec ||
+                                    incOp == clang::UO_PreDec) &&
+                                   !isIncrementing) {
+                          validIncrement = true;
+                          stepValue = mlir::arith::ConstantOp::create(
+                                          builder, builder.getUnknownLoc(),
+                                          builder.getIndexType(),
+                                          builder.getIndexAttr(1))
+                                          .getResult();
+                        }
+                      }
+                    }
                   }
 
-                  upperBound = generateExpr(cond->getRHS());
-                  step = mlir::arith::ConstantOp::create(
-                      builder, builder.getUnknownLoc(), builder.getIndexType(),
-                      builder.getIndexAttr(1));
+                  else if (auto *inc =
+                               llvm::dyn_cast_or_null<clang::BinaryOperator>(
+                                   forStmt->getInc())) {
+                    auto *incLHS = inc->getLHS()->IgnoreImpCasts();
+                    if (auto *incVar =
+                            llvm::dyn_cast<clang::DeclRefExpr>(incLHS)) {
+                      if (incVar->getDecl() == varDecl) {
+                        clang::BinaryOperatorKind incOp = inc->getOpcode();
+
+                        if (incOp == clang::BO_AddAssign && isIncrementing) {
+                          validIncrement = true;
+                          stepValue = generateExpr(inc->getRHS());
+                        } else if (incOp == clang::BO_SubAssign &&
+                                   !isIncrementing) {
+                          validIncrement = true;
+                          stepValue = generateExpr(inc->getRHS());
+                        } else if (incOp == clang::BO_Assign) {
+                          if (auto *rhs = llvm::dyn_cast<clang::BinaryOperator>(
+                                  inc->getRHS()->IgnoreImpCasts())) {
+                            auto *rhsLHS = rhs->getLHS()->IgnoreImpCasts();
+                            if (auto *rhsVar =
+                                    llvm::dyn_cast<clang::DeclRefExpr>(
+                                        rhsLHS)) {
+                              if (rhsVar->getDecl() == varDecl) {
+                                if (rhs->getOpcode() == clang::BO_Add &&
+                                    isIncrementing) {
+                                  validIncrement = true;
+                                  stepValue = generateExpr(rhs->getRHS());
+                                } else if (rhs->getOpcode() == clang::BO_Sub &&
+                                           !isIncrementing) {
+                                  validIncrement = true;
+                                  stepValue = generateExpr(rhs->getRHS());
+                                }
+                              }
+                            }
+                          }
+                        }
+
+                        // Convert step to index type if needed
+                        if (validIncrement && stepValue &&
+                            !stepValue.getType().isIndex()) {
+                          stepValue = mlir::arith::IndexCastOp::create(
+                                          builder, builder.getUnknownLoc(),
+                                          builder.getIndexType(), stepValue)
+                                          .getResult();
+                        }
+                      }
+                    }
+                  }
+
+                  if (validIncrement && stepValue) {
+                    isSimpleLoop = true;
+                    inductionVar = varDecl;
+                    step = stepValue;
+
+                    // Extract bounds from init and condition
+                    mlir::Value initVal = generateExpr(varDecl->getInit());
+                    mlir::Value condVal = generateExpr(cond->getRHS());
+
+                    if (isIncrementing) {
+                      lowerBound = initVal;
+                      upperBound = condVal;
+
+                      if (condOp == clang::BO_LE) {
+                        mlir::Type ubType = upperBound.getType();
+                        mlir::Value one =
+                            mlir::arith::ConstantOp::create(
+                                builder, builder.getUnknownLoc(), ubType,
+                                builder.getIntegerAttr(ubType, 1))
+                                .getResult();
+                        upperBound = mlir::arith::AddIOp::create(
+                                         builder, builder.getUnknownLoc(),
+                                         upperBound, one)
+                                         .getResult();
+                      }
+                    } else {
+                      lowerBound = condVal;
+                      upperBound = initVal;
+
+                      if (condOp == clang::BO_GE) {
+                        mlir::Type ubType = upperBound.getType();
+                        mlir::Value one =
+                            mlir::arith::ConstantOp::create(
+                                builder, builder.getUnknownLoc(), ubType,
+                                builder.getIntegerAttr(ubType, 1))
+                                .getResult();
+                        upperBound = mlir::arith::AddIOp::create(
+                                         builder, builder.getUnknownLoc(),
+                                         upperBound, one)
+                                         .getResult();
+                      } else if (condOp == clang::BO_GT) {
+                        // i > end: lowerBound = end + 1, upperBound = start + 1
+                        mlir::Type lbType = lowerBound.getType();
+                        mlir::Value one =
+                            mlir::arith::ConstantOp::create(
+                                builder, builder.getUnknownLoc(), lbType,
+                                builder.getIntegerAttr(lbType, 1))
+                                .getResult();
+                        lowerBound = mlir::arith::AddIOp::create(
+                                         builder, builder.getUnknownLoc(),
+                                         lowerBound, one)
+                                         .getResult();
+
+                        mlir::Type ubType = upperBound.getType();
+                        one = mlir::arith::ConstantOp::create(
+                                  builder, builder.getUnknownLoc(), ubType,
+                                  builder.getIntegerAttr(ubType, 1))
+                                  .getResult();
+                        upperBound = mlir::arith::AddIOp::create(
+                                         builder, builder.getUnknownLoc(),
+                                         upperBound, one)
+                                         .getResult();
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -266,48 +420,78 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
     }
   }
 
-  if (isSimpleCountingLoop && lowerBound && upperBound && step &&
-      inductionVar) {
-    auto lowerIdx = mlir::arith::IndexCastOp::create(
-        builder, builder.getUnknownLoc(), builder.getIndexType(), lowerBound);
-    auto upperIdx = mlir::arith::IndexCastOp::create(
-        builder, builder.getUnknownLoc(), builder.getIndexType(), upperBound);
+  // Generate code based on analysis
+  if (isSimpleLoop && lowerBound && upperBound && step && inductionVar) {
+    // Convert bounds to index type
+    if (!lowerBound.getType().isIndex()) {
+      lowerBound =
+          mlir::arith::IndexCastOp::create(builder, builder.getUnknownLoc(),
+                                           builder.getIndexType(), lowerBound)
+              .getResult();
+    }
+    if (!upperBound.getType().isIndex()) {
+      upperBound =
+          mlir::arith::IndexCastOp::create(builder, builder.getUnknownLoc(),
+                                           builder.getIndexType(), upperBound)
+              .getResult();
+    }
 
+    // Create scf.for operation
     auto forOp = mlir::scf::ForOp::create(builder, builder.getUnknownLoc(),
-                                          lowerIdx, upperIdx, step);
+                                          lowerBound, upperBound, step);
 
     builder.setInsertionPointToStart(forOp.getBody());
 
+    // Compute actual induction variable value
     mlir::Value inductionValue = forOp.getInductionVar();
-
     mlir::Type origType = convertType(builder, inductionVar->getType());
-    if (!origType.isIndex()) {
-      inductionValue = mlir::arith::IndexCastOp::create(
-          builder, builder.getUnknownLoc(), origType, inductionValue);
+
+    if (!isIncrementing) {
+      mlir::Value one = mlir::arith::ConstantOp::create(
+                            builder, builder.getUnknownLoc(),
+                            builder.getIndexType(), builder.getIndexAttr(1))
+                            .getResult();
+
+      mlir::Value adjustedUpper =
+          mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
+                                      upperBound, one)
+              .getResult();
+
+      mlir::Value offset =
+          mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
+                                      inductionValue, lowerBound)
+              .getResult();
+
+      inductionValue =
+          mlir::arith::SubIOp::create(builder, builder.getUnknownLoc(),
+                                      adjustedUpper, offset)
+              .getResult();
     }
 
+    // Cast to original type if needed
+    if (!origType.isIndex()) {
+      inductionValue =
+          mlir::arith::IndexCastOp::create(builder, builder.getUnknownLoc(),
+                                           origType, inductionValue)
+              .getResult();
+    }
+
+    // Store induction variable value
     if (symbolTable.count(inductionVar)) {
       mlir::Value memref = symbolTable[inductionVar];
       mlir::memref::StoreOp::create(builder, builder.getUnknownLoc(),
-                                    inductionValue, memref);
+                                    inductionValue, memref, mlir::ValueRange{});
     }
 
+    // Traverse loop body
     loopStack_.push_back({forOp.getBody(), nullptr});
     TraverseStmt(forStmt->getBody());
     loopStack_.pop_back();
 
-    mlir::Block *bodyBlock = forOp.getBody();
-    mlir::Block::iterator it = bodyBlock->end();
-    bool needsYield = true;
-
-    if (!bodyBlock->empty()) {
-      --it;
-      if (it->hasTrait<mlir::OpTrait::IsTerminator>()) {
-        needsYield = false;
-      }
-    }
-
-    if (needsYield) {
+    // Ensure terminator exists
+    builder.setInsertionPointToEnd(forOp.getBody());
+    if (forOp.getBody()->empty() ||
+        !forOp.getBody()->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
     }
 
@@ -318,6 +502,7 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
         mlir::scf::WhileOp::create(builder, builder.getUnknownLoc(),
                                    mlir::TypeRange{}, mlir::ValueRange{});
 
+    // Before region: condition evaluation
     mlir::Block *beforeBlock = &whileOp.getBefore().front();
     builder.setInsertionPointToStart(beforeBlock);
 
@@ -326,38 +511,36 @@ bool CMLIRCASTVisitor::TraverseForStmt(clang::ForStmt *forStmt) {
       condition = generateExpr(forStmt->getCond());
       condition = convertToBool(condition);
     } else {
+      // No condition = infinite loop
       condition = mlir::arith::ConstantOp::create(
-          builder, builder.getUnknownLoc(), builder.getI1Type(),
-          builder.getBoolAttr(true));
+                      builder, builder.getUnknownLoc(), builder.getI1Type(),
+                      builder.getBoolAttr(true))
+                      .getResult();
     }
 
     mlir::scf::ConditionOp::create(builder, builder.getUnknownLoc(), condition,
                                    mlir::ValueRange{});
 
+    // After region: loop body + increment
     mlir::Block *afterBlock = &whileOp.getAfter().front();
     builder.setInsertionPointToStart(afterBlock);
 
     loopStack_.push_back({beforeBlock, afterBlock});
 
+    // Execute loop body
     TraverseStmt(forStmt->getBody());
 
+    // Execute increment expression
     if (forStmt->getInc()) {
       generateExpr(forStmt->getInc());
     }
 
     loopStack_.pop_back();
 
-    mlir::Block::iterator it = afterBlock->end();
-    bool needsYield = true;
-
-    if (!afterBlock->empty()) {
-      --it;
-      if (it->hasTrait<mlir::OpTrait::IsTerminator>()) {
-        needsYield = false;
-      }
-    }
-
-    if (needsYield) {
+    // Ensure terminator exists
+    builder.setInsertionPointToEnd(afterBlock);
+    if (afterBlock->empty() ||
+        !afterBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc(),
                                  mlir::ValueRange{});
     }
