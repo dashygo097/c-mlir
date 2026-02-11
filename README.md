@@ -30,7 +30,7 @@ ninja
 ninja check-mlir
 ```
 
-For faster compilation we recommend using -DLLVM_USE_LINKER=lld.
+For faster compilation,i recommend using -DLLVM_USE_LINKER=lld.
 
 **3. Build `cmlirc`:**
 
@@ -67,7 +67,7 @@ set(USE_CCACHE ON)
 
 # Build options
 set(BUILD_EXECUTABLES ON)
-set(ENABLE_TESTING ON)
+set(ENABLE_TESTING ON) # Set it ON to enable testing
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
@@ -89,6 +89,19 @@ mkdir build
 cd build
 cmake -G Ninja ..
 ninja
+```
+
+## Run Tests
+
+```bash
+make test
+```
+
+Or manually follow this:
+
+```bash
+cd build
+ninja check-cmlirc
 ```
 
 ## Acknowledgement
