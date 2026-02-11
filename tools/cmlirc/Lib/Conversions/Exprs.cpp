@@ -47,24 +47,25 @@ mlir::Value CMLIRCASTVisitor::generateExpr(clang::Expr *expr) {
 mlir::Value
 CMLIRCASTVisitor::generateBoolLiteral(clang::CXXBoolLiteralExpr *boolLit) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   bool value = boolLit->getValue();
   mlir::Type type = convertType(builder, boolLit->getType());
 
   return mlir::arith::ConstantOp::create(
-             builder, builder.getUnknownLoc(), type,
-             builder.getIntegerAttr(type, value ? 1 : 0))
+             builder, loc, type, builder.getIntegerAttr(type, value ? 1 : 0))
       .getResult();
 }
 
 mlir::Value
 CMLIRCASTVisitor::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   int64_t value = intLit->getValue().getSExtValue();
   mlir::Type type = convertType(builder, intLit->getType());
 
-  return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+  return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getIntegerAttr(type, value))
       .getResult();
 }
@@ -72,11 +73,12 @@ CMLIRCASTVisitor::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
 mlir::Value
 CMLIRCASTVisitor::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
 
   double value = floatLit->getValue().convertToDouble();
   mlir::Type type = convertType(builder, floatLit->getType());
 
-  return mlir::arith::ConstantOp::create(builder, builder.getUnknownLoc(), type,
+  return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getFloatAttr(type, value))
       .getResult();
 }
