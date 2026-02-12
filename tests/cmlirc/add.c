@@ -2,6 +2,6 @@
 
 int add(int a, int b) { return a + b; }
 
-// CHECK-LABEL: func @add
-// CHECK-NEXT: %[[V0:.*]] = arith.addi
-// CHECK: return %[[V0]]
+// CHECK: func @add(%arg0: i32, %arg1: i32) -> i32
+// CHECK: %[[V0:.*]] = arith.addi %arg0, %arg1 : i32
+// CHECK: return %[[V0]] : i32
