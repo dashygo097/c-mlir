@@ -179,6 +179,8 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
   bool elseHasReturn = hasElse && branchEndsWithReturn(ifStmt->getElse());
   bool bothReturn = thenHasReturn && elseHasReturn;
 
+  bool isNested = (returnValueCapture != nullptr);
+
   llvm::SmallVector<mlir::Type, 1> resultTypes;
   if (bothReturn && currentFunc.getFunctionType().getNumResults() > 0) {
     resultTypes.push_back(currentFunc.getFunctionType().getResult(0));
@@ -191,15 +193,14 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
   builder.setInsertionPointToStart(thenBlock);
 
   mlir::Value thenReturnValue = nullptr;
+  mlir::Value *savedReturnCapture = returnValueCapture;
   if (bothReturn) {
     returnValueCapture = &thenReturnValue;
   }
 
   TraverseStmt(ifStmt->getThen());
 
-  if (bothReturn) {
-    returnValueCapture = nullptr;
-  }
+  returnValueCapture = savedReturnCapture;
 
   builder.setInsertionPointToEnd(thenBlock);
 
@@ -211,7 +212,6 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
     }
   } else if (bothReturn && llvm::isa<mlir::func::ReturnOp>(thenBlock->back())) {
-    // Replace func.return with scf.yield
     auto returnOp = llvm::cast<mlir::func::ReturnOp>(thenBlock->back());
     mlir::ValueRange returnOperands = returnOp.getOperands();
     returnOp.erase();
@@ -227,15 +227,14 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
     builder.setInsertionPointToStart(elseBlock);
 
     mlir::Value elseReturnValue = nullptr;
+    savedReturnCapture = returnValueCapture; // Save again
     if (bothReturn) {
       returnValueCapture = &elseReturnValue;
     }
 
     TraverseStmt(ifStmt->getElse());
 
-    if (bothReturn) {
-      returnValueCapture = nullptr;
-    }
+    returnValueCapture = savedReturnCapture; // Restore again
 
     builder.setInsertionPointToEnd(elseBlock);
 
@@ -262,7 +261,11 @@ bool CMLIRCASTVisitor::TraverseIfStmt(clang::IfStmt *ifStmt) {
   builder.setInsertionPointAfter(ifOp);
 
   if (bothReturn && ifOp.getNumResults() > 0) {
-    mlir::func::ReturnOp::create(builder, loc, ifOp.getResult(0));
+    if (isNested && savedReturnCapture) {
+      *savedReturnCapture = ifOp.getResult(0);
+    } else {
+      mlir::func::ReturnOp::create(builder, loc, ifOp.getResult(0));
+    }
   }
 
   return true;
