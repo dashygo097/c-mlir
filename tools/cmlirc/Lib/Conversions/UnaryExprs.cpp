@@ -118,6 +118,47 @@ mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
 
   clang::Expr *lvalueExpr = expr->IgnoreParenImpCasts();
 
+  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(lvalueExpr)) {
+    if (auto *paramDecl =
+            llvm::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
+      if (paramTable.count(paramDecl)) {
+        mlir::Value oldValue = paramTable[paramDecl];
+        mlir::Type type = oldValue.getType();
+        mlir::Value one;
+        mlir::Value newValue;
+
+        if (mlir::isa<mlir::IntegerType>(type)) {
+          one = mlir::arith::ConstantOp::create(builder, loc, type,
+                                                builder.getIntegerAttr(type, 1))
+                    .getResult();
+          newValue =
+              isIncrement
+                  ? mlir::arith::AddIOp::create(builder, loc, oldValue, one)
+                        .getResult()
+                  : mlir::arith::SubIOp::create(builder, loc, oldValue, one)
+                        .getResult();
+        } else if (mlir::isa<mlir::FloatType>(type)) {
+          one = mlir::arith::ConstantOp::create(builder, loc, type,
+                                                builder.getFloatAttr(type, 1.0))
+                    .getResult();
+          newValue =
+              isIncrement
+                  ? mlir::arith::AddFOp::create(builder, loc, oldValue, one)
+                        .getResult()
+                  : mlir::arith::SubFOp::create(builder, loc, oldValue, one)
+                        .getResult();
+        } else {
+          llvm::errs() << "Unsupported type for increment/decrement\n";
+          return nullptr;
+        }
+
+        paramTable[paramDecl] = newValue;
+
+        return isPrefix ? newValue : oldValue;
+      }
+    }
+  }
+
   bool isArrayAccess = llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr);
   std::optional<ArrayAccessInfo> savedArrayAccess;
 
