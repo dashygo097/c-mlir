@@ -26,12 +26,12 @@ cmake -G Ninja ../llvm \
   -DLLVM_ENABLE_PROJECTS="mlir;clang" \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DCMAKE_BUILD_TYPE=DEBUG # Or `Release` etc.
+  -DCMAKE_BUILD_TYPE=DEBUG
 ninja
 ninja check-mlir
 ```
 
-For faster compilation,i recommend using -DLLVM_USE_LINKER=lld.
+For faster compilation,it is recommended to use -DLLVM_USE_LINKER=lld.
 
 **3. Build `cmlirc`:**
 
@@ -96,7 +96,7 @@ ninja
 
 **1. Install `lit`**
 
-Activate your python virtual env(`venv`, `conda`, `uv` etc.) and install `lit` using `pip`:
+Activate a python virtual env(`venv`, `conda`, `uv` etc.) and install `lit` using `pip`:
 
 ```bash
 pip install lit
