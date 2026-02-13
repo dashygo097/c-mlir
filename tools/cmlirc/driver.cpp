@@ -70,5 +70,5 @@ int main(int argc, const char **argv) {
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
 
-  return Tool.run(newFrontendActionFactory<CMLIRCFrontendAction>().get());
+  return Tool.run(newFrontendActionFactory<CMLIRFrontendAction>().get());
 }

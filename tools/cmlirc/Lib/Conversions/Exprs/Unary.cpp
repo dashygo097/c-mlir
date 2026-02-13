@@ -1,20 +1,15 @@
-#include "../../ArgumentList.h"
-#include "../ASTVisitor.h"
-#include "./Types.h"
+#include "../../Converter.h"
 
 namespace cmlirc {
 
-mlir::Value
-CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
+mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = unOp->getSubExpr();
 
   switch (unOp->getOpcode()) {
-
   case clang::UO_Plus:
     return generateExpr(subExpr);
-
   case clang::UO_Minus: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
@@ -35,27 +30,22 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     return nullptr;
   }
-
   case clang::UO_PreInc: {
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/true);
   }
-
   case clang::UO_PostInc: {
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/false);
   }
-
   case clang::UO_PreDec: {
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/true);
   }
-
   case clang::UO_PostDec: {
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/false);
   }
-
   case clang::UO_LNot: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
@@ -83,7 +73,6 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     return nullptr;
   }
-
   case clang::UO_Not: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
@@ -101,7 +90,6 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     return nullptr;
   }
-
   default:
     llvm::errs() << "Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
@@ -110,9 +98,9 @@ CMLIRCASTVisitor::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 }
 
-mlir::Value CMLIRCASTVisitor::generateIncrementDecrement(clang::Expr *expr,
-                                                         bool isIncrement,
-                                                         bool isPrefix) {
+mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
+                                                       bool isIncrement,
+                                                       bool isPrefix) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 

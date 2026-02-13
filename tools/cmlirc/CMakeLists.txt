@@ -1,13 +1,29 @@
 add_clang_executable(cmlirc
-  Lib/Conversions/Types.cpp
-  Lib/Conversions/UnaryExprs.cpp
-  Lib/Conversions/BinaryExprs.cpp
-  Lib/Conversions/Exprs.cpp
+  Lib/Conversions/Types/Types.cpp
+
+  Lib/Conversions/Exprs/Paren.cpp
+  Lib/Conversions/Exprs/Literals.cpp
+  Lib/Conversions/Exprs/Unary.cpp
+  Lib/Conversions/Exprs/Binary.cpp
+  Lib/Conversions/Exprs/DeclRef.cpp
+  Lib/Conversions/Exprs/ImplicitCast.cpp
+  Lib/Conversions/Exprs/Call.cpp
+  Lib/Conversions/Exprs/ArraySubscript.cpp
+  Lib/Conversions/Exprs/Exprs.cpp
+
+  Lib/Conversions/Stmts/CF/If.cpp
+  Lib/Conversions/Stmts/CF/For.cpp
+  Lib/Conversions/Stmts/Return.cpp
+  Lib/Conversions/Stmts/Stmts.cpp
+
+  Lib/Conversions/Decls/Var.cpp
+  Lib/Conversions/Decls/Function.cpp
+
+  Lib/Conversions/Helpers.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
 
-  Lib/ContextManager.cpp
-  Lib/ASTVisitor.cpp
+  Lib/Context/ContextManager.cpp
 
   driver.cpp
 )

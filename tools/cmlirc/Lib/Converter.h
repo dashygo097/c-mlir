@@ -1,19 +1,22 @@
 #ifndef CMLIRC_ASTVISITOR_H
 #define CMLIRC_ASTVISITOR_H
 
-#include "./ContextManager.h"
+#include "./Context/ContextManager.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 namespace cmlirc {
 
-class CMLIRCASTVisitor : public clang::RecursiveASTVisitor<CMLIRCASTVisitor> {
+class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
-  explicit CMLIRCASTVisitor(ContextManager &ctx);
-  ~CMLIRCASTVisitor() = default;
+  explicit CMLIRConverter(ContextManager &ctx) : context_manager_(ctx) {}
+  ~CMLIRConverter() = default;
 
+  // decl traits
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
   bool TraverseVarDecl(clang::VarDecl *decl);
+
+  // stmt traits
   bool TraverseStmt(clang::Stmt *stmt);
 
   // return
@@ -27,9 +30,9 @@ public:
   // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
+private:
   ContextManager &context_manager_;
 
-private:
   // states
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
@@ -58,17 +61,27 @@ private:
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr);
 
-  mlir::Value generateBoolLiteral(clang::CXXBoolLiteralExpr *boolLit);
+  // paren
+  mlir::Value generateParenExpr(clang::ParenExpr *parenExpr);
+
+  // literals
+  mlir::Value generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit);
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
+
+  // decl ref
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
+
+  // implicit cast
   mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
+
+  // array subscript
   mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   // unary
+  mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
   mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
                                          bool isPrefix);
-  mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
 
   // binary
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);

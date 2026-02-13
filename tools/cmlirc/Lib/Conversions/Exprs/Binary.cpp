@@ -1,13 +1,13 @@
-#include "../../ArgumentList.h"
-#include "../ASTVisitor.h"
-#include "./Types.h"
+#include "../../../ArgumentList.h"
+#include "../../Converter.h"
+#include "../Types/Types.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
 
 mlir::Value
-CMLIRCASTVisitor::generateBinaryOperator(clang::BinaryOperator *binOp) {
+CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
 #define REGISTER_BIN_IOP(op, ...)                                              \
   if (mlir::isa<mlir::IntegerType>(resultType)) {                              \
     return mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();     \
