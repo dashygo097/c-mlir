@@ -2,7 +2,7 @@
 #define CMLIRC_FRONTEND_ACTION_H
 
 #include "../ArgumentList.h"
-#include "./ASTConsumer.h"
+#include "./Consumer.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -11,16 +11,16 @@
 
 namespace cmlirc {
 
-class CMLIRCFrontendAction : public clang::ASTFrontendAction {
+class CMLIRFrontendAction : public clang::ASTFrontendAction {
 public:
-  explicit CMLIRCFrontendAction() {}
-  ~CMLIRCFrontendAction() = default;
+  explicit CMLIRFrontendAction() {}
+  ~CMLIRFrontendAction() = default;
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI,
                     clang::StringRef file) override {
     context_manager_ = std::make_unique<ContextManager>(&CI.getASTContext());
-    return std::make_unique<CMLIRCASTConsumer>(*context_manager_);
+    return std::make_unique<CMLIRConsumer>(*context_manager_);
   }
 
   void EndSourceFileAction() override {

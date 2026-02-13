@@ -2,16 +2,15 @@
 #define CMLIRC_ASTCONSUMER_H
 
 #include "../ArgumentList.h"
-#include "./ASTVisitor.h"
+#include "./Converter.h"
 #include "clang/AST/ASTConsumer.h"
 
 namespace cmlirc {
 
-class CMLIRCASTConsumer : public clang::ASTConsumer {
+class CMLIRConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRCASTConsumer(ContextManager &mlirContext)
-      : visitor_(mlirContext) {}
-  ~CMLIRCASTConsumer() = default;
+  explicit CMLIRConsumer(ContextManager &mlirContext) : visitor_(mlirContext) {}
+  ~CMLIRConsumer() = default;
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {
     std::string targetFuncName = options::FunctionName;
@@ -46,7 +45,7 @@ public:
   }
 
 private:
-  CMLIRCASTVisitor visitor_;
+  CMLIRConverter visitor_;
 };
 
 } // namespace cmlirc
