@@ -36,7 +36,6 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     allocaType = mlir::MemRefType::get({}, mlirType);
   }
 
-  // Create alloca
   auto allocaOp = mlir::memref::AllocaOp::create(
       builder, mlirLoc, mlir::dyn_cast<mlir::MemRefType>(allocaType));
 
@@ -44,14 +43,19 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
 
   if (decl->hasInit()) {
     clang::Expr *init = decl->getInit();
-    mlir::Value initValue = generateExpr(init);
 
-    if (initValue) {
-      mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
-                                    allocaOp.getResult(), mlir::ValueRange{});
+    if (auto *initList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+      storeInitListValues(initList, allocaOp.getResult());
+    } else {
+      mlir::Value initValue = generateExpr(init);
+      if (initValue) {
+        mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
+                                      allocaOp.getResult(), mlir::ValueRange{});
+      }
     }
   }
 
   return true;
 }
+
 } // namespace cmlirc

@@ -55,6 +55,7 @@ private:
   // helpers
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
   bool branchEndsWithReturn(clang::Stmt *stmt);
+  void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
 
   // type traits
 
@@ -75,7 +76,8 @@ private:
   // implicit cast
   mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
 
-  // array subscript
+  // array
+  mlir::Value generateInitListExpr(clang::InitListExpr *initList);
   mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   // unary
