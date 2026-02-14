@@ -8,7 +8,7 @@
 namespace cmlir {
 
 std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createMem2RegPass();
-std::unique_ptr<mlir::Pass> createRaise2AffinePass();
+std::unique_ptr<mlir::Pass> createRaiseMemref2AffinePass();
 
 void registerTransformPasses();
 
