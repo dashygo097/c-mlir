@@ -14,7 +14,8 @@ namespace cmlirc {
 
 class CMLIRFrontendAction : public clang::ASTFrontendAction {
 public:
-  explicit CMLIRFrontendAction() {}
+  explicit CMLIRFrontendAction(llvm::raw_ostream *outputStream = &llvm::outs())
+      : output_stream_(outputStream) {}
   ~CMLIRFrontendAction() = default;
 
   std::unique_ptr<clang::ASTConsumer>
@@ -61,12 +62,13 @@ public:
       llvm::errs() << "Failed to run optimization passes\n";
     }
 
-    context_manager_->dump();
-    llvm::outs() << "\n";
+    context_manager_->dump(*output_stream_);
+    output_stream_->flush();
   }
 
 private:
   std::unique_ptr<ContextManager> context_manager_;
+  llvm::raw_ostream *output_stream_;
 };
 
 } // namespace cmlirc

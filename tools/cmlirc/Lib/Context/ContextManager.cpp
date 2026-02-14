@@ -4,6 +4,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/Builders.h"
 
 namespace cmlirc {
 
@@ -25,8 +26,12 @@ ContextManager::ContextManager(clang::ASTContext *clangCtx) {
 
 void ContextManager::dump() {
   mlir::OpPrintingFlags flags;
-
   module_->print(llvm::outs(), flags);
+}
+
+void ContextManager::dump(llvm::raw_ostream &os) {
+  mlir::OpPrintingFlags flags;
+  module_->print(os, flags);
 }
 
 } // namespace cmlirc

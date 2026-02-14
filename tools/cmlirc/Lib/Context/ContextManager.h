@@ -23,6 +23,7 @@ public:
   [[nodiscard]] mlir::ModuleOp &Module() noexcept { return *module_; }
 
   void dump();
+  void dump(llvm::raw_ostream &os);
 
 private:
   clang::ASTContext *clang_context_;

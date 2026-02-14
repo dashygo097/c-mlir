@@ -1,5 +1,5 @@
 #include "./ArgumentList.h"
-#include "Lib/FrontendAction.h"
+#include "./Lib/ActionFactory.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
@@ -19,6 +19,11 @@ llvm::cl::opt<std::string>
     FunctionName("function", llvm::cl::init(""),
                  llvm::cl::desc("Name of the function to compile"),
                  llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<std::string> OutputFile("o",
+                                      llvm::cl::desc("Write output to <file>"),
+                                      llvm::cl::value_desc("file"),
+                                      llvm::cl::init("-"));
 
 llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
@@ -70,5 +75,24 @@ int main(int argc, const char **argv) {
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
 
-  return Tool.run(newFrontendActionFactory<CMLIRFrontendAction>().get());
+  llvm::raw_ostream *out;
+  std::unique_ptr<llvm::raw_fd_ostream> fileOut;
+
+  if (options::OutputFile == "-") {
+    out = &llvm::outs();
+  } else {
+    std::error_code ec;
+    fileOut = std::make_unique<llvm::raw_fd_ostream>(options::OutputFile, ec,
+                                                     llvm::sys::fs::OF_None);
+
+    if (ec) {
+      llvm::errs() << "Error: cannot open '" << options::OutputFile
+                   << "': " << ec.message() << "\n";
+      return 1;
+    }
+    out = fileOut.get();
+  }
+
+  auto factory = std::make_unique<CMLIRActionFactory>(out);
+  return Tool.run(factory.get());
 }
