@@ -3,6 +3,7 @@
 
 #include "../ArgumentList.h"
 #include "./Consumer.h"
+#include "cmlir/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -36,8 +37,10 @@ public:
     if (options::SSCP)
       pm.addPass(mlir::createSCCPPass());
 
-    if (options::Mem2Reg)
+    if (options::Mem2Reg) {
       pm.addPass(mlir::createMem2Reg());
+      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createMem2RegPass());
+    }
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
