@@ -86,6 +86,9 @@ private:
   // binary
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
 
+  // conditional
+  mlir::Value generateConditionalOperator(clang::ConditionalOperator *condOp);
+
   // call
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
 };
