@@ -34,7 +34,7 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  double value = floatLit->getValue().convertToDouble();
+  auto value = floatLit->getValue();
   mlir::Type type = convertType(builder, floatLit->getType());
 
   return mlir::arith::ConstantOp::create(builder, loc, type,
