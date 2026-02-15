@@ -1,4 +1,5 @@
 #include "../Converter.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 
 namespace cmlirc {
 bool CMLIRConverter::hasSideEffects(clang::Expr *expr) const {
@@ -72,8 +73,8 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
             fullIndices.append(currentIndices.begin(), currentIndices.end());
             fullIndices.push_back(indexVal);
 
-            mlir::memref::StoreOp::create(builder, loc, value, memref,
-                                          fullIndices);
+            mlir::affine::AffineStoreOp::create(builder, loc, value, memref,
+                                                fullIndices);
           }
         }
       };

@@ -5,10 +5,6 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {
-  // This should not be called for variable declarations
-  // It's only for cases like passing an init list to a function
-  llvm::errs() << "Warning: generateInitListExpr called directly\n";
-
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
