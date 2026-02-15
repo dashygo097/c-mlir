@@ -30,6 +30,11 @@ llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
+    ConstProp("const-prop", llvm::cl::init(false),
+              llvm::cl::desc("Enable constant propagation (const-prop)"),
+              llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
     SSCP("sscp", llvm::cl::init(false),
          llvm::cl::desc("Enable sparse simple constant propagation (SSCP)"),
          llvm::cl::cat(toolOptions));
