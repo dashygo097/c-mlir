@@ -32,6 +32,9 @@ public:
     mlir::PassManager pm(&context_manager_->MLIRContext());
     // mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
 
+    if (options::ConstProp)
+      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createConstPropPass());
+
     if (options::FuncInline)
       pm.addPass(mlir::createInlinerPass());
 
