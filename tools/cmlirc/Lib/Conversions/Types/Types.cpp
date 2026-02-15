@@ -58,8 +58,10 @@ mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
     return builder.getF64Type();
 
   default:
-    return builder.getI32Type();
+    llvm::errs() << "Unsupported builtin type: " << type << "\n";
   }
+
+  return nullptr;
 }
 
 mlir::Type convertArrayType(mlir::OpBuilder &builder,
@@ -89,8 +91,32 @@ mlir::Type convertArrayType(mlir::OpBuilder &builder,
 mlir::Type convertPointerType(mlir::OpBuilder &builder,
                               const clang::PointerType *type) {
   clang::QualType pointeeType = type->getPointeeType();
-  mlir::Type elementType = convertType(builder, pointeeType);
 
+  if (auto *_ = llvm::dyn_cast<clang::ArrayType>(pointeeType.getTypePtr())) {
+    llvm::SmallVector<int64_t, 4> dimensions;
+    clang::QualType currentType = pointeeType;
+
+    while (auto *arrType =
+               llvm::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
+      if (auto *constArrayType =
+              llvm::dyn_cast<clang::ConstantArrayType>(arrType)) {
+        int64_t size = constArrayType->getSize().getSExtValue();
+        dimensions.push_back(size);
+        currentType = constArrayType->getElementType();
+      } else {
+        dimensions.push_back(mlir::ShapedType::kDynamic);
+        currentType = arrType->getElementType();
+      }
+    }
+
+    mlir::Type elementType = convertType(builder, currentType);
+
+    dimensions.insert(dimensions.begin(), mlir::ShapedType::kDynamic);
+
+    return mlir::MemRefType::get(dimensions, elementType);
+  }
+
+  mlir::Type elementType = convertType(builder, pointeeType);
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 

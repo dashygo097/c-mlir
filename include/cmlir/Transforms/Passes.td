@@ -9,10 +9,4 @@ def Mem2RegPass
   let constructor = "cmlir::createMem2RegPass()";
 }
 
-def RaiseMemref2AffinePass
-    : Pass<"cmlir-raise-memref-to-affine"> {
-  let summary = "Raise memref to affine dialect.";
-  let constructor = "cmlir::createRaiseMemref2AffinePass()";
-}
-
 #endif // CMLIR_PASSES_TD
