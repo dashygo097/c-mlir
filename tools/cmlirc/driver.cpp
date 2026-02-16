@@ -11,20 +11,27 @@ using namespace cmlirc;
 namespace cmlirc::options {
 llvm::cl::OptionCategory toolOptions("CMLIRC Options");
 
+// General options
 llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                             llvm::cl::desc("Enable verbose"),
                             llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<std::string>
-    FunctionName("function", llvm::cl::init(""),
-                 llvm::cl::desc("Name of the function to compile"),
-                 llvm::cl::cat(toolOptions));
+    SystemRoot("sysroot", llvm::cl::init(""),
+               llvm::cl::desc("Set the system root path"),
+               llvm::cl::value_desc("path"), llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<std::string> OutputFile("o",
                                       llvm::cl::desc("Write output to <file>"),
                                       llvm::cl::value_desc("file"),
                                       llvm::cl::init("-"));
 
+llvm::cl::opt<std::string>
+    FunctionName("function", llvm::cl::init(""),
+                 llvm::cl::desc("Name of the function to compile"),
+                 llvm::cl::cat(toolOptions));
+
+// Passes
 llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
                                llvm::cl::cat(toolOptions));
@@ -79,6 +86,8 @@ int main(int argc, const char **argv) {
   CommonOptionsParser &OptionsParser = ExpectedParser.get();
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
+  Tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
+      {"-isysroot", options::SystemRoot}, ArgumentInsertPosition::BEGIN));
 
   llvm::raw_ostream *out;
   std::unique_ptr<llvm::raw_fd_ostream> fileOut;
