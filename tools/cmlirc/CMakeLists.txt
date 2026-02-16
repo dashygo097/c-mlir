@@ -16,6 +16,10 @@ add_clang_executable(cmlirc
 
   Lib/Conversions/Stmts/CF/If.cpp
   Lib/Conversions/Stmts/CF/For.cpp
+  Lib/Conversions/Stmts/CF/While.cpp
+  Lib/Conversions/Stmts/CF/Do.cpp
+  Lib/Conversions/Stmts/CF/Break.cpp
+  Lib/Conversions/Stmts/CF/Continue.cpp
   Lib/Conversions/Stmts/Return.cpp
   Lib/Conversions/Stmts/Stmts.cpp
 
