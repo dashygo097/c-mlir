@@ -1,9 +1,16 @@
 #include "../../Converter.h"
 #include "../Types/Types.h"
+#include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
 bool CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   if (decl->isImplicit() || !decl->hasBody()) {
+    return true;
+  }
+
+  // skip system headers
+  clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
+  if (SM.isInSystemHeader(decl->getLocation())) {
     return true;
   }
 
