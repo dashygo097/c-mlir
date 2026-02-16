@@ -1,7 +1,50 @@
 #include "../../Converter.h"
 #include "../Types/Types.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 
 namespace cmlirc {
+
+void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
+                                         mlir::Value memref) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  std::function<void(clang::InitListExpr *,
+                     llvm::SmallVector<mlir::Value, 4> &)>
+      storeValues = [&](clang::InitListExpr *list,
+                        llvm::SmallVector<mlir::Value, 4> &currentIndices) {
+        for (unsigned i = 0; i < list->getNumInits(); ++i) {
+          clang::Expr *init = list->getInit(i);
+
+          mlir::Value indexVal =
+              mlir::arith::ConstantOp::create(
+                  builder, loc, builder.getIndexType(), builder.getIndexAttr(i))
+                  .getResult();
+
+          if (auto *nestedList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+            currentIndices.push_back(indexVal);
+            storeValues(nestedList, currentIndices);
+            currentIndices.pop_back();
+          } else {
+            mlir::Value value = generateExpr(init);
+            if (!value) {
+              llvm::errs() << "Failed to generate init value\n";
+              continue;
+            }
+
+            llvm::SmallVector<mlir::Value, 4> fullIndices;
+            fullIndices.append(currentIndices.begin(), currentIndices.end());
+            fullIndices.push_back(indexVal);
+
+            mlir::affine::AffineStoreOp::create(builder, loc, value, memref,
+                                                fullIndices);
+          }
+        }
+      };
+
+  llvm::SmallVector<mlir::Value, 4> indices;
+  storeValues(initList, indices);
+}
 
 mlir::Value
 CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {

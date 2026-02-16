@@ -28,7 +28,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Decls/Record.cpp
   Lib/Conversions/Decls/Field.cpp
 
-  Lib/Conversions/Helpers.cpp
+  Lib/Conversions/SideEffects.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
 
@@ -50,6 +50,7 @@ target_link_libraries(cmlirc PRIVATE
   MLIRFuncDialect
   MLIRMemRefDialect
   MLIRSCFDialect 
+  MLIRMathDialect
   MLIRTransforms
 
   # Clang Libraries

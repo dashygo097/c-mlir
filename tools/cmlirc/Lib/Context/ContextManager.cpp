@@ -1,6 +1,8 @@
 #include "./ContextManager.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -18,6 +20,8 @@ ContextManager::ContextManager(clang::ASTContext *clangCtx) {
   mlir_context_->getOrLoadDialect<mlir::memref::MemRefDialect>();
   mlir_context_->getOrLoadDialect<mlir::arith::ArithDialect>();
   mlir_context_->getOrLoadDialect<mlir::scf::SCFDialect>();
+  mlir_context_->getOrLoadDialect<mlir::affine::AffineDialect>();
+  mlir_context_->getOrLoadDialect<mlir::math::MathDialect>();
   mlir_context_->getOrLoadDialect<mlir::tensor::TensorDialect>();
 
   module_ = std::make_unique<mlir::ModuleOp>(

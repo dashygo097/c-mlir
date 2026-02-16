@@ -54,10 +54,8 @@ private:
   };
   llvm::SmallVector<LoopContext, 4> loopStack_;
 
-  // helpers
+  // side effect analysis
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
-  bool branchEndsWithReturn(clang::Stmt *stmt);
-  void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
 
   // type traits
 
@@ -79,6 +77,7 @@ private:
   mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
 
   // array
+  void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
   mlir::Value generateInitListExpr(clang::InitListExpr *initList);
   mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
