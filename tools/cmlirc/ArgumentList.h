@@ -7,8 +7,9 @@ namespace cmlirc::options {
 extern llvm::cl::OptionCategory toolOptions;
 
 extern llvm::cl::opt<bool> Verbose;
-extern llvm::cl::opt<std::string> FunctionName;
+extern llvm::cl::opt<std::string> SystemRoot;
 extern llvm::cl::opt<std::string> OutputFile;
+extern llvm::cl::opt<std::string> FunctionName;
 
 extern llvm::cl::opt<bool> ConstProp;
 extern llvm::cl::opt<bool> FuncInline;
