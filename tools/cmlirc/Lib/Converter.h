@@ -15,6 +15,8 @@ public:
   // decl traits
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
   bool TraverseVarDecl(clang::VarDecl *decl);
+  // bool TraverseRecordDecl(clang::RecordDecl *recordDecl);
+  // bool TraverseFieldDecl(clang::FieldDecl *fieldDecl);
 
   // stmt traits
   bool TraverseStmt(clang::Stmt *stmt);
@@ -93,6 +95,9 @@ private:
 
   // call
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
+
+  // member access
+  mlir::Value generateMemberExpr(clang::MemberExpr *memberExpr);
 };
 
 } // namespace cmlirc
