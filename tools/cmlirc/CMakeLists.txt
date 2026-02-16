@@ -11,6 +11,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/ArraySubscript.cpp
   Lib/Conversions/Exprs/Conditional.cpp
   Lib/Conversions/Exprs/Call.cpp
+  Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/CF/If.cpp
@@ -20,6 +21,8 @@ add_clang_executable(cmlirc
 
   Lib/Conversions/Decls/Var.cpp
   Lib/Conversions/Decls/Function.cpp
+  Lib/Conversions/Decls/Record.cpp
+  Lib/Conversions/Decls/Field.cpp
 
   Lib/Conversions/Helpers.cpp
 
