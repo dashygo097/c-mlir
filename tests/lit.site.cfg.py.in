@@ -1,6 +1,6 @@
 import sys
 
-config.cmlir_tools_dir = "@CMLIR_TOOLS_DIR@"
+config.cmlir_tools_dir = "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
 config.llvm_tools_dir = "@LLVM_TOOLS_BINARY_DIR@"
 config.mlir_tools_dir = "@MLIR_TOOLS_DIR@"
 config.cmlir_obj_root = "@CMAKE_BINARY_DIR@"
