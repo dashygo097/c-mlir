@@ -1,5 +1,4 @@
 #include "../../../Converter.h"
-#include "../../Types/Types.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
@@ -212,7 +211,7 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     builder.setInsertionPointToStart(forOp.getBody());
 
     mlir::Value inductionValue = forOp.getInductionVar();
-    mlir::Type origType = convertType(builder, inductionVar->getType());
+    mlir::Type origType = convertType(inductionVar->getType());
 
     if (!isIncrementing) {
       mlir::Value one =
@@ -267,7 +266,7 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     mlir::Value condition;
     if (forStmt->getCond()) {
       condition = generateExpr(forStmt->getCond());
-      condition = convertToBool(builder, condition);
+      condition = convertToBool(condition);
     } else {
       condition =
           mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),

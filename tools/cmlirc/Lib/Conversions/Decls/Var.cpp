@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
@@ -27,7 +26,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
   mlir::OpBuilder &builder = context_manager_.Builder();
 
   clang::QualType clangType = decl->getType();
-  mlir::Type mlirType = convertType(builder, clangType);
+  mlir::Type mlirType = convertType(clangType);
 
   mlir::Type allocaType;
   if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType)) {

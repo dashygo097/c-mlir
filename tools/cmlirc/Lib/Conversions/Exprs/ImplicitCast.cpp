@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 
 namespace cmlirc {
 
@@ -14,7 +13,7 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     return nullptr;
   }
 
-  mlir::Type targetType = convertType(builder, castExpr->getType());
+  mlir::Type targetType = convertType(castExpr->getType());
 
   switch (castKind) {
   case clang::CK_LValueToRValue: {

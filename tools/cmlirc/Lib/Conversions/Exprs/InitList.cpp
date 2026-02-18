@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 
 namespace cmlirc {
@@ -52,7 +51,7 @@ CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::QualType clangType = initList->getType();
-  mlir::Type mlirType = convertType(builder, clangType);
+  mlir::Type mlirType = convertType(clangType);
 
   auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType);
   if (!memrefType) {

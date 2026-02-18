@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include <string>
@@ -135,7 +134,7 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   }
 
   clang::QualType returnType = calleeDecl->getReturnType();
-  mlir::Type mlirReturnType = convertType(builder, returnType);
+  mlir::Type mlirReturnType = convertType(returnType);
 
   llvm::SmallVector<mlir::Type, 1> returnTypes;
   if (!mlir::isa<mlir::NoneType>(mlirReturnType)) {

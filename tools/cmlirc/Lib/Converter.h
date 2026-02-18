@@ -58,6 +58,13 @@ private:
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
 
   // type traits
+  [[nodiscard]] mlir::Type convertType(clang::QualType type);
+  [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
+  [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
+  [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);
+
+  [[nodiscard]]
+  mlir::Value convertToBool(mlir::Value value);
 
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr);
