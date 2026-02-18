@@ -8,21 +8,18 @@ mlir::Type CMLIRConverter::convertType(clang::QualType type) {
   type = type.getCanonicalType();
   const clang::Type *typePtr = type.getTypePtr();
 
-  if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
-    return convertBuiltinType(builtinType);
+#define REGISTER_TYPE(type)                                                    \
+  if (auto *node = llvm::dyn_cast<clang::type>(typePtr)) {                     \
+    return convert##type(llvm::cast<clang::type>(node));                       \
   }
-  if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
-    return convertArrayType(arrayType);
-  }
-  if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
-    return convertPointerType(pointerType);
-  }
-  if (auto *typedefType = llvm::dyn_cast<clang::TypedefType>(typePtr)) {
-    return convertTypedefType(typedefType);
-  }
-  if (auto *recordType = llvm::dyn_cast<clang::RecordType>(typePtr)) {
-    return convertRecordType(recordType);
-  }
+
+  REGISTER_TYPE(BuiltinType)
+  REGISTER_TYPE(ArrayType)
+  REGISTER_TYPE(PointerType)
+  REGISTER_TYPE(TypedefType)
+  REGISTER_TYPE(RecordType)
+
+#undef REGISTER_TYPE
 
   llvm::errs() << "Unsupported type: " << type.getAsString();
   return nullptr;
