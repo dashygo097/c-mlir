@@ -38,8 +38,6 @@ public:
     if (options::ConstProp)
       pm.addNestedPass<mlir::func::FuncOp>(cmlir::createConstPropPass());
 
-    pm.addPass(cmlir::createStruct2MemrefPass());
-
     if (options::SSCP)
       pm.addPass(mlir::createSCCPPass());
 
