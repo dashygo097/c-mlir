@@ -1,5 +1,4 @@
 #include "../../../Converter.h"
-#include "../../Types/Types.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
@@ -41,7 +40,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     return false;
   }
 
-  mlir::Value condBool = convertToBool(builder, condition);
+  mlir::Value condBool = convertToBool(condition);
 
   bool hasElse = ifStmt->getElse() != nullptr;
 

@@ -1,32 +1,33 @@
-#include "./Types.h"
+#include "../../Converter.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 namespace cmlirc {
 
-mlir::Type convertType(mlir::OpBuilder &builder, clang::QualType type) {
+mlir::Type CMLIRConverter::convertType(clang::QualType type) {
   type = type.getCanonicalType();
   const clang::Type *typePtr = type.getTypePtr();
 
   if (auto *builtinType = llvm::dyn_cast<clang::BuiltinType>(typePtr)) {
-    return convertBuiltinType(builder, builtinType);
+    return convertBuiltinType(builtinType);
   }
   if (auto *arrayType = llvm::dyn_cast<clang::ArrayType>(typePtr)) {
-    return convertArrayType(builder, arrayType);
+    return convertArrayType(arrayType);
   }
   if (auto *pointerType = llvm::dyn_cast<clang::PointerType>(typePtr)) {
-    return convertPointerType(builder, pointerType);
+    return convertPointerType(pointerType);
   }
   if (auto *typedefType = llvm::dyn_cast<clang::TypedefType>(typePtr)) {
-    return convertType(builder, typedefType->desugar());
+    return convertType(typedefType->desugar());
   }
 
   llvm::errs() << "Unsupported type: " << type.getAsString();
   return nullptr;
 }
 
-mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
-                              const clang::BuiltinType *type) {
+mlir::Type CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+
   switch (type->getKind()) {
   case clang::BuiltinType::Void:
     return builder.getNoneType();
@@ -84,9 +85,7 @@ mlir::Type convertBuiltinType(mlir::OpBuilder &builder,
   return nullptr;
 }
 
-mlir::Type convertArrayType(mlir::OpBuilder &builder,
-                            const clang::ArrayType *type) {
-
+mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
   llvm::SmallVector<int64_t, 4> dimensions;
   clang::QualType currentType = clang::QualType(type, 0);
 
@@ -103,13 +102,12 @@ mlir::Type convertArrayType(mlir::OpBuilder &builder,
     }
   }
 
-  mlir::Type elementType = convertType(builder, currentType);
+  mlir::Type elementType = convertType(currentType);
 
   return mlir::MemRefType::get(dimensions, elementType);
 }
 
-mlir::Type convertPointerType(mlir::OpBuilder &builder,
-                              const clang::PointerType *type) {
+mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
   clang::QualType pointeeType = type->getPointeeType();
 
   if (auto *_ = llvm::dyn_cast<clang::ArrayType>(pointeeType.getTypePtr())) {
@@ -129,19 +127,20 @@ mlir::Type convertPointerType(mlir::OpBuilder &builder,
       }
     }
 
-    mlir::Type elementType = convertType(builder, currentType);
+    mlir::Type elementType = convertType(currentType);
 
     dimensions.insert(dimensions.begin(), mlir::ShapedType::kDynamic);
 
     return mlir::MemRefType::get(dimensions, elementType);
   }
 
-  mlir::Type elementType = convertType(builder, pointeeType);
+  mlir::Type elementType = convertType(pointeeType);
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 
 // helpers
-mlir::Value convertToBool(mlir::OpBuilder &builder, mlir::Value value) {
+mlir::Value CMLIRConverter::convertToBool(mlir::Value value) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   mlir::Type type = value.getType();
 

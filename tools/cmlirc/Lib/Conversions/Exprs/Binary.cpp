@@ -1,6 +1,5 @@
 #include "../../../ArgumentList.h"
 #include "../../Converter.h"
-#include "../Types/Types.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
 
@@ -243,14 +242,14 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     break;
   }
   case clang::BO_LAnd: {
-    mlir::Value lhsCond = convertToBool(builder, lhsValue);
+    mlir::Value lhsCond = convertToBool(lhsValue);
     auto ifOp = mlir::scf::IfOp::create(builder, loc,
                                         /*resultTypes=*/builder.getI1Type(),
                                         /*cond=*/lhsCond,
                                         /*withElseRegion=*/true);
 
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-    mlir::Value rhsCond = convertToBool(builder, rhsValue);
+    mlir::Value rhsCond = convertToBool(rhsValue);
     mlir::scf::YieldOp::create(builder, loc, rhsCond);
 
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
@@ -264,7 +263,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     return ifOp.getResult(0);
   }
   case clang::BO_LOr: {
-    mlir::Value lhsCond = convertToBool(builder, lhsValue);
+    mlir::Value lhsCond = convertToBool(lhsValue);
 
     auto ifOp = mlir::scf::IfOp::create(builder, loc,
                                         /*resultTypes=*/builder.getI1Type(),
@@ -279,7 +278,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     mlir::scf::YieldOp::create(builder, loc, trueBool);
 
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    mlir::Value rhsCond = convertToBool(builder, rhsValue);
+    mlir::Value rhsCond = convertToBool(rhsValue);
     mlir::scf::YieldOp::create(builder, loc, rhsCond);
 
     builder.setInsertionPointAfter(ifOp);

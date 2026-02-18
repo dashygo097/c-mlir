@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
@@ -20,12 +19,12 @@ bool CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   // Convert parameter types
   llvm::SmallVector<mlir::Type, 4> argTypes;
   for (auto *param : decl->parameters()) {
-    mlir::Type paramType = convertType(builder, param->getType());
+    mlir::Type paramType = convertType(param->getType());
     argTypes.push_back(paramType);
   }
 
   // Convert return type
-  mlir::Type returnType = convertType(builder, decl->getReturnType());
+  mlir::Type returnType = convertType(decl->getReturnType());
 
   llvm::SmallVector<mlir::Type, 1> returnTypes;
   if (!mlir::isa<mlir::NoneType>(returnType)) {

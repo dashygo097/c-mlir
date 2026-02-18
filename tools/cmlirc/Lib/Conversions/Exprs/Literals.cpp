@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Types/Types.h"
 
 namespace cmlirc {
 
@@ -9,7 +8,7 @@ CMLIRConverter::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) {
   mlir::Location loc = builder.getUnknownLoc();
 
   bool value = boolLit->getValue();
-  mlir::Type type = convertType(builder, boolLit->getType());
+  mlir::Type type = convertType(boolLit->getType());
 
   return mlir::arith::ConstantOp::create(
              builder, loc, type, builder.getIntegerAttr(type, value ? 1 : 0))
@@ -22,7 +21,7 @@ CMLIRConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
   mlir::Location loc = builder.getUnknownLoc();
 
   int64_t value = intLit->getValue().getSExtValue();
-  mlir::Type type = convertType(builder, intLit->getType());
+  mlir::Type type = convertType(intLit->getType());
 
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getIntegerAttr(type, value))
@@ -35,7 +34,7 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   mlir::Location loc = builder.getUnknownLoc();
 
   auto value = floatLit->getValue();
-  mlir::Type type = convertType(builder, floatLit->getType());
+  mlir::Type type = convertType(floatLit->getType());
 
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getFloatAttr(type, value))
