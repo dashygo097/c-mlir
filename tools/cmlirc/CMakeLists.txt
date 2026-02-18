@@ -11,6 +11,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/ArraySubscript.cpp
   Lib/Conversions/Exprs/Conditional.cpp
   Lib/Conversions/Exprs/Call.cpp
+  Lib/Conversions/Exprs/CXXConstruct.cpp
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 

@@ -1,6 +1,5 @@
 #include "../../Converter.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 namespace cmlirc {
 
@@ -66,20 +65,33 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
   }
   unsigned fieldIndex = *fieldIndexOpt;
 
-  // 方案1：如果 struct 存储在 memref 中，使用指针运算
-  if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(baseValue.getType())) {
-    // struct 存储在内存中
-    // 需要计算字段偏移量，这里简化处理
-
-    // 对于 LLVM struct，使用 llvm.getelementptr
-    // 但在 memref 中，我们需要先转换
-
-    llvm::errs() << "Warning: struct in memref not fully supported yet\n";
+  mlir::Type structType = convertType(baseType);
+  auto llvmStructType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(structType);
+  if (!llvmStructType) {
+    llvm::errs() << "Expected LLVM struct type\n";
     return nullptr;
   }
 
-  if (auto structType =
-          mlir::dyn_cast<mlir::LLVM::LLVMStructType>(baseValue.getType())) {
+  if (mlir::isa<mlir::LLVM::LLVMPointerType>(baseValue.getType())) {
+    auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+
+    auto zero = mlir::LLVM::ConstantOp::create(
+        builder, loc, builder.getI32Type(), builder.getI32IntegerAttr(0));
+    auto fieldIdx =
+        mlir::LLVM::ConstantOp::create(builder, loc, builder.getI32Type(),
+                                       builder.getI32IntegerAttr(fieldIndex));
+
+    llvm::SmallVector<mlir::Value, 2> indices;
+    indices.push_back(zero);
+    indices.push_back(fieldIdx);
+
+    auto fieldPtr = mlir::LLVM::GEPOp::create(
+        builder, loc, ptrType, llvmStructType, baseValue, indices);
+
+    return fieldPtr.getResult();
+  }
+
+  if (mlir::isa<mlir::LLVM::LLVMStructType>(baseValue.getType())) {
     auto fieldValue =
         mlir::LLVM::ExtractValueOp::create(builder, loc, baseValue, fieldIndex);
     return fieldValue;

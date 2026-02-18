@@ -109,7 +109,8 @@ private:
   // call
   mlir::Value generateCallExpr(clang::CallExpr *callExpr);
 
-  // member access
+  // struct
+  mlir::Value generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr);
   mlir::Value generateMemberExpr(clang::MemberExpr *memberExpr);
 };
 
