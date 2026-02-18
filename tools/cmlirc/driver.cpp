@@ -104,7 +104,7 @@ int main(int argc, const char **argv) {
                                                      llvm::sys::fs::OF_None);
 
     if (ec) {
-      llvm::errs() << "Error: cannot open '" << options::OutputFile
+      llvm::errs() << "Cannot open '" << options::OutputFile
                    << "': " << ec.message() << "\n";
       return 1;
     }

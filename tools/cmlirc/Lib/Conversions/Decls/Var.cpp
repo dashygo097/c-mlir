@@ -110,7 +110,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     return true;
   }
 
-  return true;
+  return RecursiveASTVisitor::TraverseVarDecl(decl);
 }
 
 } // namespace cmlirc
