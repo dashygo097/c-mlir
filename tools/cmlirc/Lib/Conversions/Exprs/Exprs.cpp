@@ -23,6 +23,7 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
   REGISTER_EXPR_CONVERSION(ConditionalOperator)
   REGISTER_EXPR_CONVERSION(InitListExpr)
   REGISTER_EXPR_CONVERSION(CallExpr)
+  REGISTER_EXPR_CONVERSION(MemberExpr)
 
 #undef REGISTER_EXPR_CONVERSION
 

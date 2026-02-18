@@ -26,7 +26,6 @@ add_clang_executable(cmlirc
   Lib/Conversions/Decls/Var.cpp
   Lib/Conversions/Decls/Function.cpp
   Lib/Conversions/Decls/Record.cpp
-  Lib/Conversions/Decls/Field.cpp
 
   Lib/Conversions/SideEffects.cpp
 

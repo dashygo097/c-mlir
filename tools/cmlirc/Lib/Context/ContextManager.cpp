@@ -2,6 +2,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -16,6 +17,7 @@ ContextManager::ContextManager(clang::ASTContext *clangCtx) {
   builder_ = std::make_unique<mlir::OpBuilder>(mlir_context_.get());
 
   // Load necessary dialects
+  mlir_context_->getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   mlir_context_->getOrLoadDialect<mlir::func::FuncDialect>();
   mlir_context_->getOrLoadDialect<mlir::memref::MemRefDialect>();
   mlir_context_->getOrLoadDialect<mlir::arith::ArithDialect>();
