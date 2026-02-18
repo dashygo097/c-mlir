@@ -11,13 +11,13 @@ bool branchEndsWithReturn(clang::Stmt *stmt) {
     return true;
   }
 
-  if (auto *compound = llvm::dyn_cast<clang::CompoundStmt>(stmt)) {
+  if (auto *compound = mlir::dyn_cast<clang::CompoundStmt>(stmt)) {
     if (compound->body_empty())
       return false;
     return branchEndsWithReturn(compound->body_back());
   }
 
-  if (auto *ifStmt = llvm::dyn_cast<clang::IfStmt>(stmt)) {
+  if (auto *ifStmt = mlir::dyn_cast<clang::IfStmt>(stmt)) {
     return branchEndsWithReturn(ifStmt->getThen()) &&
            (ifStmt->getElse() ? branchEndsWithReturn(ifStmt->getElse())
                               : false);
@@ -55,13 +55,13 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     clang::Expr *elseReturnExpr = nullptr;
 
     auto extractReturnExpr = [](clang::Stmt *stmt) -> clang::Expr * {
-      if (auto *retStmt = llvm::dyn_cast<clang::ReturnStmt>(stmt)) {
+      if (auto *retStmt = mlir::dyn_cast<clang::ReturnStmt>(stmt)) {
         return retStmt->getRetValue();
       }
-      if (auto *compound = llvm::dyn_cast<clang::CompoundStmt>(stmt)) {
+      if (auto *compound = mlir::dyn_cast<clang::CompoundStmt>(stmt)) {
         if (compound->size() == 1) {
           if (auto *ret =
-                  llvm::dyn_cast<clang::ReturnStmt>(compound->body_back())) {
+                  mlir::dyn_cast<clang::ReturnStmt>(compound->body_back())) {
             return ret->getRetValue();
           }
         }
@@ -105,7 +105,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
            llvm::SmallVectorImpl<Assignment> &assignments) -> bool {
       llvm::SmallVector<clang::Stmt *, 8> stmts;
 
-      if (auto *compound = llvm::dyn_cast<clang::CompoundStmt>(stmt)) {
+      if (auto *compound = mlir::dyn_cast<clang::CompoundStmt>(stmt)) {
         for (auto *s : compound->body()) {
           stmts.push_back(s);
         }
@@ -114,12 +114,12 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
       }
 
       for (auto *s : stmts) {
-        if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(s)) {
+        if (auto *binOp = mlir::dyn_cast<clang::BinaryOperator>(s)) {
           if (binOp->getOpcode() == clang::BO_Assign) {
-            if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(
+            if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(
                     binOp->getLHS()->IgnoreImpCasts())) {
               if (auto *varDecl =
-                      llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+                      mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
                 assignments.push_back({varDecl, binOp->getRHS()});
                 continue;
               }

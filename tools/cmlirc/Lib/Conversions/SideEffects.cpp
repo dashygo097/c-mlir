@@ -3,11 +3,11 @@
 namespace cmlirc {
 
 bool CMLIRConverter::hasSideEffects(clang::Expr *expr) const {
-  if (auto *unOp = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
+  if (auto *unOp = mlir::dyn_cast<clang::UnaryOperator>(expr)) {
     return unOp->isIncrementDecrementOp();
   }
 
-  if (auto *binOp = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
+  if (auto *binOp = mlir::dyn_cast<clang::BinaryOperator>(expr)) {
     return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
   }
 
