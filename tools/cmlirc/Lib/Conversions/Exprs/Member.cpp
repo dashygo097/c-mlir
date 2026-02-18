@@ -38,7 +38,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
   }
 
   clang::FieldDecl *fieldDecl =
-      llvm::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
+      mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
   if (!fieldDecl) {
     llvm::errs() << "Member is not a field\n";
     return nullptr;

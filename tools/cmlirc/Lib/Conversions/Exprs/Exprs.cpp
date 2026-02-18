@@ -7,7 +7,7 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
     return nullptr;
 
 #define REGISTER_EXPR_CONVERSION(ExprType)                                     \
-  if (auto *node = llvm::dyn_cast<clang::ExprType>(expr)) {                    \
+  if (auto *node = mlir::dyn_cast<clang::ExprType>(expr)) {                    \
     return generate##ExprType(node);                                           \
   }
 

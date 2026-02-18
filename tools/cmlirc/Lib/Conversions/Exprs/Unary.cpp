@@ -106,9 +106,9 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
 
   clang::Expr *lvalueExpr = expr->IgnoreParenImpCasts();
 
-  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(lvalueExpr)) {
+  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(lvalueExpr)) {
     if (auto *paramDecl =
-            llvm::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
+            mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
       if (paramTable.count(paramDecl)) {
         mlir::Value oldValue = paramTable[paramDecl];
         mlir::Type type = oldValue.getType();

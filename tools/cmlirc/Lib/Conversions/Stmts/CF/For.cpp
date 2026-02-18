@@ -22,17 +22,17 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   mlir::Value lowerBound, upperBound, step;
 
   if (auto *init =
-          llvm::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit())) {
+          mlir::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit())) {
     if (init->isSingleDecl()) {
       if (auto *varDecl =
-              llvm::dyn_cast<clang::VarDecl>(init->getSingleDecl())) {
+              mlir::dyn_cast<clang::VarDecl>(init->getSingleDecl())) {
         if (varDecl->hasInit()) {
 
-          if (auto *cond = llvm::dyn_cast_or_null<clang::BinaryOperator>(
+          if (auto *cond = mlir::dyn_cast_or_null<clang::BinaryOperator>(
                   forStmt->getCond())) {
 
             auto *condLHS = cond->getLHS()->IgnoreImpCasts();
-            if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condLHS)) {
+            if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(condLHS)) {
               if (declRef->getDecl() == varDecl) {
 
                 clang::BinaryOperatorKind condOp = cond->getOpcode();
@@ -50,11 +50,11 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
                   mlir::Value stepValue = nullptr;
                   bool validIncrement = false;
 
-                  if (auto *inc = llvm::dyn_cast_or_null<clang::UnaryOperator>(
+                  if (auto *inc = mlir::dyn_cast_or_null<clang::UnaryOperator>(
                           forStmt->getInc())) {
                     auto *incSubExpr = inc->getSubExpr()->IgnoreImpCasts();
                     if (auto *incVar =
-                            llvm::dyn_cast<clang::DeclRefExpr>(incSubExpr)) {
+                            mlir::dyn_cast<clang::DeclRefExpr>(incSubExpr)) {
                       if (incVar->getDecl() == varDecl) {
                         clang::UnaryOperatorKind incOp = inc->getOpcode();
 
@@ -80,11 +80,11 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
                   }
 
                   else if (auto *inc =
-                               llvm::dyn_cast_or_null<clang::BinaryOperator>(
+                               mlir::dyn_cast_or_null<clang::BinaryOperator>(
                                    forStmt->getInc())) {
                     auto *incLHS = inc->getLHS()->IgnoreImpCasts();
                     if (auto *incVar =
-                            llvm::dyn_cast<clang::DeclRefExpr>(incLHS)) {
+                            mlir::dyn_cast<clang::DeclRefExpr>(incLHS)) {
                       if (incVar->getDecl() == varDecl) {
                         clang::BinaryOperatorKind incOp = inc->getOpcode();
 
@@ -96,11 +96,11 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
                           validIncrement = true;
                           stepValue = generateExpr(inc->getRHS());
                         } else if (incOp == clang::BO_Assign) {
-                          if (auto *rhs = llvm::dyn_cast<clang::BinaryOperator>(
+                          if (auto *rhs = mlir::dyn_cast<clang::BinaryOperator>(
                                   inc->getRHS()->IgnoreImpCasts())) {
                             auto *rhsLHS = rhs->getLHS()->IgnoreImpCasts();
                             if (auto *rhsVar =
-                                    llvm::dyn_cast<clang::DeclRefExpr>(
+                                    mlir::dyn_cast<clang::DeclRefExpr>(
                                         rhsLHS)) {
                               if (rhsVar->getDecl() == varDecl) {
                                 if (rhs->getOpcode() == clang::BO_Add &&

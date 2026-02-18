@@ -7,7 +7,7 @@ bool CMLIRConverter::TraverseStmt(clang::Stmt *stmt) {
     return RecursiveASTVisitor::TraverseStmt(stmt);
   }
 
-  if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
+  if (auto *expr = mlir::dyn_cast<clang::Expr>(stmt)) {
     if (hasSideEffects(expr)) {
       generateExpr(expr);
       return true;

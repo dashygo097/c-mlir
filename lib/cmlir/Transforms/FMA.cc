@@ -12,6 +12,7 @@ namespace cmlir {
 struct FuseMultiplyAddPattern
     : public mlir::OpRewritePattern<mlir::arith::AddFOp> {
   using mlir::OpRewritePattern<mlir::arith::AddFOp>::OpRewritePattern;
+
   mlir::LogicalResult
   matchAndRewrite(mlir::arith::AddFOp addOp,
                   mlir::PatternRewriter &rewriter) const override {

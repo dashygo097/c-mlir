@@ -52,7 +52,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     if (decl->hasInit()) {
       clang::Expr *init = decl->getInit();
 
-      if (auto *initList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+      if (auto *initList = mlir::dyn_cast<clang::InitListExpr>(init)) {
         const clang::RecordType *recordType = clangType->getAsStructureType();
         if (!recordType) {
           llvm::errs() << "Expected record type\n";
@@ -120,7 +120,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
   if (decl->hasInit()) {
     clang::Expr *init = decl->getInit();
 
-    if (auto *initList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+    if (auto *initList = mlir::dyn_cast<clang::InitListExpr>(init)) {
       storeInitListValues(initList, allocaOp.getResult());
     } else {
       mlir::Value initValue = generateExpr(init);

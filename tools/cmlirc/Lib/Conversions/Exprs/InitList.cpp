@@ -20,7 +20,7 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
                   builder, loc, builder.getIndexType(), builder.getIndexAttr(i))
                   .getResult();
 
-          if (auto *nestedList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+          if (auto *nestedList = mlir::dyn_cast<clang::InitListExpr>(init)) {
             currentIndices.push_back(indexVal);
             storeValues(nestedList, currentIndices);
             currentIndices.pop_back();

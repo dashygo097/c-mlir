@@ -10,7 +10,7 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   clang::Expr *currentExpr = expr;
 
   while (auto *arraySubscript =
-             llvm::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {
+             mlir::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {
     mlir::Value idx = generateExpr(arraySubscript->getIdx());
     if (!idx) {
       llvm::errs() << "Failed to generate index\n";

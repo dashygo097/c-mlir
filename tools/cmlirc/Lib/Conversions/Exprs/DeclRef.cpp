@@ -2,8 +2,8 @@
 
 namespace cmlirc {
 mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
-  if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
-    if (auto *parmDecl = llvm::dyn_cast<clang::ParmVarDecl>(varDecl)) {
+  if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+    if (auto *parmDecl = mlir::dyn_cast<clang::ParmVarDecl>(varDecl)) {
       if (paramTable.count(parmDecl)) {
         return paramTable[parmDecl];
       }
@@ -18,7 +18,7 @@ mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
   }
 
   if (auto *funcDecl =
-          llvm::dyn_cast<clang::FunctionDecl>(declRef->getDecl())) {
+          mlir::dyn_cast<clang::FunctionDecl>(declRef->getDecl())) {
     if (functionTable.count(funcDecl)) {
       return functionTable[funcDecl];
     }

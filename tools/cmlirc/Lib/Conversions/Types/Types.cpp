@@ -9,7 +9,7 @@ mlir::Type CMLIRConverter::convertType(clang::QualType type) {
   const clang::Type *typePtr = type.getTypePtr();
 
 #define REGISTER_TYPE(type)                                                    \
-  if (auto *node = llvm::dyn_cast<clang::type>(typePtr)) {                     \
+  if (auto *node = mlir::dyn_cast<clang::type>(typePtr)) {                     \
     return convert##type(llvm::cast<clang::type>(node));                       \
   }
 
@@ -90,9 +90,9 @@ mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
   clang::QualType currentType = clang::QualType(type, 0);
 
   while (auto *arrayType =
-             llvm::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
+             mlir::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
     if (auto *constArrayType =
-            llvm::dyn_cast<clang::ConstantArrayType>(arrayType)) {
+            mlir::dyn_cast<clang::ConstantArrayType>(arrayType)) {
       int64_t size = constArrayType->getSize().getSExtValue();
       dimensions.push_back(size);
       currentType = constArrayType->getElementType();
@@ -110,14 +110,14 @@ mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
 mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
   clang::QualType pointeeType = type->getPointeeType();
 
-  if (auto *_ = llvm::dyn_cast<clang::ArrayType>(pointeeType.getTypePtr())) {
+  if (auto *_ = mlir::dyn_cast<clang::ArrayType>(pointeeType.getTypePtr())) {
     llvm::SmallVector<int64_t, 4> dimensions;
     clang::QualType currentType = pointeeType;
 
     while (auto *arrType =
-               llvm::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
+               mlir::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
       if (auto *constArrayType =
-              llvm::dyn_cast<clang::ConstantArrayType>(arrType)) {
+              mlir::dyn_cast<clang::ConstantArrayType>(arrType)) {
         int64_t size = constArrayType->getSize().getSExtValue();
         dimensions.push_back(size);
         currentType = constArrayType->getElementType();
