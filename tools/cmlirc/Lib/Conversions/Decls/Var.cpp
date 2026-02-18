@@ -54,6 +54,62 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     }
   }
 
+  if (clangType->isStructureType()) {
+    auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(mlirType);
+    if (!structType) {
+      llvm::errs() << "Expected struct type\n";
+      return false;
+    }
+
+    if (decl->hasInit()) {
+      clang::Expr *init = decl->getInit();
+
+      if (auto *initList = llvm::dyn_cast<clang::InitListExpr>(init)) {
+        const clang::RecordType *recordType = clangType->getAsStructureType();
+        if (!recordType) {
+          llvm::errs() << "Expected record type\n";
+          return false;
+        }
+
+        const clang::RecordDecl *recordDecl = recordType->getDecl();
+        unsigned fieldIndex = 0;
+        for (auto *_ : recordDecl->fields()) {
+          if (fieldIndex >= initList->getNumInits())
+            break;
+
+          clang::Expr *initExpr = initList->getInit(fieldIndex);
+          mlir::Value initValue = generateExpr(initExpr);
+
+          if (!initValue) {
+            llvm::errs() << "Failed to generate init value for field\n";
+            fieldIndex++;
+            continue;
+          }
+
+          mlir::Value loadedStruct = mlir::memref::LoadOp::create(
+              builder, mlirLoc, allocaOp.getResult());
+
+          mlir::Value updatedStruct = mlir::LLVM::InsertValueOp::create(
+              builder, mlirLoc, loadedStruct, initValue, fieldIndex);
+
+          mlir::memref::StoreOp::create(builder, mlirLoc, updatedStruct,
+                                        allocaOp.getResult());
+
+          fieldIndex++;
+        }
+      } else {
+        mlir::Value initValue = generateExpr(init);
+        if (initValue) {
+          mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
+                                        allocaOp.getResult(),
+                                        mlir::ValueRange{});
+        }
+      }
+    }
+
+    return true;
+  }
+
   return true;
 }
 

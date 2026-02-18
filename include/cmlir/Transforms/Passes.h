@@ -9,6 +9,7 @@ namespace cmlir {
 
 std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createMem2RegPass();
 std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createConstPropPass();
+std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createFMAPass();
 
 void registerTransformPasses();
 

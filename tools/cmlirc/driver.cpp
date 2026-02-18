@@ -70,6 +70,10 @@ llvm::cl::opt<bool>
               llvm::cl::desc("Enable symbol dead code elimination"),
               llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<bool> FMA("fma", llvm::cl::init(false),
+                        llvm::cl::desc("Enable fused multiply-add (FMA)"),
+                        llvm::cl::cat(toolOptions));
+
 llvm::cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 } // namespace cmlirc::options

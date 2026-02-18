@@ -49,6 +49,10 @@ public:
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
+    if (options::FMA) {
+      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createFMAPass());
+    }
+
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
 

@@ -3,6 +3,7 @@
 
 #include "./Context/ContextManager.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 namespace cmlirc {
@@ -15,8 +16,7 @@ public:
   // decl traits
   bool TraverseFunctionDecl(clang::FunctionDecl *D);
   bool TraverseVarDecl(clang::VarDecl *decl);
-  // bool TraverseRecordDecl(clang::RecordDecl *recordDecl);
-  // bool TraverseFieldDecl(clang::FieldDecl *fieldDecl);
+  bool TraverseRecordDecl(clang::RecordDecl *recordDecl);
 
   // stmt traits
   bool TraverseStmt(clang::Stmt *stmt);
@@ -39,6 +39,10 @@ private:
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> paramTable;
   llvm::DenseMap<const clang::FunctionDecl *, mlir::Value> functionTable;
+  llvm::DenseMap<const clang::RecordDecl *, mlir::Type> recordTypeTable;
+  llvm::DenseMap<const clang::RecordDecl *,
+                 std::vector<const clang::FieldDecl *>>
+      recordFieldTable;
   mlir::func::FuncOp currentFunc;
   mlir::Value *returnValueCapture;
 
@@ -56,15 +60,18 @@ private:
 
   // side effect analysis
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
+  std::optional<unsigned> getFieldIndex(const clang::RecordDecl *recordDecl,
+                                        const clang::FieldDecl *fieldDecl);
 
   // type traits
   [[nodiscard]] mlir::Type convertType(clang::QualType type);
   [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
   [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
   [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);
+  [[nodiscard]] mlir::Type convertTypedefType(const clang::TypedefType *type);
+  [[nodiscard]] mlir::Type convertRecordType(const clang::RecordType *type);
 
-  [[nodiscard]]
-  mlir::Value convertToBool(mlir::Value value);
+  [[nodiscard]] mlir::Value convertToBool(mlir::Value value);
 
   // expr traits
   mlir::Value generateExpr(clang::Expr *expr);

@@ -19,6 +19,7 @@ extern llvm::cl::opt<bool> Canonicalize;
 extern llvm::cl::opt<bool> CSE;
 extern llvm::cl::opt<bool> LICM;
 extern llvm::cl::opt<bool> SymbolDCE;
+extern llvm::cl::opt<bool> FMA;
 
 extern llvm::cl::extrahelp CommonHelp;
 } // namespace cmlirc::options

@@ -28,5 +28,17 @@ def ConstPropPass
   }];
 }
 
+def FMAPass
+    : Pass<"cmlir-fma"> {
+  let summary = "Fuse multiply-add operations.";
+  let constructor = "cmlir::createFMAPass()";
+
+  let description = [{
+    This pass identifies patterns of the form `a * b + c` and fuses them into a single fused multiply-add (FMA) operation,
+    which can improve performance by reducing the number of separate instructions and enabling better use of hardware capabilities.
+    1. arith.add(arith.mul(a, b), c) -> math.fma(a, b, c)
+  }];
+}
+
 
 #endif // CMLIR_PASSES_TD
