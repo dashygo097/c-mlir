@@ -37,23 +37,25 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
   clang::Expr *rhs = binOp->getRHS();
 
   if (binOp->isAssignmentOp()) {
-    bool isArrayLHS =
-        llvm::isa<clang::ArraySubscriptExpr>(lhs) ||
-        (llvm::isa<clang::UnaryOperator>(lhs) &&
-         llvm::cast<clang::UnaryOperator>(lhs)->getOpcode() == clang::UO_Deref);
-    bool isMemberLHS = llvm::isa<clang::MemberExpr>(lhs);
-    bool isScalerLHS = !isArrayLHS && !isMemberLHS;
+    clang::Expr *bareLHS = lhs->IgnoreParenImpCasts();
+    bool isIndexedLHS =
+        llvm::isa<clang::ArraySubscriptExpr>(bareLHS) ||
+        (llvm::isa<clang::UnaryOperator>(bareLHS) &&
+         llvm::cast<clang::UnaryOperator>(bareLHS)->getOpcode() ==
+             clang::UO_Deref);
+    bool isMemberLHS = llvm::isa<clang::MemberExpr>(bareLHS);
+    bool isScalarLHS = !isIndexedLHS && !isMemberLHS;
 
-    std::optional<ArrayAccessInfo> savedLHSAccess;
-    mlir::Value memberPtr;
-
-    mlir::Value lhsValue = generateExpr(lhs);
-    if (!lhsValue) {
+    mlir::Value lhsMemref = generateExpr(lhs);
+    if (!lhsMemref) {
       llvm::errs() << "Failed to generate LHS\n";
       return nullptr;
     }
 
-    if (isArrayLHS) {
+    std::optional<ArrayAccessInfo> savedLHSAccess;
+    mlir::Value memberPtr;
+
+    if (isIndexedLHS) {
       if (lastArrayAccess_) {
         savedLHSAccess = lastArrayAccess_;
         lastArrayAccess_.reset();
@@ -62,7 +64,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
         return nullptr;
       }
     } else if (isMemberLHS) {
-      memberPtr = lhsValue;
+      memberPtr = lhsMemref;
     }
 
     mlir::Value rhsValue = generateExpr(rhs);
@@ -76,7 +78,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     if (binOp->getOpcode() != clang::BO_Assign) {
       mlir::Value oldValue;
 
-      if (isArrayLHS && savedLHSAccess) {
+      if (isIndexedLHS && savedLHSAccess) {
         oldValue =
             mlir::memref::LoadOp::create(builder, loc, savedLHSAccess->base,
                                          savedLHSAccess->indices)
@@ -86,9 +88,9 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
         oldValue = mlir::LLVM::LoadOp::create(builder, loc, memberPtr.getType(),
                                               memberPtr);
       }
-      if (isScalerLHS) {
+      if (isScalarLHS) {
         oldValue =
-            mlir::memref::LoadOp::create(builder, loc, lhsValue).getResult();
+            mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
       }
 
       mlir::Type valueType = oldValue.getType();
@@ -146,7 +148,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
       }
     }
 
-    if (isArrayLHS && savedLHSAccess) {
+    if (isIndexedLHS && savedLHSAccess) {
       mlir::memref::StoreOp::create(builder, loc, resultValue,
                                     savedLHSAccess->base,
                                     savedLHSAccess->indices);
@@ -154,8 +156,8 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     if (isMemberLHS) {
       mlir::LLVM::StoreOp::create(builder, loc, resultValue, memberPtr);
     }
-    if (isScalerLHS) {
-      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsValue,
+    if (isScalarLHS) {
+      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsMemref,
                                     mlir::ValueRange{});
     }
 
@@ -259,47 +261,33 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
   }
   case clang::BO_LAnd: {
     mlir::Value lhsCond = convertToBool(lhsValue);
-
     auto ifOp = mlir::scf::IfOp::create(
-        builder, loc,
-        /*resultTypes=*/mlir::TypeRange{builder.getI1Type()},
-        /*cond=*/lhsCond,
+        builder, loc, mlir::TypeRange{builder.getI1Type()}, lhsCond,
         /*withElseRegion=*/true);
-
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-    mlir::Value rhsCond = convertToBool(rhsValue);
-    mlir::scf::YieldOp::create(builder, loc, rhsCond);
-
+    mlir::scf::YieldOp::create(builder, loc, convertToBool(rhsValue));
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    mlir::Value falseBool =
+    mlir::scf::YieldOp::create(
+        builder, loc,
         mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
                                         builder.getBoolAttr(false))
-            .getResult();
-    mlir::scf::YieldOp::create(builder, loc, falseBool);
-
+            .getResult());
     builder.setInsertionPointAfter(ifOp);
     return ifOp.getResult(0);
   }
   case clang::BO_LOr: {
     mlir::Value lhsCond = convertToBool(lhsValue);
-
     auto ifOp = mlir::scf::IfOp::create(
-        builder, loc,
-        /*resultTypes=*/mlir::TypeRange{builder.getI1Type()},
-        /*cond=*/lhsCond,
+        builder, loc, mlir::TypeRange{builder.getI1Type()}, lhsCond,
         /*withElseRegion=*/true);
-
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-    mlir::Value trueBool =
+    mlir::scf::YieldOp::create(
+        builder, loc,
         mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
                                         builder.getBoolAttr(true))
-            .getResult();
-    mlir::scf::YieldOp::create(builder, loc, trueBool);
-
+            .getResult());
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    mlir::Value rhsCond = convertToBool(rhsValue);
-    mlir::scf::YieldOp::create(builder, loc, rhsCond);
-
+    mlir::scf::YieldOp::create(builder, loc, convertToBool(rhsValue));
     builder.setInsertionPointAfter(ifOp);
     return ifOp.getResult(0);
   }
