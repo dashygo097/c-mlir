@@ -110,7 +110,7 @@ mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
 mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
   clang::QualType pointeeType = type->getPointeeType();
 
-  if (auto *_ = mlir::dyn_cast<clang::ArrayType>(pointeeType.getTypePtr())) {
+  if (mlir::isa<clang::ArrayType>(pointeeType.getTypePtr())) {
     llvm::SmallVector<int64_t, 4> dimensions;
     clang::QualType currentType = pointeeType;
 

@@ -24,7 +24,7 @@ public:
     bool found = false;
 
     for (auto *Decl : TU->decls()) {
-      if (auto *FD = llvm::dyn_cast<clang::FunctionDecl>(Decl)) {
+      if (auto *FD = mlir::dyn_cast<clang::FunctionDecl>(Decl)) {
         if (FD->getNameAsString() == targetFuncName) {
           if (!FD->hasBody()) {
             llvm::errs() << "Function '" << targetFuncName

@@ -7,7 +7,7 @@ static bool isMemrefLValueWithIndices(clang::Expr *expr) {
   clang::Expr *base = expr->IgnoreParenImpCasts();
   if (llvm::isa<clang::ArraySubscriptExpr>(base))
     return true;
-  if (auto *uo = llvm::dyn_cast<clang::UnaryOperator>(base))
+  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(base))
     return uo->getOpcode() == clang::UO_Deref;
   return false;
 }
@@ -100,7 +100,6 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     auto memrefType = mlir::dyn_cast<mlir::MemRefType>(base.getType());
     if (!memrefType) {
-      llvm::errs() << "UO_Deref: sub-expression is not a memref\n";
       return nullptr;
     }
 
@@ -130,9 +129,9 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::Expr *bare = expr->IgnoreParenImpCasts();
-  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(bare)) {
+  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(bare)) {
     if (auto *paramDecl =
-            llvm::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
+            mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
       if (paramTable.count(paramDecl)) {
         mlir::Value oldValue = paramTable[paramDecl];
         mlir::Type type = oldValue.getType();
