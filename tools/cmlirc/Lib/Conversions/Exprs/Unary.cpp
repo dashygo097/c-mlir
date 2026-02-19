@@ -169,7 +169,10 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
     }
   }
 
-  bool isArrayAccess = llvm::isa<clang::ArraySubscriptExpr>(expr);
+  bool isArrayAccess =
+      llvm::isa<clang::ArraySubscriptExpr>(expr) ||
+      (llvm::isa<clang::UnaryOperator>(expr) &&
+       llvm::cast<clang::UnaryOperator>(expr)->getOpcode() == clang::UO_Deref);
   std::optional<ArrayAccessInfo> savedArrayAccess;
 
   mlir::Value lvalue = generateExpr(expr);
