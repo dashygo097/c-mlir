@@ -60,7 +60,7 @@ private:
 
   // side effect analysis
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
-  std::optional<unsigned> getFieldIndex(const clang::RecordDecl *recordDecl,
+  std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,
                                         const clang::FieldDecl *fieldDecl);
 
   // type traits

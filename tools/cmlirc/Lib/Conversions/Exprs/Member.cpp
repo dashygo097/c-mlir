@@ -3,7 +3,7 @@
 
 namespace cmlirc {
 
-std::optional<unsigned>
+std::optional<uint32_t>
 CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
                               const clang::FieldDecl *fieldDecl) {
   auto it = recordFieldTable.find(recordDecl);
@@ -17,7 +17,7 @@ CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
   }
 
   const auto &fields = it->second;
-  for (unsigned i = 0; i < fields.size(); ++i) {
+  for (uint32_t i = 0; i < fields.size(); ++i) {
     if (fields[i] == fieldDecl) {
       return i;
     }
@@ -58,7 +58,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
 
   const clang::RecordDecl *recordDecl = recordType->getDecl();
 
-  auto fieldIndexOpt = getFieldIndex(recordDecl, fieldDecl);
+  std::optional<uint32_t> fieldIndexOpt = getFieldIndex(recordDecl, fieldDecl);
   if (!fieldIndexOpt) {
     llvm::errs() << "Field not found in struct\n";
     return nullptr;
