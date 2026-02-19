@@ -25,9 +25,9 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
           mlir::LLVM::UndefOp::create(builder, loc, llvmStructType);
 
       mlir::Value result = undefValue.getResult();
-      unsigned numFields = llvmStructType.getBody().size();
+      uint32_t numFields = llvmStructType.getBody().size();
 
-      for (unsigned i = 0; i < numFields; ++i) {
+      for (uint32_t i = 0; i < numFields; ++i) {
         mlir::Type fieldType = llvmStructType.getBody()[i];
         mlir::Value zeroValue;
 
@@ -43,7 +43,6 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
                   builder, loc, floatType, builder.getFloatAttr(floatType, 0.0))
                   .getResult();
         } else {
-          // 其他类型：保持 undef
           continue;
         }
 
@@ -58,7 +57,7 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
     mlir::Value result =
         mlir::LLVM::UndefOp::create(builder, loc, llvmStructType).getResult();
 
-    for (unsigned i = 0; i < constructExpr->getNumArgs(); ++i) {
+    for (uint32_t i = 0; i < constructExpr->getNumArgs(); ++i) {
       clang::Expr *arg = constructExpr->getArg(i);
       mlir::Value argValue = generateExpr(arg);
 

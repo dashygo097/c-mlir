@@ -60,7 +60,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
         }
 
         const clang::RecordDecl *recordDecl = recordType->getDecl();
-        unsigned fieldIndex = 0;
+        uint32_t fieldIndex = 0;
 
         for (auto *_ : recordDecl->fields()) {
           if (fieldIndex >= initList->getNumInits())

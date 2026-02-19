@@ -123,7 +123,7 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   llvm::SmallVector<mlir::Value, 4> argValues;
   llvm::SmallVector<mlir::Type, 4> argTypes;
 
-  for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
+  for (uint32_t i = 0; i < callExpr->getNumArgs(); ++i) {
     mlir::Value argValue = generateExpr(callExpr->getArg(i));
     if (!argValue) {
       llvm::errs() << "Failed to generate argument " << i << "\n";
