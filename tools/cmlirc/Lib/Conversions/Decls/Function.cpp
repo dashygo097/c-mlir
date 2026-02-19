@@ -44,7 +44,7 @@ bool CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   currentFunc = funcOp;
 
   // Map parameters to block arguments
-  for (unsigned i = 0; i < decl->getNumParams(); ++i) {
+  for (uint32_t i = 0; i < decl->getNumParams(); ++i) {
     auto *param = decl->getParamDecl(i);
     paramTable[param] = entryBlock->getArgument(i);
   }

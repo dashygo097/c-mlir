@@ -63,7 +63,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
     llvm::errs() << "Field not found in struct\n";
     return nullptr;
   }
-  unsigned fieldIndex = *fieldIndexOpt;
+  uint32_t fieldIndex = *fieldIndexOpt;
 
   mlir::Type structType = convertType(baseType);
   auto llvmStructType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(structType);

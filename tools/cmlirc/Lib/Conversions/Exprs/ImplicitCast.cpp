@@ -78,8 +78,8 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     if (!srcIntType || !dstIntType)
       return subValue;
 
-    unsigned srcWidth = srcIntType.getWidth();
-    unsigned dstWidth = dstIntType.getWidth();
+    uint32_t srcWidth = srcIntType.getWidth();
+    uint32_t dstWidth = dstIntType.getWidth();
 
     if (srcWidth < dstWidth) {
       bool isSigned = subExpr->getType()->isSignedIntegerType();
