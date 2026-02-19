@@ -3,6 +3,15 @@
 
 namespace cmlirc {
 
+static bool isMemrefLValueWithIndices(clang::Expr *expr) {
+  clang::Expr *base = expr->IgnoreParenImpCasts();
+  if (llvm::isa<clang::ArraySubscriptExpr>(base))
+    return true;
+  if (auto *uo = llvm::dyn_cast<clang::UnaryOperator>(base))
+    return uo->getOpcode() == clang::UO_Deref;
+  return false;
+}
+
 mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -11,13 +20,12 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   switch (unOp->getOpcode()) {
   case clang::UO_Plus:
     return generateExpr(subExpr);
+
   case clang::UO_Minus: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
-
     mlir::Type type = operand.getType();
-
     if (mlir::isa<mlir::IntegerType>(type)) {
       mlir::Value zero =
           mlir::arith::ConstantOp::create(builder, loc, type,
@@ -28,32 +36,27 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     } else if (mlir::isa<mlir::FloatType>(type)) {
       return mlir::arith::NegFOp::create(builder, loc, operand).getResult();
     }
-
     return nullptr;
   }
-  case clang::UO_PreInc: {
+
+  case clang::UO_PreInc:
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/true);
-  }
-  case clang::UO_PostInc: {
+  case clang::UO_PostInc:
     return generateIncrementDecrement(subExpr, /*isIncrement=*/true,
                                       /*isPrefix=*/false);
-  }
-  case clang::UO_PreDec: {
+  case clang::UO_PreDec:
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/true);
-  }
-  case clang::UO_PostDec: {
+  case clang::UO_PostDec:
     return generateIncrementDecrement(subExpr, /*isIncrement=*/false,
                                       /*isPrefix=*/false);
-  }
+
   case clang::UO_LNot: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
-
     mlir::Type type = operand.getType();
-
     if (mlir::isa<mlir::IntegerType>(type)) {
       mlir::Value zero =
           mlir::arith::ConstantOp::create(builder, loc, type,
@@ -71,14 +74,13 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
                  builder, loc, mlir::arith::CmpFPredicate::OEQ, operand, zero)
           .getResult();
     }
-
     return nullptr;
   }
+
   case clang::UO_Not: {
     mlir::Value operand = generateExpr(subExpr);
     if (!operand)
       return nullptr;
-
     mlir::Type type = operand.getType();
     if (mlir::isa<mlir::IntegerType>(type)) {
       mlir::Value allOnes =
@@ -88,9 +90,9 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       return mlir::arith::XOrIOp::create(builder, loc, operand, allOnes)
           .getResult();
     }
-
     return nullptr;
   }
+
   case clang::UO_Deref: {
     mlir::Value base = generateExpr(subExpr);
     if (!base)
@@ -102,9 +104,8 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       return nullptr;
     }
 
-    if (memrefType.getRank() == 0) {
+    if (memrefType.getRank() == 0)
       return base;
-    }
 
     mlir::Value zero =
         mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
@@ -128,9 +129,10 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(expr)) {
+  clang::Expr *bare = expr->IgnoreParenImpCasts();
+  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(bare)) {
     if (auto *paramDecl =
-            mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
+            llvm::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
       if (paramTable.count(paramDecl)) {
         mlir::Value oldValue = paramTable[paramDecl];
         mlir::Type type = oldValue.getType();
@@ -163,28 +165,23 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
         }
 
         paramTable[paramDecl] = newValue;
-
         return isPrefix ? newValue : oldValue;
       }
     }
   }
 
-  bool isArrayAccess =
-      llvm::isa<clang::ArraySubscriptExpr>(expr) ||
-      (llvm::isa<clang::UnaryOperator>(expr) &&
-       llvm::cast<clang::UnaryOperator>(expr)->getOpcode() == clang::UO_Deref);
-  std::optional<ArrayAccessInfo> savedArrayAccess;
+  bool isIndexedAccess = isMemrefLValueWithIndices(expr);
 
-  mlir::Value lvalue = generateExpr(expr);
-
-  if (!lvalue) {
+  mlir::Value memrefVal = generateExpr(expr);
+  if (!memrefVal) {
     llvm::errs() << "Cannot get lvalue for increment/decrement\n";
     return nullptr;
   }
 
-  if (isArrayAccess) {
+  std::optional<ArrayAccessInfo> access;
+  if (isIndexedAccess) {
     if (lastArrayAccess_) {
-      savedArrayAccess = lastArrayAccess_;
+      access = lastArrayAccess_;
       lastArrayAccess_.reset();
     } else {
       llvm::errs() << "Array access info not available\n";
@@ -193,14 +190,13 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
   }
 
   mlir::Value oldValue;
-
-  if (isArrayAccess && savedArrayAccess) {
-    oldValue =
-        mlir::memref::LoadOp::create(builder, loc, savedArrayAccess->base,
-                                     savedArrayAccess->indices)
-            .getResult();
+  if (access) {
+    oldValue = mlir::memref::LoadOp::create(builder, loc, access->base,
+                                            access->indices)
+                   .getResult();
   } else {
-    oldValue = mlir::memref::LoadOp::create(builder, loc, lvalue).getResult();
+    oldValue =
+        mlir::memref::LoadOp::create(builder, loc, memrefVal).getResult();
   }
 
   mlir::Type type = oldValue.getType();
@@ -230,12 +226,11 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
     return nullptr;
   }
 
-  if (isArrayAccess && savedArrayAccess) {
-    mlir::memref::StoreOp::create(builder, loc, newValue,
-                                  savedArrayAccess->base,
-                                  savedArrayAccess->indices);
+  if (access) {
+    mlir::memref::StoreOp::create(builder, loc, newValue, access->base,
+                                  access->indices);
   } else {
-    mlir::memref::StoreOp::create(builder, loc, newValue, lvalue,
+    mlir::memref::StoreOp::create(builder, loc, newValue, memrefVal,
                                   mlir::ValueRange{});
   }
 
