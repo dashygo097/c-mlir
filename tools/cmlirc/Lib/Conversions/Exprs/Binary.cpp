@@ -37,7 +37,10 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
   clang::Expr *rhs = binOp->getRHS();
 
   if (binOp->isAssignmentOp()) {
-    bool isArrayLHS = llvm::isa<clang::ArraySubscriptExpr>(lhs);
+    bool isArrayLHS =
+        llvm::isa<clang::ArraySubscriptExpr>(lhs) ||
+        (llvm::isa<clang::UnaryOperator>(lhs) &&
+         llvm::cast<clang::UnaryOperator>(lhs)->getOpcode() == clang::UO_Deref);
     bool isMemberLHS = llvm::isa<clang::MemberExpr>(lhs);
     bool isScalerLHS = !isArrayLHS && !isMemberLHS;
 
