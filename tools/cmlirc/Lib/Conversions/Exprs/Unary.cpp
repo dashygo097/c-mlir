@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
 
@@ -90,6 +91,29 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
     return nullptr;
   }
+  case clang::UO_Deref: {
+    mlir::Value base = generateExpr(subExpr);
+    if (!base)
+      return nullptr;
+
+    auto memrefType = mlir::dyn_cast<mlir::MemRefType>(base.getType());
+    if (!memrefType) {
+      llvm::errs() << "UO_Deref: sub-expression is not a memref\n";
+      return nullptr;
+    }
+
+    if (memrefType.getRank() == 0) {
+      return base;
+    }
+
+    mlir::Value zero =
+        mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
+                                        builder.getIndexAttr(0))
+            .getResult();
+    lastArrayAccess_ = ArrayAccessInfo{base, mlir::ValueRange{zero}};
+    return base;
+  }
+
   default:
     llvm::errs() << "Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
@@ -104,9 +128,7 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  clang::Expr *lvalueExpr = expr->IgnoreParenImpCasts();
-
-  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(lvalueExpr)) {
+  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(expr)) {
     if (auto *paramDecl =
             mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
       if (paramTable.count(paramDecl)) {
@@ -147,10 +169,10 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
     }
   }
 
-  bool isArrayAccess = llvm::isa<clang::ArraySubscriptExpr>(lvalueExpr);
+  bool isArrayAccess = llvm::isa<clang::ArraySubscriptExpr>(expr);
   std::optional<ArrayAccessInfo> savedArrayAccess;
 
-  mlir::Value lvalue = generateExpr(lvalueExpr);
+  mlir::Value lvalue = generateExpr(expr);
 
   if (!lvalue) {
     llvm::errs() << "Cannot get lvalue for increment/decrement\n";

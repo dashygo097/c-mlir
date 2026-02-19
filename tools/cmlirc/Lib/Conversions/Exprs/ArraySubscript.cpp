@@ -18,7 +18,7 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
     }
 
     indices.insert(indices.begin(), idx);
-    currentExpr = arraySubscript->getBase()->IgnoreImpCasts();
+    currentExpr = arraySubscript->getBase();
   }
 
   mlir::Value base = generateExpr(currentExpr);
