@@ -30,7 +30,9 @@ public:
       llvm::outs() << "\nGenerated MLIR: \n";
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
-    // mlir::OpPassManager &funcPM = pm.nest<mlir::func::FuncOp>();
+
+    if (options::Canonicalize)
+      pm.addPass(mlir::createCanonicalizerPass());
 
     if (options::FuncInline)
       pm.addPass(mlir::createInlinerPass());
@@ -45,6 +47,9 @@ public:
       pm.addPass(mlir::createMem2Reg());
       pm.addNestedPass<mlir::func::FuncOp>(cmlir::createMem2RegPass());
     }
+
+    if (options::Struct2Memref)
+      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createStruct2MemrefPass());
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());

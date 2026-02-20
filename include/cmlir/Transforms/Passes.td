@@ -40,4 +40,16 @@ def FMAPass
   }];
 }
 
+def Struct2MemrefPass
+    : Pass<"cmlir-struct2memref"> {
+  let summary = "Convert struct types to memref types.";
+  let constructor = "cmlir::createStruct2MemrefPass()";
+  let description = [{
+    This pass converts struct types to memref types by performing the following steps:
+    1. Identify all struct types in the IR and determine their fields and sizes.
+    2. Replace struct type definitions with equivalent memref type definitions that can hold the same data.
+    3. Update all operations that use the original struct types to use the new memref types, ensuring that data access patterns are preserved.
+  }];
+}
+
 #endif // CMLIR_PASSES_TD
