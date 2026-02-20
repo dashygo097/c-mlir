@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 
 namespace cmlirc {
+
 mlir::Value
 CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   mlir::OpBuilder &builder = context_manager_.Builder();
@@ -18,7 +19,13 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
     }
 
     indices.insert(indices.begin(), idx);
-    currentExpr = arraySubscript->getBase();
+
+    clang::Expr *base = arraySubscript->getBase();
+    if (auto *implCast = llvm::dyn_cast<clang::ImplicitCastExpr>(base)) {
+      if (implCast->getCastKind() == clang::CK_ArrayToPointerDecay)
+        base = implCast->getSubExpr();
+    }
+    currentExpr = base;
   }
 
   mlir::Value base = generateExpr(currentExpr);
@@ -29,10 +36,14 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   llvm::SmallVector<mlir::Value, 4> indexValues;
   for (mlir::Value idx : indices) {
-    auto indexValue = mlir::arith::IndexCastOp::create(
-                          builder, loc, builder.getIndexType(), idx)
-                          .getResult();
-    indexValues.push_back(indexValue);
+    if (mlir::isa<mlir::IndexType>(idx.getType())) {
+      indexValues.push_back(idx);
+    } else {
+      auto indexValue = mlir::arith::IndexCastOp::create(
+                            builder, loc, builder.getIndexType(), idx)
+                            .getResult();
+      indexValues.push_back(indexValue);
+    }
   }
 
   lastArrayAccess_ = ArrayAccessInfo{base, indexValues};
