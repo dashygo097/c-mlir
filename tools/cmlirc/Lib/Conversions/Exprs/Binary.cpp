@@ -39,11 +39,11 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
   if (binOp->isAssignmentOp()) {
     clang::Expr *bareLHS = lhs->IgnoreParenImpCasts();
     bool isIndexedLHS =
-        llvm::isa<clang::ArraySubscriptExpr>(bareLHS) ||
-        (llvm::isa<clang::UnaryOperator>(bareLHS) &&
+        mlir::isa<clang::ArraySubscriptExpr>(bareLHS) ||
+        (mlir::isa<clang::UnaryOperator>(bareLHS) &&
          llvm::cast<clang::UnaryOperator>(bareLHS)->getOpcode() ==
              clang::UO_Deref);
-    bool isMemberLHS = llvm::isa<clang::MemberExpr>(bareLHS);
+    bool isMemberLHS = mlir::isa<clang::MemberExpr>(bareLHS);
     bool isScalarLHS = !isIndexedLHS && !isMemberLHS;
 
     mlir::Value lhsMemref = generateExpr(lhs);

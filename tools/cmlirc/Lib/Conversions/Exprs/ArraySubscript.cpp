@@ -21,7 +21,7 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
     indices.insert(indices.begin(), idx);
 
     clang::Expr *base = arraySubscript->getBase();
-    if (auto *implCast = llvm::dyn_cast<clang::ImplicitCastExpr>(base)) {
+    if (auto *implCast = mlir::dyn_cast<clang::ImplicitCastExpr>(base)) {
       if (implCast->getCastKind() == clang::CK_ArrayToPointerDecay)
         base = implCast->getSubExpr();
     }

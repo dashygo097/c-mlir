@@ -11,7 +11,7 @@ bool CMLIRConverter::hasSideEffects(clang::Expr *expr) const {
     return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
   }
 
-  if (llvm::isa<clang::CallExpr>(expr)) {
+  if (mlir::isa<clang::CallExpr>(expr)) {
     return true;
   }
 
