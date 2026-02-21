@@ -4,15 +4,15 @@ namespace cmlirc {
 mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
   if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
     if (auto *parmDecl = mlir::dyn_cast<clang::ParmVarDecl>(varDecl)) {
-      if (paramTable.count(parmDecl)) {
+      if (paramTable.count(parmDecl))
         return paramTable[parmDecl];
-      }
     }
-
     if (symbolTable.count(varDecl)) {
-      return symbolTable[varDecl];
+      mlir::Value val = symbolTable[varDecl];
+      if (varDecl->getType()->isPointerType())
+        return val;
+      return val;
     }
-
     llvm::errs() << "Variable not found: " << varDecl->getName() << "\n";
     return nullptr;
   }

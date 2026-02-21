@@ -33,6 +33,16 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     return false;
   }
 
+  if (clangType->isPointerType()) {
+    if (decl->hasInit()) {
+      mlir::Value initValue = generateExpr(decl->getInit());
+      lastArrayAccess_.reset();
+      if (initValue)
+        symbolTable[decl] = initValue;
+    }
+    return true;
+  }
+
   if (clangType->isStructureType()) {
     auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(mlirType);
     if (!structType) {
