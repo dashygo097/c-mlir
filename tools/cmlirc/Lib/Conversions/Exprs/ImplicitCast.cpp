@@ -17,6 +17,9 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     if (!subValue)
       return nullptr;
 
+    if (subExpr->getType()->isPointerType())
+      return subValue;
+
     if (auto memrefType =
             mlir::dyn_cast<mlir::MemRefType>(subValue.getType())) {
       if (memrefType.hasRank() && memrefType.getRank() == 0) {

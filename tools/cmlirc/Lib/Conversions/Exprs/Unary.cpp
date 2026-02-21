@@ -114,6 +114,76 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     return base;
   }
 
+  case clang::UO_AddrOf: {
+    clang::Expr *bare = subExpr->IgnoreParenImpCasts();
+
+    if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
+      if (uo->getOpcode() == clang::UO_Deref) {
+        mlir::Value inner = generateExpr(uo->getSubExpr());
+        lastArrayAccess_.reset();
+        return inner;
+      }
+    }
+
+    if (llvm::isa<clang::ArraySubscriptExpr>(bare)) {
+      mlir::Value base = generateExpr(subExpr);
+      if (!base)
+        return nullptr;
+
+      if (!lastArrayAccess_) {
+        llvm::errs() << "AddrOf: array access info not available\n";
+        return nullptr;
+      }
+      ArrayAccessInfo access = *lastArrayAccess_;
+      lastArrayAccess_.reset();
+
+      auto srcType = mlir::dyn_cast<mlir::MemRefType>(access.base.getType());
+      if (!srcType)
+        return nullptr;
+
+      int64_t rank = srcType.getRank();
+      llvm::SmallVector<mlir::OpFoldResult> offsets, sizes, strides;
+      for (int64_t i = 0; i < rank; ++i) {
+        offsets.push_back(i < (int64_t)access.indices.size()
+                              ? mlir::OpFoldResult(access.indices[i])
+                              : mlir::OpFoldResult(builder.getIndexAttr(0)));
+        sizes.push_back(builder.getIndexAttr(1));
+        strides.push_back(builder.getIndexAttr(1));
+      }
+
+      llvm::SmallVector<int64_t> droppedDims(rank);
+      std::iota(droppedDims.begin(), droppedDims.end(), 0);
+
+      auto resultType = mlir::MemRefType::get({}, srcType.getElementType());
+      return mlir::memref::SubViewOp::create(
+                 builder, loc, resultType, access.base, offsets, sizes, strides)
+          .getResult();
+    }
+
+    if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(bare)) {
+      if (auto *paramDecl =
+              mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
+        if (paramTable.count(paramDecl)) {
+          mlir::Value val = paramTable[paramDecl];
+          auto allocType = mlir::MemRefType::get({}, val.getType());
+          mlir::Value slot =
+              mlir::memref::AllocaOp::create(builder, loc, allocType)
+                  .getResult();
+          mlir::memref::StoreOp::create(builder, loc, val, slot,
+                                        mlir::ValueRange{});
+          return slot;
+        }
+      }
+
+      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+        if (symbolTable.count(varDecl))
+          return symbolTable[varDecl];
+      }
+    }
+
+    return nullptr;
+  }
+
   default:
     llvm::errs() << "Unsupported unary operator: "
                  << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
