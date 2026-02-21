@@ -8,7 +8,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     return true;
   }
 
-  if (llvm::isa<clang::ParmVarDecl>(decl)) {
+  if (mlir::isa<clang::ParmVarDecl>(decl)) {
     return true;
   }
 

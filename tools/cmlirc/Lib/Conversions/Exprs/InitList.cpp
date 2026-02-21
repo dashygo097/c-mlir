@@ -12,7 +12,7 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
                      llvm::SmallVector<mlir::Value, 4> &)>
       storeValues = [&](clang::InitListExpr *list,
                         llvm::SmallVector<mlir::Value, 4> &currentIndices) {
-        for (unsigned i = 0; i < list->getNumInits(); ++i) {
+        for (uint32_t i = 0; i < list->getNumInits(); ++i) {
           clang::Expr *init = list->getInit(i);
 
           mlir::Value indexVal =

@@ -7,7 +7,7 @@ bool branchEndsWithReturn(clang::Stmt *stmt) {
   if (!stmt)
     return false;
 
-  if (llvm::isa<clang::ReturnStmt>(stmt)) {
+  if (mlir::isa<clang::ReturnStmt>(stmt)) {
     return true;
   }
 
@@ -214,7 +214,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     } else {
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
     }
-  } else if (bothReturn && llvm::isa<mlir::func::ReturnOp>(thenBlock->back())) {
+  } else if (bothReturn && mlir::isa<mlir::func::ReturnOp>(thenBlock->back())) {
     auto returnOp = llvm::cast<mlir::func::ReturnOp>(thenBlock->back());
     mlir::ValueRange returnOperands = returnOp.getOperands();
     returnOp.erase();
@@ -249,7 +249,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
         mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
       }
     } else if (bothReturn &&
-               llvm::isa<mlir::func::ReturnOp>(elseBlock->back())) {
+               mlir::isa<mlir::func::ReturnOp>(elseBlock->back())) {
       auto returnOp = llvm::cast<mlir::func::ReturnOp>(elseBlock->back());
       mlir::ValueRange returnOperands = returnOp.getOperands();
       returnOp.erase();

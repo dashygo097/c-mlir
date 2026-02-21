@@ -5,7 +5,7 @@ namespace cmlirc {
 
 static bool isMemrefLValueWithIndices(clang::Expr *expr) {
   clang::Expr *base = expr->IgnoreParenImpCasts();
-  if (llvm::isa<clang::ArraySubscriptExpr>(base))
+  if (mlir::isa<clang::ArraySubscriptExpr>(base))
     return true;
   if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(base))
     return uo->getOpcode() == clang::UO_Deref;
@@ -125,7 +125,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       }
     }
 
-    if (llvm::isa<clang::ArraySubscriptExpr>(bare)) {
+    if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
       mlir::Value base = generateExpr(subExpr);
       if (!base)
         return nullptr;
