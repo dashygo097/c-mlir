@@ -108,7 +108,12 @@ mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
 }
 
 mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
-  clang::QualType pointeeType = type->getPointeeType();
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  clang::QualType pointeeType = type->getPointeeType().getCanonicalType();
+
+  if (mlir::isa<clang::RecordType>(pointeeType.getTypePtr())) {
+    return mlir::LLVM::LLVMPointerType::get(builder.getContext());
+  }
 
   if (mlir::isa<clang::ArrayType>(pointeeType.getTypePtr())) {
     llvm::SmallVector<int64_t, 4> dimensions;
@@ -128,13 +133,13 @@ mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
     }
 
     mlir::Type elementType = convertType(currentType);
-
     dimensions.insert(dimensions.begin(), mlir::ShapedType::kDynamic);
-
     return mlir::MemRefType::get(dimensions, elementType);
   }
 
   mlir::Type elementType = convertType(pointeeType);
+  if (!elementType)
+    return nullptr;
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 
