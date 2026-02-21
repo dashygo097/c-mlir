@@ -15,6 +15,7 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
   REGISTER_EXPR_CONVERSION(CXXBoolLiteralExpr)
   REGISTER_EXPR_CONVERSION(IntegerLiteral)
   REGISTER_EXPR_CONVERSION(FloatingLiteral)
+  REGISTER_EXPR_CONVERSION(CharacterLiteral)
   REGISTER_EXPR_CONVERSION(DeclRefExpr)
   REGISTER_EXPR_CONVERSION(ImplicitCastExpr)
   REGISTER_EXPR_CONVERSION(ArraySubscriptExpr)

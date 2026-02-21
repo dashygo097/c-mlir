@@ -83,6 +83,7 @@ private:
   mlir::Value generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit);
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
+  mlir::Value generateCharacterLiteral(clang::CharacterLiteral *charLit);
 
   // decl ref
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);

@@ -40,4 +40,18 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
                                          builder.getFloatAttr(type, value))
       .getResult();
 }
+
+mlir::Value
+CMLIRConverter::generateCharacterLiteral(clang::CharacterLiteral *charLit) {
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  uint64_t value = charLit->getValue();
+  mlir::Type type = convertType(charLit->getType());
+
+  return mlir::arith::ConstantOp::create(builder, loc, type,
+                                         builder.getIntegerAttr(type, value))
+      .getResult();
+}
+
 } // namespace cmlirc
