@@ -84,6 +84,7 @@ private:
   mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
   mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
   mlir::Value generateCharacterLiteral(clang::CharacterLiteral *charLit);
+  mlir::Value generateStringLiteral(clang::StringLiteral *strLit);
 
   // decl ref
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
