@@ -2,8 +2,8 @@
 #define CMLIRC_ASTVISITOR_H
 
 #include "./Context/ContextManager.h"
+#include "./Pragmas/PragmaHandler.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 namespace cmlirc {
