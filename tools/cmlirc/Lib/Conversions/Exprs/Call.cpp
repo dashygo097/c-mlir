@@ -34,6 +34,7 @@ mlir::func::FuncOp getOrCreateFunctionDecl(mlir::OpBuilder &builder,
 }
 
 mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
+  mlir::ModuleOp module = context_manager_.Module();
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -123,17 +124,18 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 #undef REGISTER_MATH_CALL
 
   llvm::SmallVector<mlir::Value, 4> argValues;
-  llvm::SmallVector<mlir::Type, 4> argTypes;
-
-  for (uint32_t i = 0; i < callExpr->getNumArgs(); ++i) {
-    mlir::Value argValue = generateExpr(callExpr->getArg(i));
-    if (!argValue) {
+  for (uint32_t i = 0; i < num_args; ++i) {
+    mlir::Value v = generateExpr(callExpr->getArg(i));
+    if (!v) {
       llvm::errs() << "Failed to generate argument " << i << "\n";
       return nullptr;
     }
-    argValues.push_back(argValue);
-    argTypes.push_back(argValue.getType());
+    argValues.push_back(v);
   }
+
+  llvm::SmallVector<mlir::Type, 4> argTypes;
+  for (auto &v : argValues)
+    argTypes.push_back(v.getType());
 
   clang::QualType returnType = calleeDecl->getReturnType();
   mlir::Type mlirReturnType = convertType(returnType);
@@ -144,7 +146,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   }
 
   auto funcType = builder.getFunctionType(argTypes, returnTypes);
-  mlir::ModuleOp module = context_manager_.Module();
   getOrCreateFunctionDecl(builder, module, calleeName, funcType);
 
   auto callOp = mlir::func::CallOp::create(builder, loc, calleeName,
