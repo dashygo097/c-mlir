@@ -50,14 +50,12 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 
 #define REGISTER_MATH_CALL(op, names)                                          \
   {                                                                            \
+    tokens.clear();                                                            \
     std::istringstream tokenStream(names);                                     \
-                                                                               \
-    while (std::getline(tokenStream, token, '|')) {                            \
+    while (std::getline(tokenStream, token, '|'))                              \
       tokens.push_back(token);                                                 \
-    }                                                                          \
-                                                                               \
-    for (const auto &token : tokens) {                                         \
-      if (calleeName == token) {                                               \
+    for (const auto &tok : tokens) {                                           \
+      if (calleeName == tok) {                                                 \
         std::vector<mlir::Value> args;                                         \
         for (uint32_t i = 0; i < num_args; ++i) {                              \
           mlir::Value arg = generateExpr(callExpr->getArg(i));                 \
@@ -65,6 +63,10 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
             llvm::errs() << "Failed to generate argument " << i << "\n";       \
             return nullptr;                                                    \
           }                                                                    \
+          /* NOTE:C++ integer overload fix */                                  \
+          if (mlir::isa<mlir::IntegerType>(arg.getType()))                     \
+            arg = mlir::arith::SIToFPOp::create(builder, loc,                  \
+                                                builder.getF64Type(), arg);    \
           args.push_back(arg);                                                 \
         }                                                                      \
         return mlir::math::op::create(builder, loc, args);                     \
