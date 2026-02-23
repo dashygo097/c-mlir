@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {

@@ -3,13 +3,14 @@
 
 #include "../ArgumentList.h"
 #include "./Converter.h"
+#include "./Pragmas/PragmaHandler.h"
 #include "clang/AST/ASTConsumer.h"
 
 namespace cmlirc {
 
 class CMLIRConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRConsumer(ContextManager &mlirContext) : visitor_(mlirContext) {}
+  explicit CMLIRConsumer(ContextManager &ctx) : visitor_(ctx) {}
   ~CMLIRConsumer() = default;
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {

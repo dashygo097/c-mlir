@@ -3,6 +3,7 @@
 
 #include "../ArgumentList.h"
 #include "./Consumer.h"
+#include "Pragmas/PragmaHandler.h"
 #include "cmlir/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -22,6 +23,10 @@ public:
   CreateASTConsumer(clang::CompilerInstance &CI,
                     clang::StringRef file) override {
     context_manager_ = std::make_unique<ContextManager>(&CI.getASTContext());
+
+    auto pragma_handler = std::make_unique<CMLIRPragmaHandler>(loop_hints_);
+    CI.getPreprocessor().AddPragmaHandler(pragma_handler.release());
+
     return std::make_unique<CMLIRConsumer>(*context_manager_);
   }
 
@@ -80,6 +85,7 @@ public:
 
 private:
   std::unique_ptr<ContextManager> context_manager_;
+  LoopHintMap loop_hints_;
   llvm::raw_ostream *output_stream_;
 };
 

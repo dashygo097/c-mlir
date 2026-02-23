@@ -31,9 +31,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/SideEffects.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
-
   Lib/Context/ContextManager.cpp
-
   driver.cpp
 )
 
