@@ -10,7 +10,8 @@ namespace cmlirc {
 
 class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
-  explicit CMLIRConverter(ContextManager &ctx) : context_manager_(ctx) {}
+  explicit CMLIRConverter(ContextManager &ctx, LoopHintMap &loopHints)
+      : context_manager_(ctx), loop_hints_(loopHints) {}
   ~CMLIRConverter() = default;
 
   // decl traits
@@ -34,6 +35,7 @@ public:
 
 private:
   ContextManager &context_manager_;
+  LoopHintMap &loop_hints_;
 
   // states
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;

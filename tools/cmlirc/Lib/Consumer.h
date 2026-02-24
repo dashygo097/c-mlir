@@ -10,7 +10,8 @@ namespace cmlirc {
 
 class CMLIRConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRConsumer(ContextManager &ctx) : visitor_(ctx) {}
+  explicit CMLIRConsumer(ContextManager &ctx, LoopHintMap &loopHints)
+      : visitor_(ctx, loopHints) {}
   ~CMLIRConsumer() = default;
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {

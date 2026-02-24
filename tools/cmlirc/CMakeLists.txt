@@ -48,8 +48,10 @@ target_link_libraries(cmlirc PRIVATE
   MLIRFuncDialect
   MLIRMemRefDialect
   MLIRSCFDialect 
+  MLIRSCFTransforms
   MLIRMathDialect
   MLIRTransforms
+  MLIRTransformUtils
 
   # Clang Libraries
   clangSupport

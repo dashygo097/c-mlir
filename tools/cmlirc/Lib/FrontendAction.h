@@ -27,7 +27,7 @@ public:
     auto pragma_handler = std::make_unique<CMLIRPragmaHandler>(loop_hints_);
     CI.getPreprocessor().AddPragmaHandler(pragma_handler.release());
 
-    return std::make_unique<CMLIRConsumer>(*context_manager_);
+    return std::make_unique<CMLIRConsumer>(*context_manager_, loop_hints_);
   }
 
   void EndSourceFileAction() override {
@@ -35,6 +35,9 @@ public:
       llvm::outs() << "\nGenerated MLIR: \n";
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
+
+    if (options::EnableLoopUnroll)
+      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createLoopUnrollPass());
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());

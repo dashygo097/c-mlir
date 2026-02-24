@@ -13,6 +13,8 @@ std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createFMAPass();
 std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>>
 createStruct2MemrefPass();
 
+std::unique_ptr<mlir::Pass> createLoopUnrollPass();
+
 void registerTransformPasses();
 
 #define GEN_PASS_REGISTRATION
