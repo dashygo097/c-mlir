@@ -32,6 +32,11 @@ llvm::cl::opt<std::string>
                  llvm::cl::cat(toolOptions));
 
 // Passes
+llvm::cl::opt<bool> EnableLoopUnroll("enable-loop-unroll",
+                                     llvm::cl::init(false),
+                                     llvm::cl::desc("Enable loop unrolling"),
+                                     llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
                                  llvm::cl::desc("Enable canonicalization"),
                                  llvm::cl::cat(toolOptions));

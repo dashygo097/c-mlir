@@ -15,8 +15,6 @@ static void skipToEOD(clang::Preprocessor &PP) {
 void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
                                       clang::PragmaIntroducer Introducer,
                                       clang::Token &firstTok) {
-  // In this Clang version, firstTok is the matched handler token ("cmlir").
-  // Lex one more token to get the actual directive ("loop_unroll" etc).
   clang::Token directiveTok;
   PP.Lex(directiveTok);
   if (directiveTok.isNot(clang::tok::identifier)) {
@@ -29,10 +27,8 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
       PP.getSourceManager().getSpellingLineNumber(Introducer.Loc) + 1;
   LoopHints &hints = hints_[line];
 
-  // All sub-parsers lex their own tokens from scratch after directive is known.
   clang::Token tok;
 
-  // ── parse ( N ) ───────────────────────────────────────────────────────────
   auto parseUInt = [&](uint64_t &out) -> bool {
     PP.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
@@ -46,7 +42,6 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
     return tok.is(clang::tok::r_paren);
   };
 
-  // ── parse ( enable | disable ) ────────────────────────────────────────────
   auto parseBool = [&](bool &out) -> bool {
     PP.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))

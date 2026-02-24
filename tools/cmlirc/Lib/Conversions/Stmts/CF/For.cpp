@@ -11,7 +11,6 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  // Process initialization
   if (forStmt->getInit()) {
     TraverseStmt(forStmt->getInit());
   }
@@ -205,56 +204,164 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
                        .getResult();
     }
 
-    auto forOp =
-        mlir::scf::ForOp::create(builder, loc, lowerBound, upperBound, step);
+    auto getConst = [](mlir::Value v) -> std::optional<int64_t> {
+      while (auto cast = v.getDefiningOp<mlir::arith::IndexCastOp>())
+        v = cast.getIn();
+      if (auto c = v.getDefiningOp<mlir::arith::ConstantOp>())
+        if (auto ia = mlir::dyn_cast<mlir::IntegerAttr>(c.getValue()))
+          return ia.getInt();
+      return std::nullopt;
+    };
 
-    builder.setInsertionPointToStart(forOp.getBody());
-
-    mlir::Value inductionValue = forOp.getInductionVar();
-    mlir::Type origType = convertType(inductionVar->getType());
-
-    if (!isIncrementing) {
-      mlir::Value one =
+    auto emitBodyConst = [&](int64_t ivConst) {
+      mlir::Value ivVal =
           mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
-                                          builder.getIndexAttr(1))
+                                          builder.getIndexAttr(ivConst))
               .getResult();
+      mlir::Type origType = convertType(inductionVar->getType());
+      mlir::Value iv =
+          origType.isIndex()
+              ? ivVal
+              : mlir::arith::IndexCastOp::create(builder, loc, origType, ivVal)
+                    .getResult();
+      if (symbolTable.count(inductionVar))
+        mlir::memref::StoreOp::create(
+            builder, loc, iv, symbolTable[inductionVar], mlir::ValueRange{});
+      TraverseStmt(forStmt->getBody());
+    };
 
-      mlir::Value adjustedUpper =
-          mlir::arith::SubIOp::create(builder, loc, upperBound, one)
-              .getResult();
+    auto emitBodyDyn = [&](mlir::Value outerIV, int64_t j, int64_t st) {
+      mlir::Value ivVal = outerIV;
+      if (j != 0) {
+        mlir::Value off = mlir::arith::ConstantOp::create(
+                              builder, loc, builder.getIndexType(),
+                              builder.getIndexAttr(j * st))
+                              .getResult();
+        ivVal =
+            mlir::arith::AddIOp::create(builder, loc, outerIV, off).getResult();
+      }
+      mlir::Type origType = convertType(inductionVar->getType());
+      mlir::Value iv =
+          origType.isIndex()
+              ? ivVal
+              : mlir::arith::IndexCastOp::create(builder, loc, origType, ivVal)
+                    .getResult();
+      if (symbolTable.count(inductionVar))
+        mlir::memref::StoreOp::create(
+            builder, loc, iv, symbolTable[inductionVar], mlir::ValueRange{});
+      TraverseStmt(forStmt->getBody());
+    };
 
-      mlir::Value offset =
-          mlir::arith::SubIOp::create(builder, loc, inductionValue, lowerBound)
-              .getResult();
+    auto emitPlainFor = [&]() {
+      auto forOp =
+          mlir::scf::ForOp::create(builder, loc, lowerBound, upperBound, step);
+      builder.setInsertionPointToStart(forOp.getBody());
 
-      inductionValue =
-          mlir::arith::SubIOp::create(builder, loc, adjustedUpper, offset)
-              .getResult();
+      mlir::Value inductionValue = forOp.getInductionVar();
+      mlir::Type origType = convertType(inductionVar->getType());
+
+      if (!isIncrementing) {
+        mlir::Value one =
+            mlir::arith::ConstantOp::create(
+                builder, loc, builder.getIndexType(), builder.getIndexAttr(1))
+                .getResult();
+        mlir::Value adjustedUpper =
+            mlir::arith::SubIOp::create(builder, loc, upperBound, one)
+                .getResult();
+        mlir::Value offset = mlir::arith::SubIOp::create(
+                                 builder, loc, inductionValue, lowerBound)
+                                 .getResult();
+        inductionValue =
+            mlir::arith::SubIOp::create(builder, loc, adjustedUpper, offset)
+                .getResult();
+      }
+      if (!origType.isIndex())
+        inductionValue = mlir::arith::IndexCastOp::create(
+                             builder, loc, origType, inductionValue)
+                             .getResult();
+      if (symbolTable.count(inductionVar))
+        mlir::memref::StoreOp::create(builder, loc, inductionValue,
+                                      symbolTable[inductionVar],
+                                      mlir::ValueRange{});
+
+      loopStack_.push_back({forOp.getBody(), nullptr});
+      TraverseStmt(forStmt->getBody());
+      loopStack_.pop_back();
+
+      builder.setInsertionPointToEnd(forOp.getBody());
+      if (forOp.getBody()->empty() ||
+          !forOp.getBody()->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+      builder.setInsertionPointAfter(forOp);
+    };
+
+    clang::SourceManager &SM =
+        context_manager_.ClangContext().getSourceManager();
+    unsigned forLine = SM.getSpellingLineNumber(forStmt->getForLoc());
+    auto hintIt = loop_hints_.find(forLine);
+    bool handledByPragma = false;
+
+    if (hintIt != loop_hints_.end()) {
+      const LoopHints &h = hintIt->second;
+      auto lb = getConst(lowerBound);
+      auto ub = getConst(upperBound);
+      auto st = getConst(step);
+
+      if (lb && ub && st && *st > 0) {
+        int64_t tripCount = (*ub - *lb + *st - 1) / *st;
+
+        if (h.unrollFull) {
+          // Full unroll: inline every iteration as a constant-IV body.
+          for (int64_t i = 0; i < tripCount; ++i)
+            emitBodyConst(*lb + i * *st);
+          handledByPragma = true;
+
+        } else if (h.unrollCount && (int64_t)*h.unrollCount > 1) {
+          int64_t factor = (int64_t)*h.unrollCount;
+
+          if (factor >= tripCount) {
+            for (int64_t i = 0; i < tripCount; ++i)
+              emitBodyConst(*lb + i * *st);
+          } else {
+            int64_t numChunks = tripCount / factor;
+            int64_t remainder = tripCount % factor;
+            int64_t outerStride = factor * *st;
+            int64_t outerUBVal = *lb + numChunks * outerStride;
+
+            mlir::Value outerStep = mlir::arith::ConstantOp::create(
+                                        builder, loc, builder.getIndexType(),
+                                        builder.getIndexAttr(outerStride))
+                                        .getResult();
+            mlir::Value outerUB = mlir::arith::ConstantOp::create(
+                                      builder, loc, builder.getIndexType(),
+                                      builder.getIndexAttr(outerUBVal))
+                                      .getResult();
+
+            auto outerFor = mlir::scf::ForOp::create(builder, loc, lowerBound,
+                                                     outerUB, outerStep);
+            builder.setInsertionPointToStart(outerFor.getBody());
+
+            for (int64_t j = 0; j < factor; ++j)
+              emitBodyDyn(outerFor.getInductionVar(), j, *st);
+
+            builder.setInsertionPointToEnd(outerFor.getBody());
+            if (outerFor.getBody()->empty() ||
+                !outerFor.getBody()
+                     ->back()
+                     .hasTrait<mlir::OpTrait::IsTerminator>())
+              mlir::scf::YieldOp::create(builder, loc);
+            builder.setInsertionPointAfter(outerFor);
+
+            for (int64_t j = 0; j < remainder; ++j)
+              emitBodyConst(*lb + (numChunks * factor + j) * *st);
+          }
+          handledByPragma = true;
+        }
+      }
     }
 
-    if (!origType.isIndex()) {
-      inductionValue = mlir::arith::IndexCastOp::create(builder, loc, origType,
-                                                        inductionValue)
-                           .getResult();
-    }
-
-    if (symbolTable.count(inductionVar)) {
-      mlir::Value memref = symbolTable[inductionVar];
-      mlir::memref::StoreOp::create(builder, loc, inductionValue, memref,
-                                    mlir::ValueRange{});
-    }
-
-    loopStack_.push_back({forOp.getBody(), nullptr});
-    TraverseStmt(forStmt->getBody());
-    loopStack_.pop_back();
-
-    builder.setInsertionPointToEnd(forOp.getBody());
-    if (forOp.getBody()->empty() ||
-        !forOp.getBody()->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-    }
-
-    builder.setInsertionPointAfter(forOp);
+    if (!handledByPragma)
+      emitPlainFor();
 
   } else {
     auto whileOp = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
