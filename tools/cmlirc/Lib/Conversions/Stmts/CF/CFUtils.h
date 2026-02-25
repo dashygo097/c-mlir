@@ -1,7 +1,9 @@
 #ifndef CMLIRC_CGUTILS_H
 #define CMLIRC_CGUTILS_H
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "../../../Converter.h"
+#include "../../Utils/Casts.h"
+#include "../../Utils/Numeric.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "clang/AST/Expr.h"
@@ -9,61 +11,13 @@
 
 namespace cmlirc::detail {
 
-struct SimpleLoopInfo {
-  const clang::VarDecl *inductionVar = nullptr;
-  mlir::Value lowerBound;
-  mlir::Value upperBound;
-  mlir::Value step;
-  bool isIncrementing = true;
-
-  explicit operator bool() const {
-    return inductionVar && lowerBound && upperBound && step;
-  }
-};
-
-inline mlir::Value indexConst(mlir::OpBuilder &b, mlir::Location loc,
-                              int64_t v) {
-  return mlir::arith::ConstantOp::create(b, loc, b.getIndexType(),
-                                         b.getIndexAttr(v))
-      .getResult();
-}
-
-inline mlir::Value intConst(mlir::OpBuilder &b, mlir::Location loc,
-                            mlir::Type t, int64_t v) {
-  return mlir::arith::ConstantOp::create(b, loc, t, b.getIntegerAttr(t, v))
-      .getResult();
-}
-
-inline mlir::Value toIndex(mlir::OpBuilder &b, mlir::Location loc,
-                           mlir::Value v) {
-  if (v.getType().isIndex())
-    return v;
-  return mlir::arith::IndexCastOp::create(b, loc, b.getIndexType(), v)
-      .getResult();
-}
-
-inline mlir::Value addOne(mlir::OpBuilder &b, mlir::Location loc,
-                          mlir::Value v) {
-  mlir::Value one = intConst(b, loc, v.getType(), 1);
-  return mlir::arith::AddIOp::create(b, loc, v, one).getResult();
-}
-
-inline std::optional<int64_t> getConstantInt(mlir::Value v) {
-  while (auto cast = v.getDefiningOp<mlir::arith::IndexCastOp>())
-    v = cast.getIn();
-  if (auto c = v.getDefiningOp<mlir::arith::ConstantOp>())
-    if (auto ia = mlir::dyn_cast<mlir::IntegerAttr>(c.getValue()))
-      return ia.getInt();
-  return std::nullopt;
-}
-
-inline void ensureYield(mlir::OpBuilder &b, mlir::Location loc,
+inline void ensureYield(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Block *block) {
   if (block->empty() ||
       !block->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-    mlir::OpBuilder::InsertionGuard g(b);
-    b.setInsertionPointToEnd(block);
-    mlir::scf::YieldOp::create(b, loc, mlir::ValueRange{});
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(block);
+    mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
   }
 }
 
@@ -84,7 +38,7 @@ static bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing) {
 
 static mlir::Value
 extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
-            bool isIncrementing, mlir::OpBuilder &b, mlir::Location loc,
+            bool isIncrementing, mlir::OpBuilder &builder, mlir::Location loc,
             std::function<mlir::Value(clang::Expr *)> genExpr) {
 
   if (auto *unary = mlir::dyn_cast_or_null<clang::UnaryOperator>(incExpr)) {
@@ -99,7 +53,7 @@ extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
                   unary->getOpcode() == clang::UO_PreDec);
 
     if ((isInc && isIncrementing) || (isDec && !isIncrementing))
-      return indexConst(b, loc, 1);
+      return indexConst(builder, loc, 1);
     return {};
   }
 
@@ -115,7 +69,7 @@ extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
     if ((op == clang::BO_AddAssign && isIncrementing) ||
         (op == clang::BO_SubAssign && !isIncrementing)) {
       mlir::Value s = genExpr(bin->getRHS());
-      return toIndex(b, loc, s);
+      return toIndex(builder, loc, s);
     }
 
     // i = i + n  /  i = i - n
@@ -133,7 +87,7 @@ extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
       if ((rhsOp == clang::BO_Add && isIncrementing) ||
           (rhsOp == clang::BO_Sub && !isIncrementing)) {
         mlir::Value s = genExpr(rhs->getRHS());
-        return toIndex(b, loc, s);
+        return toIndex(builder, loc, s);
       }
     }
   }
@@ -162,8 +116,9 @@ static void adjustBounds(mlir::OpBuilder &b, mlir::Location loc,
   }
 }
 
-static std::optional<SimpleLoopInfo>
-analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &b, mlir::Location loc,
+static std::optional<CMLIRConverter::SimpleLoopInfo>
+analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
+               mlir::Location loc,
                std::function<mlir::Value(clang::Expr *)> genExpr) {
 
   auto *initStmt = mlir::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit());
@@ -188,19 +143,19 @@ analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &b, mlir::Location loc,
   if (!classifyCondOp(cond->getOpcode(), isIncrementing))
     return std::nullopt;
 
-  mlir::Value step =
-      extractStep(forStmt->getInc(), varDecl, isIncrementing, b, loc, genExpr);
+  mlir::Value step = extractStep(forStmt->getInc(), varDecl, isIncrementing,
+                                 builder, loc, genExpr);
   if (!step)
     return std::nullopt;
 
-  mlir::Value initVal = toIndex(b, loc, genExpr(varDecl->getInit()));
-  mlir::Value condVal = toIndex(b, loc, genExpr(cond->getRHS()));
+  mlir::Value initVal = toIndex(builder, loc, genExpr(varDecl->getInit()));
+  mlir::Value condVal = toIndex(builder, loc, genExpr(cond->getRHS()));
 
   mlir::Value lb, ub;
-  adjustBounds(b, loc, cond->getOpcode(), isIncrementing, initVal, condVal, lb,
-               ub);
+  adjustBounds(builder, loc, cond->getOpcode(), isIncrementing, initVal,
+               condVal, lb, ub);
 
-  return SimpleLoopInfo{varDecl, lb, ub, step, isIncrementing};
+  return CMLIRConverter::SimpleLoopInfo{varDecl, lb, ub, step, isIncrementing};
 }
 
 } // namespace cmlirc::detail
