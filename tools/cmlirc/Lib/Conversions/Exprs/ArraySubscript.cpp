@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 
 namespace cmlirc {
 
@@ -36,14 +37,8 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   llvm::SmallVector<mlir::Value, 4> indexValues;
   for (mlir::Value idx : indices) {
-    if (mlir::isa<mlir::IndexType>(idx.getType())) {
-      indexValues.push_back(idx);
-    } else {
-      auto indexValue = mlir::arith::IndexCastOp::create(
-                            builder, loc, builder.getIndexType(), idx)
-                            .getResult();
-      indexValues.push_back(indexValue);
-    }
+    auto indexValue = detail::toIndex(builder, loc, idx);
+    indexValues.push_back(indexValue);
   }
 
   lastArrayAccess_ = ArrayAccessInfo{base, indexValues};

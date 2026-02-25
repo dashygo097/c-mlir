@@ -19,6 +19,13 @@ inline mlir::Value intConst(mlir::OpBuilder &builder, mlir::Location loc,
       .getResult();
 }
 
+inline mlir::Value floatConst(mlir::OpBuilder &builder, mlir::Location loc,
+                              mlir::Type type, double value) {
+  return mlir::arith::ConstantOp::create(builder, loc, type,
+                                         builder.getFloatAttr(type, value))
+      .getResult();
+}
+
 inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
                            mlir::Value value) {
   if (value.getType().isIndex())
