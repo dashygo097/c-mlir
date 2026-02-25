@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlirc {
@@ -9,11 +10,8 @@ CMLIRConverter::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) {
   mlir::Location loc = builder.getUnknownLoc();
 
   bool value = boolLit->getValue();
-  mlir::Type type = convertType(boolLit->getType());
 
-  return mlir::arith::ConstantOp::create(
-             builder, loc, type, builder.getIntegerAttr(type, value ? 1 : 0))
-      .getResult();
+  return detail::boolConst(builder, loc, value);
 }
 
 mlir::Value
@@ -24,9 +22,7 @@ CMLIRConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
   int64_t value = intLit->getValue().getSExtValue();
   mlir::Type type = convertType(intLit->getType());
 
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getIntegerAttr(type, value))
-      .getResult();
+  return detail::intConst(builder, loc, type, value);
 }
 
 mlir::Value
@@ -37,9 +33,7 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   auto value = floatLit->getValue();
   mlir::Type type = convertType(floatLit->getType());
 
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getFloatAttr(type, value))
-      .getResult();
+  return detail::floatConst(builder, loc, type, value.convertToDouble());
 }
 
 mlir::Value
@@ -50,9 +44,7 @@ CMLIRConverter::generateCharacterLiteral(clang::CharacterLiteral *charLit) {
   uint64_t value = charLit->getValue();
   mlir::Type type = convertType(charLit->getType());
 
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getIntegerAttr(type, value))
-      .getResult();
+  return detail::intConst(builder, loc, type, value);
 }
 
 mlir::Value

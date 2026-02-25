@@ -16,7 +16,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
   mlir::Block *beforeBlock = &whileOp.getBefore().front();
   {
-    mlir::OpBuilder::InsertionGuard g(builder);
+    mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(beforeBlock);
 
     mlir::Value cond = convertToBool(generateExpr(whileStmt->getCond()));

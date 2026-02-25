@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Numeric.h"
 #include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
@@ -27,11 +28,8 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       return nullptr;
     mlir::Type type = operand.getType();
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value zero =
-          mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getIntegerAttr(type, 0))
-              .getResult();
-      return mlir::arith::SubIOp::create(builder, loc, zero, operand)
+      return mlir::arith::SubIOp::create(
+                 builder, loc, detail::intConst(builder, loc, type, 0), operand)
           .getResult();
     } else if (mlir::isa<mlir::FloatType>(type)) {
       return mlir::arith::NegFOp::create(builder, loc, operand).getResult();
@@ -58,20 +56,14 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       return nullptr;
     mlir::Type type = operand.getType();
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value zero =
-          mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getIntegerAttr(type, 0))
-              .getResult();
       return mlir::arith::CmpIOp::create(
-                 builder, loc, mlir::arith::CmpIPredicate::eq, operand, zero)
+                 builder, loc, mlir::arith::CmpIPredicate::eq, operand,
+                 detail::intConst(builder, loc, type, 0))
           .getResult();
     } else if (mlir::isa<mlir::FloatType>(type)) {
-      mlir::Value zero =
-          mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getFloatAttr(type, 0.0))
-              .getResult();
       return mlir::arith::CmpFOp::create(
-                 builder, loc, mlir::arith::CmpFPredicate::OEQ, operand, zero)
+                 builder, loc, mlir::arith::CmpFPredicate::OEQ, operand,
+                 detail::floatConst(builder, loc, type, 0.0))
           .getResult();
     }
     return nullptr;
@@ -83,11 +75,9 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       return nullptr;
     mlir::Type type = operand.getType();
     if (mlir::isa<mlir::IntegerType>(type)) {
-      mlir::Value allOnes =
-          mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getIntegerAttr(type, -1))
-              .getResult();
-      return mlir::arith::XOrIOp::create(builder, loc, operand, allOnes)
+      return mlir::arith::XOrIOp::create(
+                 builder, loc, operand,
+                 detail::intConst(builder, loc, type, -1))
           .getResult();
     }
     return nullptr;
@@ -106,11 +96,8 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     if (memrefType.getRank() == 0)
       return base;
 
-    mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
-                                        builder.getIndexAttr(0))
-            .getResult();
-    lastArrayAccess_ = ArrayAccessInfo{base, mlir::ValueRange{zero}};
+    lastArrayAccess_ = ArrayAccessInfo{
+        base, mlir::ValueRange{detail::indexConst(builder, loc, 0)}};
     return base;
   }
 
@@ -205,29 +192,16 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
       if (paramTable.count(paramDecl)) {
         mlir::Value oldValue = paramTable[paramDecl];
         mlir::Type type = oldValue.getType();
-        mlir::Value one;
         mlir::Value newValue;
 
         if (mlir::isa<mlir::IntegerType>(type)) {
-          one = mlir::arith::ConstantOp::create(builder, loc, type,
-                                                builder.getIntegerAttr(type, 1))
-                    .getResult();
-          newValue =
-              isIncrement
-                  ? mlir::arith::AddIOp::create(builder, loc, oldValue, one)
-                        .getResult()
-                  : mlir::arith::SubIOp::create(builder, loc, oldValue, one)
-                        .getResult();
+          newValue = isIncrement ? detail::addInt(builder, loc, oldValue, 1)
+                                 : detail::subInt(builder, loc, oldValue, 1);
+
         } else if (mlir::isa<mlir::FloatType>(type)) {
-          one = mlir::arith::ConstantOp::create(builder, loc, type,
-                                                builder.getFloatAttr(type, 1.0))
-                    .getResult();
-          newValue =
-              isIncrement
-                  ? mlir::arith::AddFOp::create(builder, loc, oldValue, one)
-                        .getResult()
-                  : mlir::arith::SubFOp::create(builder, loc, oldValue, one)
-                        .getResult();
+          newValue = isIncrement
+                         ? detail::addFloat(builder, loc, oldValue, 1.0)
+                         : detail::subFloat(builder, loc, oldValue, 1.0);
         } else {
           llvm::errs() << "Unsupported type for increment/decrement\n";
           return nullptr;
@@ -269,27 +243,14 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
   }
 
   mlir::Type type = oldValue.getType();
-  mlir::Value one;
   mlir::Value newValue;
 
   if (mlir::isa<mlir::IntegerType>(type)) {
-    one = mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getIntegerAttr(type, 1))
-              .getResult();
-    newValue = isIncrement
-                   ? mlir::arith::AddIOp::create(builder, loc, oldValue, one)
-                         .getResult()
-                   : mlir::arith::SubIOp::create(builder, loc, oldValue, one)
-                         .getResult();
+    newValue = isIncrement ? detail::addInt(builder, loc, oldValue, 1)
+                           : detail::subInt(builder, loc, oldValue, 1);
   } else if (mlir::isa<mlir::FloatType>(type)) {
-    one = mlir::arith::ConstantOp::create(builder, loc, type,
-                                          builder.getFloatAttr(type, 1.0))
-              .getResult();
-    newValue = isIncrement
-                   ? mlir::arith::AddFOp::create(builder, loc, oldValue, one)
-                         .getResult()
-                   : mlir::arith::SubFOp::create(builder, loc, oldValue, one)
-                         .getResult();
+    newValue = isIncrement ? detail::addFloat(builder, loc, oldValue, 1.0)
+                           : detail::subFloat(builder, loc, oldValue, 1.0);
   } else {
     llvm::errs() << "Unsupported type for increment/decrement\n";
     return nullptr;

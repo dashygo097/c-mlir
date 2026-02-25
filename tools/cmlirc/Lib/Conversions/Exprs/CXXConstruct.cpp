@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlirc {
@@ -32,16 +33,10 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
         mlir::Value zeroValue;
 
         if (auto intType = mlir::dyn_cast<mlir::IntegerType>(fieldType)) {
-          zeroValue =
-              mlir::arith::ConstantOp::create(
-                  builder, loc, intType, builder.getIntegerAttr(intType, 0))
-                  .getResult();
+          zeroValue = detail::intConst(builder, loc, intType, 0);
         } else if (auto floatType =
                        mlir::dyn_cast<mlir::FloatType>(fieldType)) {
-          zeroValue =
-              mlir::arith::ConstantOp::create(
-                  builder, loc, floatType, builder.getFloatAttr(floatType, 0.0))
-                  .getResult();
+          zeroValue = detail::floatConst(builder, loc, floatType, 0.0);
         } else {
           continue;
         }
@@ -81,15 +76,10 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
   if (constructExpr->getNumArgs() == 0) {
     mlir::Type mlirType = convertType(type);
 
-    if (auto intType = mlir::dyn_cast<mlir::IntegerType>(mlirType)) {
-      return mlir::arith::ConstantOp::create(builder, loc, intType,
-                                             builder.getIntegerAttr(intType, 0))
-          .getResult();
-    } else if (auto floatType = mlir::dyn_cast<mlir::FloatType>(mlirType)) {
-      return mlir::arith::ConstantOp::create(
-                 builder, loc, floatType, builder.getFloatAttr(floatType, 0.0))
-          .getResult();
-    }
+    if (auto intType = mlir::dyn_cast<mlir::IntegerType>(mlirType))
+      return detail::intConst(builder, loc, intType, 0);
+    else if (auto floatType = mlir::dyn_cast<mlir::FloatType>(mlirType))
+      return detail::floatConst(builder, loc, floatType, 0.0);
   }
 
   llvm::errs() << "Unsupported constructor expression\n";

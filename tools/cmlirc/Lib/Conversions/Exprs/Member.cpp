@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlirc {
@@ -75,15 +76,10 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
   if (mlir::isa<mlir::LLVM::LLVMPointerType>(baseValue.getType())) {
     auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
 
-    auto zero = mlir::LLVM::ConstantOp::create(
-        builder, loc, builder.getI32Type(), builder.getI32IntegerAttr(0));
-    auto fieldIdx =
-        mlir::LLVM::ConstantOp::create(builder, loc, builder.getI32Type(),
-                                       builder.getI32IntegerAttr(fieldIndex));
-
     llvm::SmallVector<mlir::Value, 2> indices;
-    indices.push_back(zero);
-    indices.push_back(fieldIdx);
+    indices.push_back(detail::intConst(builder, loc, builder.getI32Type(), 0));
+    indices.push_back(
+        detail::intConst(builder, loc, builder.getI32Type(), fieldIndex));
 
     auto fieldPtr = mlir::LLVM::GEPOp::create(
         builder, loc, ptrType, llvmStructType, baseValue, indices);

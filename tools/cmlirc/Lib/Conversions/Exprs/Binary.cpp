@@ -1,5 +1,5 @@
-#include "../../../ArgumentList.h"
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
@@ -267,11 +267,8 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
     mlir::scf::YieldOp::create(builder, loc, convertToBool(rhsValue));
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    mlir::scf::YieldOp::create(
-        builder, loc,
-        mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                        builder.getBoolAttr(false))
-            .getResult());
+    mlir::scf::YieldOp::create(builder, loc,
+                               detail::boolConst(builder, loc, false));
     builder.setInsertionPointAfter(ifOp);
     return ifOp.getResult(0);
   }
@@ -281,11 +278,8 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
         builder, loc, mlir::TypeRange{builder.getI1Type()}, lhsCond,
         /*withElseRegion=*/true);
     builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-    mlir::scf::YieldOp::create(
-        builder, loc,
-        mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                        builder.getBoolAttr(true))
-            .getResult());
+    mlir::scf::YieldOp::create(builder, loc,
+                               detail::boolConst(builder, loc, true));
     builder.setInsertionPointToStart(&ifOp.getElseRegion().front());
     mlir::scf::YieldOp::create(builder, loc, convertToBool(rhsValue));
     builder.setInsertionPointAfter(ifOp);

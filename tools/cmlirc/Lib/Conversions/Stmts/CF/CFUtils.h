@@ -103,15 +103,15 @@ static void adjustBounds(mlir::OpBuilder &b, mlir::Location loc,
     lb = initVal;
     ub = condVal;
     if (condOp == clang::BO_LE)
-      ub = addOne(b, loc, ub);
+      ub = addInt(b, loc, ub, 1);
   } else {
     lb = condVal;
     ub = initVal;
     if (condOp == clang::BO_GT) {
-      lb = addOne(b, loc, lb);
-      ub = addOne(b, loc, ub);
+      lb = addInt(b, loc, lb, 1);
+      ub = addInt(b, loc, ub, 1);
     } else if (condOp == clang::BO_GE) {
-      ub = addOne(b, loc, ub);
+      ub = addInt(b, loc, ub, 1);
     }
   }
 }
