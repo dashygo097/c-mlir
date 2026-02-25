@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 
@@ -193,20 +194,17 @@ mlir::Value CMLIRConverter::convertToBool(mlir::Value value) {
   }
 
   if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
-    mlir::Value zero = mlir::arith::ConstantOp::create(
-        builder, loc, type, builder.getIntegerAttr(type, 0));
-    return mlir::arith::CmpIOp::create(
-               builder, loc, mlir::arith::CmpIPredicate::ne, value, zero)
+    return mlir::arith::CmpIOp::create(builder, loc,
+                                       mlir::arith::CmpIPredicate::ne, value,
+                                       detail::intConst(builder, loc, type, 0))
         .getResult();
   }
 
   if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
-    mlir::Value zero = mlir::arith::ConstantOp::create(
-        builder, loc, type, builder.getFloatAttr(type, 0.0));
     return mlir::arith::CmpFOp::create(
                builder, loc,
                mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
-               value, zero)
+               value, detail::floatConst(builder, loc, type, 0.0))
         .getResult();
   }
 
