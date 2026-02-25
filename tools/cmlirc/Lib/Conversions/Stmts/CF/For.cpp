@@ -122,14 +122,9 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     mlir::OpBuilder::InsertionGuard g(builder);
     builder.setInsertionPointToStart(beforeBlock);
 
-    mlir::Value cond;
-    if (forStmt->getCond()) {
-      cond = convertToBool(generateExpr(forStmt->getCond()));
-    } else {
-      cond = mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                             builder.getBoolAttr(true))
-                 .getResult();
-    }
+    mlir::Value cond = forStmt->getCond()
+                           ? convertToBool(generateExpr(forStmt->getCond()))
+                           : detail::boolConst(builder, loc, true);
     mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
   }
 
@@ -167,7 +162,7 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   }
 
   clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
-  unsigned forLine = SM.getSpellingLineNumber(forStmt->getForLoc());
+  uint32_t forLine = SM.getSpellingLineNumber(forStmt->getForLoc());
   auto hintIt = loop_hints_.find(forLine);
 
   if (hintIt != loop_hints_.end()) {

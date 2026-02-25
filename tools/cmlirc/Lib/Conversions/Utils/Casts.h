@@ -12,6 +12,13 @@ inline mlir::Value indexConst(mlir::OpBuilder &builder, mlir::Location loc,
       .getResult();
 }
 
+inline mlir::Value boolConst(mlir::OpBuilder &builder, mlir::Location loc,
+                             bool value) {
+  return mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
+                                         builder.getBoolAttr(value))
+      .getResult();
+}
+
 inline mlir::Value intConst(mlir::OpBuilder &builder, mlir::Location loc,
                             mlir::Type type, int64_t value) {
   return mlir::arith::ConstantOp::create(builder, loc, type,
