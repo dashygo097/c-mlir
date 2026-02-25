@@ -27,11 +27,34 @@ public:
 
   // control flow
   bool TraverseIfStmt(clang::IfStmt *ifStmt);
-  // bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
-  // bool TraverseDoStmt(clang::DoStmt *doStmt);
+  bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
+  bool TraverseDoStmt(clang::DoStmt *doStmt);
   bool TraverseForStmt(clang::ForStmt *forStmt);
   // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
+
+  // loop optimizations
+  struct SimpleLoopInfo {
+    const clang::VarDecl *inductionVar = nullptr;
+    mlir::Value lowerBound;
+    mlir::Value upperBound;
+    mlir::Value step;
+    bool isIncrementing = true;
+
+    explicit operator bool() const {
+      return inductionVar && lowerBound && upperBound && step;
+    }
+  };
+  void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
+                          mlir::Value ivIndex, mlir::Block *continueBlock,
+                          clang::Stmt *body);
+  void emitFullyUnrolledLoop(const SimpleLoopInfo &info, int64_t lb, int64_t ub,
+                             int64_t st, clang::Stmt *body);
+  void emitPartiallyUnrolledLoop(const SimpleLoopInfo &info, int64_t lb,
+                                 int64_t ub, int64_t st, int64_t factor,
+                                 clang::Stmt *body);
+  void emitPlainForLoop(const SimpleLoopInfo &info, clang::Stmt *body);
+  void emitWhileStyleForLoop(clang::ForStmt *forStmt);
 
 private:
   ContextManager &context_manager_;
