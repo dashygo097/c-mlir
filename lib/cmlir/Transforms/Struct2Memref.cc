@@ -5,7 +5,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#define GEN_PASS_DEF_STRUCT2MEMREF
+#define GEN_PASS_DEF_STRUCT2MEMREFPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
@@ -39,7 +39,49 @@ static mlir::MemRefType structToMemrefType(mlir::LLVM::LLVMStructType st) {
       {mlir::ShapedType::kDynamic, (int64_t)st.getBody().size()}, elemType);
 }
 
-// Matches the pattern:
+// func.func @foo(%arg0: !llvm.struct<(f32, f32)>) -> ...
+// =>
+// func.func @foo(%arg0: memref<?x2xf32>) -> ...
+struct StructFuncArgToMemrefPattern
+    : public mlir::OpRewritePattern<mlir::func::FuncOp> {
+  using mlir::OpRewritePattern<mlir::func::FuncOp>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::func::FuncOp funcOp,
+                  mlir::PatternRewriter &rewriter) const override {
+    mlir::FunctionType funcType = funcOp.getFunctionType();
+    bool anyChanged = false;
+
+    llvm::SmallVector<mlir::Type> newInputTypes;
+    for (auto argType : funcType.getInputs()) {
+      auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType);
+      if (structType && isStructElemSameType(structType)) {
+        newInputTypes.push_back(structToMemrefType(structType));
+        anyChanged = true;
+      } else {
+        newInputTypes.push_back(argType);
+      }
+    }
+
+    if (!anyChanged)
+      return mlir::failure();
+
+    auto newFuncType =
+        rewriter.getFunctionType(newInputTypes, funcType.getResults());
+
+    rewriter.modifyOpInPlace(funcOp, [&]() {
+      funcOp.setType(newFuncType);
+      mlir::Block &entryBlock = funcOp.front();
+      for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
+        if (argType != funcType.getInputs()[idx])
+          entryBlock.getArgument(idx).setType(argType);
+      }
+    });
+
+    return mlir::success();
+  }
+};
+
 // %ptr = llvm.alloca %structType, %arraySize
 // =>
 // %memref = memref.alloca %arraySize x numFields x elemType
@@ -142,7 +184,6 @@ struct StructStore2MemrefPattern
   }
 };
 
-// Matches the pattern:
 // %gep = llvm.getelementptr %base[%i, %field] : (!llvm.ptr) -> !llvm.ptr
 // %val = llvm.load %gep
 // =>
@@ -219,98 +260,22 @@ struct StructExtractValue2LoadPattern
   }
 };
 
-// Converts:
-// func.func @foo(%arg0: !llvm.struct<(f32, f32)>) -> ...
-// =>
-// func.func @foo(%arg0: memref<?x2xf32>) -> ...
-struct FuncStructArgToMemrefPattern
-    : public mlir::OpRewritePattern<mlir::func::FuncOp> {
-  using mlir::OpRewritePattern<mlir::func::FuncOp>::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::func::FuncOp funcOp,
-                  mlir::PatternRewriter &rewriter) const override {
-    mlir::FunctionType funcType = funcOp.getFunctionType();
-    bool anyChanged = false;
-
-    llvm::SmallVector<mlir::Type> newInputTypes;
-    for (auto argType : funcType.getInputs()) {
-      auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType);
-      if (structType && isStructElemSameType(structType)) {
-        newInputTypes.push_back(structToMemrefType(structType));
-        anyChanged = true;
-      } else {
-        newInputTypes.push_back(argType);
-      }
-    }
-
-    if (!anyChanged)
-      return mlir::failure();
-
-    auto newFuncType =
-        rewriter.getFunctionType(newInputTypes, funcType.getResults());
-
-    rewriter.modifyOpInPlace(funcOp, [&]() {
-      funcOp.setType(newFuncType);
-      mlir::Block &entryBlock = funcOp.front();
-      for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
-        if (argType != funcType.getInputs()[idx])
-          entryBlock.getArgument(idx).setType(argType);
-      }
-    });
-
-    return mlir::success();
-  }
-};
-
 struct Struct2MemrefPass
-    : public mlir::PassWrapper<Struct2MemrefPass,
-                               mlir::OperationPass<mlir::func::FuncOp>> {
+    : public impl::Struct2MemrefPassBase<Struct2MemrefPass> {
 
   void runOnOperation() override {
-    mlir::func::FuncOp func = getOperation();
+    auto op = getOperation();
+    mlir::RewritePatternSet patterns(&getContext());
 
-    {
-      mlir::IRRewriter rewriter(func->getContext());
-      rewriter.setInsertionPoint(func);
+    patterns.add<StructFuncArgToMemrefPattern>(&getContext());
+    patterns.add<StructAlloca2MemrefPattern>(&getContext());
+    patterns.add<StructStore2MemrefPattern>(&getContext());
+    patterns.add<StructLoad2MemrefPattern>(&getContext());
+    patterns.add<StructExtractValue2LoadPattern>(&getContext());
 
-      mlir::FunctionType funcType = func.getFunctionType();
-      bool anyChanged = false;
-
-      llvm::SmallVector<mlir::Type> newInputTypes;
-      for (auto argType : funcType.getInputs()) {
-        auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType);
-        if (structType && isStructElemSameType(structType)) {
-          newInputTypes.push_back(structToMemrefType(structType));
-          anyChanged = true;
-        } else {
-          newInputTypes.push_back(argType);
-        }
-      }
-
-      if (anyChanged) {
-        auto newFuncType =
-            rewriter.getFunctionType(newInputTypes, funcType.getResults());
-        func.setType(newFuncType);
-        mlir::Block &entryBlock = func.front();
-        for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
-          if (argType != funcType.getInputs()[idx])
-            entryBlock.getArgument(idx).setType(argType);
-        }
-      }
-    }
-
-    {
-      mlir::RewritePatternSet patterns(&getContext());
-      patterns.add<StructAlloca2MemrefPattern>(&getContext());
-      patterns.add<StructStore2MemrefPattern>(&getContext());
-      patterns.add<StructLoad2MemrefPattern>(&getContext());
-      patterns.add<StructExtractValue2LoadPattern>(&getContext());
-      if (mlir::failed(
-              mlir::applyPatternsGreedily(func, std::move(patterns)))) {
-        signalPassFailure();
-        return;
-      }
+    if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
+      signalPassFailure();
+      return;
     }
   }
 };

@@ -46,25 +46,30 @@ public:
       pm.addPass(mlir::createInlinerPass());
 
     if (options::ConstProp)
-      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createConstPropPass());
+      pm.addPass(cmlir::createConstPropPass());
 
     if (options::SSCP)
       pm.addPass(mlir::createSCCPPass());
 
+    if (options::Struct2Memref)
+      pm.addPass(cmlir::createStruct2MemrefPass());
+
     if (options::Mem2Reg) {
       pm.addPass(mlir::createMem2Reg());
-      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createMem2RegPass());
+      pm.addPass(cmlir::createMem2RegPass());
     }
 
-    if (options::Struct2Memref)
-      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createStruct2MemrefPass());
+    if (options::ConstProp)
+      pm.addPass(cmlir::createConstPropPass());
+
+    if (options::RaiseMemref2Affine)
+      pm.addPass(cmlir::createRaiseMemref2AffinePass());
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
-    if (options::FMA) {
-      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createFMAPass());
-    }
+    if (options::FMA)
+      pm.addPass(cmlir::createFMAPass());
 
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
@@ -78,9 +83,8 @@ public:
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());
 
-    if (mlir::failed(pm.run(context_manager_->Module()))) {
+    if (mlir::failed(pm.run(context_manager_->Module())))
       llvm::errs() << "Failed to run optimization passes\n";
-    }
 
     context_manager_->dump(*output_stream_);
     output_stream_->flush();

@@ -64,9 +64,7 @@ void replaceLoadsStores(mlir::Region &region,
   }
 }
 
-struct Mem2RegPass
-    : public mlir::PassWrapper<Mem2RegPass,
-                               mlir::OperationPass<mlir::func::FuncOp>> {
+struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
 
   // Process a single loop, returns true if modified
   bool processLoop(mlir::scf::ForOp forOp) {
@@ -212,14 +210,14 @@ struct Mem2RegPass
   }
 
   void runOnOperation() override {
-    mlir::func::FuncOp func = getOperation();
+    auto op = getOperation();
 
     bool changed = true;
     while (changed) {
       changed = false;
 
       llvm::SmallVector<mlir::scf::ForOp> forLoops;
-      func.walk<mlir::WalkOrder::PostOrder>(
+      op->walk<mlir::WalkOrder::PostOrder>(
           [&](mlir::scf::ForOp forOp) { forLoops.push_back(forOp); });
 
       for (mlir::scf::ForOp forOp : forLoops) {
@@ -235,7 +233,7 @@ struct Mem2RegPass
   }
 };
 
-std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createMem2RegPass() {
+std::unique_ptr<mlir::Pass> createMem2RegPass() {
   return std::make_unique<Mem2RegPass>();
 }
 
