@@ -37,6 +37,11 @@ llvm::cl::opt<bool> EnableLoopUnroll("enable-loop-unroll",
                                      llvm::cl::desc("Enable loop unrolling"),
                                      llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<bool>
+    EnableLoopVectorize("enable-loop-vectorize", llvm::cl::init(false),
+                        llvm::cl::desc("Enable loop vectorization"),
+                        llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
                                  llvm::cl::desc("Enable canonicalization"),
                                  llvm::cl::cat(toolOptions));
@@ -45,6 +50,11 @@ llvm::cl::opt<bool>
     CSE("cse", llvm::cl::init(false),
         llvm::cl::desc("Enable common subexpression elimination (CSE)"),
         llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    SymbolDCE("symdce", llvm::cl::init(false),
+              llvm::cl::desc("Enable symbol dead code elimination"),
+              llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
@@ -79,11 +89,6 @@ llvm::cl::opt<bool>
     LICM("licm", llvm::cl::init(false),
          llvm::cl::desc("Enable loop-invariant code motion (LICM)"),
          llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    SymbolDCE("symdce", llvm::cl::init(false),
-              llvm::cl::desc("Enable symbol dead code elimination"),
-              llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool> FMA("fma", llvm::cl::init(false),
                         llvm::cl::desc("Enable fused multiply-add (FMA)"),

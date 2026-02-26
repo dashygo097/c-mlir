@@ -37,13 +37,19 @@ public:
     mlir::PassManager pm(&context_manager_->MLIRContext());
 
     if (options::EnableLoopUnroll)
-      pm.addNestedPass<mlir::func::FuncOp>(cmlir::createLoopUnrollPass());
+      pm.addPass(cmlir::createLoopUnrollPass());
+
+    if (options::EnableLoopVectorize)
+      pm.addPass(cmlir::createLoopVectorizePass());
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
+
+    if (options::SymbolDCE)
+      pm.addPass(mlir::createSymbolDCEPass());
 
     if (options::FuncInline)
       pm.addPass(mlir::createInlinerPass());
@@ -76,6 +82,9 @@ public:
 
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
+
+    if (options::SymbolDCE)
+      pm.addPass(mlir::createSymbolDCEPass());
 
     if (options::LICM)
       pm.addPass(mlir::createLoopInvariantCodeMotionPass());
