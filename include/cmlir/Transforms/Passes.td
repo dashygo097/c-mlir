@@ -64,6 +64,18 @@ def LoopUnrollPass
   }];
 }
 
+def LoopVectorizePass
+    : Pass<"cmlir-loop-vectorize"> {
+  let summary = "Vectorize loops.";
+  let constructor = "cmlir::createLoopVectorizePass()";
+  let description = [{
+    This pass vectorizes loops by performing the following steps:
+    1. Identify loops that are suitable for vectorization based on their iteration counts, data dependencies, and memory access patterns.
+    2. Transform the loop body to operate on vectors of data instead of scalar values, which may involve changing the types of variables and operations to their vector equivalents.
+    3. Adjust loop control variables and conditions to reflect the new vectorized structure, ensuring that the semantics of the original loop are preserved while enabling improved performance through SIMD execution.
+  }];
+}
+
 def RaiseSCF2AffinePass
     : Pass<"cmlir-raise-scf2affine"> {
   let summary = "Raise scf operations to affine operations.";
