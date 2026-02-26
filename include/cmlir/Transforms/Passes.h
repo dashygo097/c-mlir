@@ -1,19 +1,22 @@
 #ifndef CMLIR_PASSES_H
 #define CMLIR_PASSES_H
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include <memory>
 
 namespace cmlir {
 
-std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createMem2RegPass();
-std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createConstPropPass();
-std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>> createFMAPass();
-std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>>
-createStruct2MemrefPass();
+// Common Optimization Passes
+std::unique_ptr<mlir::Pass> createMem2RegPass();
+std::unique_ptr<mlir::Pass> createConstPropPass();
+std::unique_ptr<mlir::Pass> createFMAPass();
+std::unique_ptr<mlir::Pass> createStruct2MemrefPass();
 
+// Loop Optimization Passes
 std::unique_ptr<mlir::Pass> createLoopUnrollPass();
+
+// Conversion Passes
+std::unique_ptr<mlir::Pass> createRaiseMemref2AffinePass();
 
 void registerTransformPasses();
 

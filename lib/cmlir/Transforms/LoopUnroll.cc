@@ -4,17 +4,18 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/LoopInvariantCodeMotionUtils.h"
 
+#define GEN_PASS_DEF_LOOPUNROLLPASS
+#include "cmlir/Transforms/Passes.h.inc"
+
 namespace cmlir {
 
-struct LoopUnrollPass
-    : public mlir::PassWrapper<LoopUnrollPass,
-                               mlir::OperationPass<mlir::func::FuncOp>> {
+struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
 
   void runOnOperation() override {
-    mlir::func::FuncOp func = getOperation();
+    auto op = getOperation();
 
     llvm::SmallVector<mlir::scf::ForOp, 8> loops;
-    func.walk([&](mlir::scf::ForOp forOp) { loops.push_back(forOp); });
+    op->walk([&](mlir::scf::ForOp forOp) { loops.push_back(forOp); });
 
     for (mlir::scf::ForOp forOp : loops) {
       // #pragma cmlir loop unroll(disable)

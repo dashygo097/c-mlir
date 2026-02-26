@@ -56,14 +56,19 @@ llvm::cl::opt<bool>
          llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
+    Struct2Memref("struct-to-memref", llvm::cl::init(false),
+                  llvm::cl::desc("Enable struct to memref promotion"),
+                  llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
     Mem2Reg("mem2reg", llvm::cl::init(false),
             llvm::cl::desc("Enable memory to register promotion (mem2reg)"),
             llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
-    Struct2Memref("struct-to-memref", llvm::cl::init(false),
-                  llvm::cl::desc("Enable struct to memref promotion"),
-                  llvm::cl::cat(toolOptions));
+    RaiseMemref2Affine("raise-memref-to-affine", llvm::cl::init(false),
+                       llvm::cl::desc("Raise memref operations to affine"),
+                       llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
     CSE("cse", llvm::cl::init(false),

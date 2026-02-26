@@ -9,6 +9,11 @@
 
 namespace cmlir {
 
+// %0 = memref.alloca() : memref<4x4xf32>
+// %1 = memref.load %0[%i, %j] : memref<4x4xf32>
+// =>
+// %0 = memref.alloca() : memref<4x4xf32>
+// %1 = affine.load %0[%i, %j] : memref<4x4xf32>
 struct FuseMultiplyAddPattern
     : public mlir::OpRewritePattern<mlir::arith::AddFOp> {
   using mlir::OpRewritePattern<mlir::arith::AddFOp>::OpRewritePattern;
@@ -25,22 +30,20 @@ struct FuseMultiplyAddPattern
   }
 };
 
-struct FMAPass
-    : public mlir::PassWrapper<FMAPass,
-                               mlir::OperationPass<mlir::func::FuncOp>> {
+struct FMAPass : public impl::FMAPassBase<FMAPass> {
 
   void runOnOperation() override {
-    mlir::func::FuncOp func = getOperation();
-    mlir::RewritePatternSet patterns(&getContext());
+    auto op = getOperation();
+    mlir::RewritePatternSet patterns(op->getContext());
 
     patterns.add<FuseMultiplyAddPattern>(&getContext());
 
-    if (mlir::failed(mlir::applyPatternsGreedily(func, std::move(patterns)))) {
+    if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();
       return;
     }
 
-    func.walk([](mlir::Operation *op) {
+    op->walk([](mlir::Operation *op) {
       if (mlir::isOpTriviallyDead(op)) {
         op->erase();
       }

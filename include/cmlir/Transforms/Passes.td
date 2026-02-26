@@ -52,4 +52,28 @@ def Struct2MemrefPass
   }];
 }
 
+def LoopUnrollPass
+    : Pass<"cmlir-loop-unroll"> {
+  let summary = "Unroll loops.";
+  let constructor = "cmlir::createLoopUnrollPass()";
+  let description = [{
+    This pass unrolls loops by performing the following steps:
+    1. Identify loops that are suitable for unrolling based on their iteration counts and body complexity.
+    2. Duplicate the loop body multiple times according to the unroll factor, adjusting loop control variables and conditions accordingly.
+    3. Remove the original loop construct if it is fully unrolled, or update it to reflect the reduced iteration count if it is partially unrolled.
+  }];
+}
+
+def RaiseMemref2AffinePass
+    : Pass<"cmlir-raise-memref2affine"> {
+  let summary = "Raise memref operations to affine operations.";
+  let constructor = "cmlir::createRaiseMemref2AffinePass()";
+  let description = [{
+    This pass raises memref operations to affine operations by performing the following steps:
+    1. Identify all memref operations that can be represented as affine operations.
+    2. Replace these memref operations with their corresponding affine operations, ensuring that the semantics of the original operations are preserved.
+    3. Update any related control flow and data dependencies to reflect the changes in operation types.
+  }];
+}
+
 #endif // CMLIR_PASSES_TD

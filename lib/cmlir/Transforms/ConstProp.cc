@@ -167,23 +167,21 @@ struct FoldConstantCastIntoMemRefStore
   }
 };
 
-struct ConstPropPass
-    : public mlir::PassWrapper<ConstPropPass,
-                               mlir::OperationPass<mlir::func::FuncOp>> {
+struct ConstPropPass : public impl::ConstPropPassBase<ConstPropPass> {
 
   void runOnOperation() override {
-    mlir::func::FuncOp func = getOperation();
-    mlir::RewritePatternSet patterns(&getContext());
+    auto op = getOperation();
+    mlir::RewritePatternSet patterns(op->getContext());
 
     patterns.add<FoldConstantCastIntoAffineStore>(&getContext());
     patterns.add<FoldConstantCastIntoMemRefStore>(&getContext());
 
-    if (mlir::failed(mlir::applyPatternsGreedily(func, std::move(patterns)))) {
+    if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();
       return;
     }
 
-    func.walk([](mlir::Operation *op) {
+    op->walk([](mlir::Operation *op) {
       if (mlir::isOpTriviallyDead(op)) {
         op->erase();
       }
