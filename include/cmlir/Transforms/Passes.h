@@ -14,9 +14,10 @@ std::unique_ptr<mlir::Pass> createStruct2MemrefPass();
 
 // Loop Optimization Passes
 std::unique_ptr<mlir::Pass> createLoopUnrollPass();
+std::unique_ptr<mlir::Pass> createLoopVectorizePass();
 
 // Conversion Passes
-std::unique_ptr<mlir::Pass> createRaiseMemref2AffinePass();
+std::unique_ptr<mlir::Pass> createRaiseSCF2AffinePass();
 
 void registerTransformPasses();
 

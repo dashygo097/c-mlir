@@ -64,15 +64,15 @@ def LoopUnrollPass
   }];
 }
 
-def RaiseMemref2AffinePass
-    : Pass<"cmlir-raise-memref2affine"> {
-  let summary = "Raise memref operations to affine operations.";
-  let constructor = "cmlir::createRaiseMemref2AffinePass()";
+def RaiseSCF2AffinePass
+    : Pass<"cmlir-raise-scf2affine"> {
+  let summary = "Raise scf operations to affine operations.";
+  let constructor = "cmlir::createRaiseSCF2AffinePass()";
   let description = [{
-    This pass raises memref operations to affine operations by performing the following steps:
-    1. Identify all memref operations that can be represented as affine operations.
-    2. Replace these memref operations with their corresponding affine operations, ensuring that the semantics of the original operations are preserved.
-    3. Update any related control flow and data dependencies to reflect the changes in operation types.
+    This pass raises scf operations to affine operations by performing the following steps:
+    1. Identify scf operations that can be represented as affine operations, such as loops and conditionals.
+    2. Analyze the control flow and data dependencies of these scf operations to determine if they can be safely transformed into affine constructs.
+    3. Replace the identified scf operations with equivalent affine operations, ensuring that the semantics of the original code are preserved while enabling further optimizations that are specific to affine constructs.
   }];
 }
 
