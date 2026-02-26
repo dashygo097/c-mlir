@@ -12,24 +12,29 @@ static void skipToEOD(clang::Preprocessor &PP) {
   } while (tok.isNot(clang::tok::eod) && tok.isNot(clang::tok::eof));
 }
 
+static bool isEndOfDirective(const clang::Token &tok) {
+  return tok.is(clang::tok::eod) || tok.is(clang::tok::eof);
+}
+
 void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
                                       clang::PragmaIntroducer Introducer,
                                       clang::Token &firstTok) {
   clang::Token directiveTok;
   PP.Lex(directiveTok);
+
   if (directiveTok.isNot(clang::tok::identifier)) {
     skipToEOD(PP);
     return;
   }
 
   llvm::StringRef directive = directiveTok.getIdentifierInfo()->getName();
-  unsigned line =
+  uint32_t line =
       PP.getSourceManager().getSpellingLineNumber(Introducer.Loc) + 1;
   LoopHints &hints = hints_[line];
 
   clang::Token tok;
 
-  auto parseUInt = [&](uint64_t &out) -> bool {
+  auto parseUInt = [&](uint32_t &out) -> bool {
     PP.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
       return false;
@@ -60,74 +65,98 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
     return tok.is(clang::tok::r_paren);
   };
 
-  bool ok = false;
-
-  if (directive == "loop_unroll") {
-    // ( N | full | disable )
+  auto parseUnroll = [&]() -> bool {
     PP.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
-      goto done;
-    PP.Lex(tok);
+      return false;
 
-    if (tok.is(clang::tok::numeric_constant)) {
-      uint64_t n = 0;
-      if (llvm::StringRef(PP.getSpelling(tok)).getAsInteger(10, n))
-        goto done;
-      PP.Lex(tok);
-      if (tok.isNot(clang::tok::r_paren))
-        goto done;
-      hints.unrollCount = n;
-      ok = true;
-    } else if (tok.is(clang::tok::identifier)) {
+    PP.Lex(tok); // value token
+
+    if (tok.is(clang::tok::identifier)) {
       llvm::StringRef val = tok.getIdentifierInfo()->getName();
-      PP.Lex(tok);
-      if (tok.isNot(clang::tok::r_paren))
-        goto done;
       if (val == "full") {
         hints.unrollFull = true;
-        ok = true;
       } else if (val == "disable") {
         hints.unrollDisable = true;
-        ok = true;
+      } else {
+        return false;
       }
+    } else if (tok.is(clang::tok::numeric_constant)) {
+      uint32_t n = 0;
+      if (llvm::StringRef(PP.getSpelling(tok)).getAsInteger(10, n))
+        return false;
+      if (n < 2)
+        return false;
+      hints.unrollCount = n;
+    } else {
+      return false;
     }
 
-  } else if (directive == "loop_vectorize") {
-    bool en = false;
-    if (parseBool(en)) {
-      hints.vectorize = en;
-      ok = true;
-    }
+    PP.Lex(tok);
+    return tok.is(clang::tok::r_paren);
+  };
 
-  } else if (directive == "loop_vectorize_width") {
-    uint64_t n = 0;
-    if (parseUInt(n)) {
-      hints.vectorizeWidth = n;
-      ok = true;
-    }
+  bool ok = false;
 
-  } else if (directive == "loop_interleave") {
-    bool en = false;
-    if (parseBool(en)) {
-      hints.interleave = en;
-      ok = true;
-    }
+  if (directive == "loop") {
+    while (true) {
+      PP.Lex(tok);
 
-  } else if (directive == "loop_interleave_count") {
-    uint64_t n = 0;
-    if (parseUInt(n)) {
-      hints.interleaveCount = n;
-      ok = true;
+      if (isEndOfDirective(tok)) {
+        ok = true;
+        break;
+      }
+
+      if (tok.isNot(clang::tok::identifier))
+        break;
+
+      llvm::StringRef hint = tok.getIdentifierInfo()->getName();
+
+      if (hint == "unroll") {
+        if (!parseUnroll())
+          break;
+      } else if (hint == "vectorize") {
+        bool en = false;
+        if (!parseBool(en))
+          break;
+        hints.vectorize = en;
+      } else if (hint == "vectorize_width") {
+        uint32_t n = 0;
+        if (!parseUInt(n))
+          break;
+        hints.vectorizeWidth = n;
+      } else if (hint == "interleave") {
+        bool en = false;
+        if (!parseBool(en))
+          break;
+        hints.interleave = en;
+      } else if (hint == "interleave_count") {
+        uint32_t n = 0;
+        if (!parseUInt(n))
+          break;
+        hints.interleaveCount = n;
+      } else {
+        break;
+      }
+
+      PP.Lex(tok);
+      if (isEndOfDirective(tok)) {
+        ok = true;
+        break;
+      }
+      if (!tok.is(clang::tok::comma))
+        break;
     }
   }
 
-done:
   if (!ok)
     llvm::errs() << "warning: malformed #pragma cmlir " << directive
                  << " at line "
                  << PP.getSourceManager().getSpellingLineNumber(Introducer.Loc)
                  << "\n";
-  skipToEOD(PP);
+
+  if (!isEndOfDirective(tok))
+    skipToEOD(PP);
 }
 
 } // namespace cmlirc

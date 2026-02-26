@@ -17,11 +17,11 @@ struct LoopUnrollPass
     func.walk([&](mlir::scf::ForOp forOp) { loops.push_back(forOp); });
 
     for (mlir::scf::ForOp forOp : loops) {
-      // #pragma cmlir loop_unroll(disable)
+      // #pragma cmlir loop unroll(disable)
       if (forOp->hasAttr("nounroll"))
         continue;
 
-      // #pragma cmlir loop_unroll(full)
+      // #pragma cmlir loop unroll(full)
       if (forOp->hasAttr("unroll")) {
         if (mlir::failed(mlir::loopUnrollFull(forOp))) {
           forOp->emitWarning("cmlir: full loop unroll failed");
@@ -29,10 +29,10 @@ struct LoopUnrollPass
         continue;
       }
 
-      // #pragma cmlir loop_unroll(N)
+      // #pragma cmlir loop unroll(N)
       if (auto countAttr =
               forOp->getAttrOfType<mlir::IntegerAttr>("unroll_count")) {
-        uint64_t factor = (uint64_t)countAttr.getInt();
+        uint32_t factor = (uint32_t)countAttr.getInt();
         if (factor < 2)
           continue;
 
