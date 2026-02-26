@@ -65,8 +65,8 @@ public:
     if (options::ConstProp)
       pm.addPass(cmlir::createConstPropPass());
 
-    if (options::RaiseMemref2Affine)
-      pm.addPass(cmlir::createRaiseMemref2AffinePass());
+    if (options::RaiseSCF2Affine)
+      pm.addPass(cmlir::createRaiseSCF2AffinePass());
 
     if (options::FMA)
       pm.addPass(cmlir::createFMAPass());

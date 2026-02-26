@@ -3,13 +3,13 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#define GEN_PASS_DEF_RAISEMEMREF2AFFINEPASS
+#define GEN_PASS_DEF_RAISESCF2AFFINEPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
 
-struct RaiseMemref2AffinePass
-    : public impl::RaiseMemref2AffinePassBase<RaiseMemref2AffinePass> {
+struct RaiseSCF2AffinePass
+    : public impl::RaiseSCF2AffinePassBase<RaiseSCF2AffinePass> {
 
   void runOnOperation() override {
     auto op = getOperation();
@@ -28,8 +28,8 @@ struct RaiseMemref2AffinePass
   }
 };
 
-std::unique_ptr<mlir::Pass> createRaiseMemref2AffinePass() {
-  return std::make_unique<RaiseMemref2AffinePass>();
+std::unique_ptr<mlir::Pass> createRaiseSCF2AffinePass() {
+  return std::make_unique<RaiseSCF2AffinePass>();
 }
 
 } // namespace cmlir

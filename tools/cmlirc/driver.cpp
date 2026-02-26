@@ -70,10 +70,10 @@ llvm::cl::opt<bool>
             llvm::cl::desc("Enable memory to register promotion (mem2reg)"),
             llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool>
-    RaiseMemref2Affine("raise-memref-to-affine", llvm::cl::init(false),
-                       llvm::cl::desc("Raise memref operations to affine"),
-                       llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool> RaiseSCF2Affine("raise-scf-to-affine",
+                                    llvm::cl::init(false),
+                                    llvm::cl::desc("Raise scf to affine"),
+                                    llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
     LICM("licm", llvm::cl::init(false),
