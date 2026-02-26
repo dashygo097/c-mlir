@@ -42,6 +42,9 @@ public:
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
+    if (options::CSE)
+      pm.addPass(mlir::createCSEPass());
+
     if (options::FuncInline)
       pm.addPass(mlir::createInlinerPass());
 
@@ -65,11 +68,11 @@ public:
     if (options::RaiseMemref2Affine)
       pm.addPass(cmlir::createRaiseMemref2AffinePass());
 
-    if (options::Canonicalize)
-      pm.addPass(mlir::createCanonicalizerPass());
-
     if (options::FMA)
       pm.addPass(cmlir::createFMAPass());
+
+    if (options::Canonicalize)
+      pm.addPass(mlir::createCanonicalizerPass());
 
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
@@ -79,6 +82,9 @@ public:
 
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
+
+    if (options::CSE)
+      pm.addPass(mlir::createCSEPass());
 
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());

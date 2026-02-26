@@ -41,6 +41,11 @@ llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
                                  llvm::cl::desc("Enable canonicalization"),
                                  llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<bool>
+    CSE("cse", llvm::cl::init(false),
+        llvm::cl::desc("Enable common subexpression elimination (CSE)"),
+        llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
                                llvm::cl::cat(toolOptions));
@@ -69,11 +74,6 @@ llvm::cl::opt<bool>
     RaiseMemref2Affine("raise-memref-to-affine", llvm::cl::init(false),
                        llvm::cl::desc("Raise memref operations to affine"),
                        llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    CSE("cse", llvm::cl::init(false),
-        llvm::cl::desc("Enable common subexpression elimination (CSE)"),
-        llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
     LICM("licm", llvm::cl::init(false),
