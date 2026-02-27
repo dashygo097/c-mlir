@@ -47,10 +47,15 @@ struct PromoteAllocaToIterArgPattern
       if (!alloca->isBeforeInBlock(forOp.getOperation()))
         return;
 
-      bool usedInLoop =
-          llvm::any_of(alloca->getUsers(), [&](mlir::Operation *u) {
-            return forOp->isAncestor(u);
-          });
+      bool usedInLoop = false;
+      for (mlir::Operation *user : alloca->getUsers()) {
+        if (forOp->isAncestor(user)) {
+          usedInLoop = true;
+
+          if (user->getBlock() != forOp.getBody())
+            return;
+        }
+      }
       if (!usedInLoop)
         return;
 
@@ -107,12 +112,14 @@ struct PromoteAllocaToIterArgPattern
     rewriter.setInsertionPointToEnd(newBody);
 
     for (mlir::Operation &op : oldBody->without_terminator()) {
+      // Promoted load (direct, top-level) → SSA value
       if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
         if (promotedSet.count(load.getMemRef())) {
           mapping.map(load.getResult(), currentValues[load.getMemRef()]);
           continue;
         }
       }
+      // Promoted store (direct, top-level) → update current value
       if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
         if (promotedSet.count(store.getMemRef())) {
           currentValues[store.getMemRef()] =
@@ -120,6 +127,7 @@ struct PromoteAllocaToIterArgPattern
           continue;
         }
       }
+
       rewriter.clone(op, mapping);
     }
 
@@ -134,6 +142,7 @@ struct PromoteAllocaToIterArgPattern
     for (size_t i = 0; i < numOldIterArgs; ++i)
       rewriter.replaceAllUsesWith(forOp.getResult(i), newFor.getResult(i));
 
+    // Replace post-loop loads
     for (size_t i = 0; i < allocasToPromote.size(); ++i) {
       mlir::Value finalVal = newFor.getResults()[numOldIterArgs + i];
       mlir::Value allocaResult = allocasToPromote[i].getResult();
@@ -151,10 +160,70 @@ struct PromoteAllocaToIterArgPattern
     for (mlir::memref::AllocaOp alloca : allocasToPromote) {
       for (mlir::Operation *user :
            llvm::make_early_inc_range(alloca->getUsers()))
-        rewriter.eraseOp(user);
+        rewriter.eraseOp(user); // pre-loop init store only
       rewriter.eraseOp(alloca);
     }
 
+    return mlir::success();
+  }
+};
+
+// %alloca = memref.alloca() : memref<T>
+// memref.store %val, %alloca[]
+// ...no other stores...
+// =>
+// %x = memref.load %alloca[]   →  replace %x with %val (across any nesting
+// depth)
+struct ForwardStoreToLoadPattern
+    : public mlir::OpRewritePattern<mlir::memref::LoadOp> {
+  using mlir::OpRewritePattern<mlir::memref::LoadOp>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::memref::LoadOp loadOp,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    auto alloca = loadOp.getMemRef().getDefiningOp<mlir::memref::AllocaOp>();
+    if (!alloca || !isScalarMemRef(alloca.getType()))
+      return mlir::failure();
+
+    llvm::SmallVector<mlir::memref::StoreOp> stores;
+    for (mlir::Operation *user : alloca->getUsers()) {
+      if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user))
+        stores.push_back(store);
+      else if (!mlir::isa<mlir::memref::LoadOp>(user))
+        return mlir::failure();
+    }
+
+    if (stores.empty())
+      return mlir::failure();
+
+    mlir::DominanceInfo domInfo(alloca->getParentOfType<mlir::func::FuncOp>());
+
+    mlir::memref::StoreOp reachingStore;
+    for (mlir::memref::StoreOp store : stores) {
+      if (!domInfo.dominates(store.getOperation(), loadOp.getOperation()))
+        continue;
+
+      bool anotherStoreDominates = false;
+      for (mlir::memref::StoreOp other : stores) {
+        if (other == store)
+          continue;
+        if (domInfo.dominates(other.getOperation(), loadOp.getOperation())) {
+          anotherStoreDominates = true;
+          break;
+        }
+      }
+      if (anotherStoreDominates)
+        continue;
+
+      reachingStore = store;
+      break;
+    }
+
+    if (!reachingStore)
+      return mlir::failure();
+
+    rewriter.replaceOp(loadOp, reachingStore.getValue());
     return mlir::success();
   }
 };
@@ -165,6 +234,7 @@ struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
     mlir::RewritePatternSet patterns(op->getContext());
 
     patterns.add<PromoteAllocaToIterArgPattern>(op->getContext());
+    patterns.add<ForwardStoreToLoadPattern>(op->getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();

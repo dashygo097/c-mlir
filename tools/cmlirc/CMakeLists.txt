@@ -7,6 +7,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/Binary.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ImplicitCast.cpp
+  Lib/Conversions/Exprs/CStyleCast.cpp
   Lib/Conversions/Exprs/InitList.cpp
   Lib/Conversions/Exprs/ArraySubscript.cpp
   Lib/Conversions/Exprs/Conditional.cpp

@@ -117,8 +117,9 @@ private:
   // decl ref
   mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
 
-  // implicit cast
+  // implicit/cstyle cast
   mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
+  mlir::Value generateCStyleCastExpr(clang::CStyleCastExpr *castExpr);
 
   // array
   void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
