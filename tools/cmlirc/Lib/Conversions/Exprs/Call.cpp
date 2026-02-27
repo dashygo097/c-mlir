@@ -431,10 +431,33 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     returnTypes.push_back(mlirReturnType);
 
   auto funcType = builder.getFunctionType(argTypes, returnTypes);
-  getOrCreateFunctionDecl(builder, module, calleeName, funcType);
+  auto funcDecl =
+      getOrCreateFunctionDecl(builder, module, calleeName, funcType);
+
+  llvm::SmallVector<mlir::Value, 4> castArgs;
+  auto declaredFuncType = funcDecl.getFunctionType();
+  for (auto [argVal, declaredType] :
+       llvm::zip(argValues, declaredFuncType.getInputs())) {
+    mlir::Type actualType = argVal.getType();
+    if (actualType == declaredType) {
+      castArgs.push_back(argVal);
+      continue;
+    }
+    auto actualMemref = mlir::dyn_cast<mlir::MemRefType>(actualType);
+    auto declaredMemref = mlir::dyn_cast<mlir::MemRefType>(declaredType);
+    if (actualMemref && declaredMemref &&
+        actualMemref.getElementType() == declaredMemref.getElementType() &&
+        mlir::memref::CastOp::areCastCompatible(actualType, declaredType)) {
+      auto cast =
+          mlir::memref::CastOp::create(builder, loc, declaredType, argVal);
+      castArgs.push_back(cast.getResult());
+      continue;
+    }
+    castArgs.push_back(argVal);
+  }
 
   auto callOp = mlir::func::CallOp::create(builder, loc, calleeName,
-                                           returnTypes, argValues);
+                                           returnTypes, castArgs);
   return callOp.getNumResults() > 0 ? callOp.getResult(0) : nullptr;
 }
 
