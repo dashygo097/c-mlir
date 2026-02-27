@@ -1,6 +1,6 @@
 // RUN: cmlirc %s -function=dot --mem2reg --symdce --cse --canonicalize --licm --sscp | FileCheck %s --check-prefix=CHECKDOT
 
-int dot(int *a, int *b, int n) {
+int dot(const int *a, const int *b, int n) {
   int result = 0;
   for (int i = 0; i < n; i++) {
     result += a[i] * b[i];
