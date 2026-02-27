@@ -16,6 +16,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
+  Lib/Conversions/Stmts/CF/CFUtils.cpp
   Lib/Conversions/Stmts/CF/If.cpp
   Lib/Conversions/Stmts/CF/For.cpp
   Lib/Conversions/Stmts/CF/While.cpp
