@@ -15,7 +15,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
 
 #define REGISTER_ASSIGN_IOP(op, ...)                                           \
   if (mlir::isa<mlir::IntegerType>(valueType)) {                               \
-    resultValue =                                                              \
+    computeResult =                                                            \
         mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();        \
   }
 
@@ -26,7 +26,7 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
 
 #define REGISTER_ASSIGN_FOP(op, ...)                                           \
   if (mlir::isa<mlir::FloatType>(valueType)) {                                 \
-    resultValue =                                                              \
+    computeResult =                                                            \
         mlir::arith::op::create(builder, loc, __VA_ARGS__).getResult();        \
   }
 
@@ -83,85 +83,134 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
             mlir::memref::LoadOp::create(builder, loc, savedLHSAccess->base,
                                          savedLHSAccess->indices)
                 .getResult();
-      }
-      if (isMemberLHS) {
+      } else if (isMemberLHS) {
         oldValue = mlir::LLVM::LoadOp::create(builder, loc, memberPtr.getType(),
                                               memberPtr);
-      }
-      if (isScalarLHS) {
+      } else if (isScalarLHS) {
         oldValue =
             mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
       }
 
-      mlir::Type valueType = oldValue.getType();
+      mlir::Type lhsType = oldValue.getType();
+      mlir::Value computeLHS = oldValue;
+
+      if (auto compOp = mlir::dyn_cast<clang::CompoundAssignOperator>(binOp)) {
+        mlir::Type computeType =
+            convertType(compOp->getComputationResultType());
+
+        // Promote oldValue to compute type if needed
+        if (computeType != lhsType) {
+          auto srcInt = mlir::dyn_cast<mlir::IntegerType>(lhsType);
+          auto dstInt = mlir::dyn_cast<mlir::IntegerType>(computeType);
+          auto srcFlt = mlir::dyn_cast<mlir::FloatType>(lhsType);
+          auto dstFlt = mlir::dyn_cast<mlir::FloatType>(computeType);
+
+          if (srcInt && dstInt) {
+            bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
+            if (srcInt.getWidth() < dstInt.getWidth()) {
+              computeLHS = isSigned ? mlir::arith::ExtSIOp::create(
+                                          builder, loc, computeType, computeLHS)
+                                          .getResult()
+                                    : mlir::arith::ExtUIOp::create(
+                                          builder, loc, computeType, computeLHS)
+                                          .getResult();
+            }
+          } else if (srcFlt && dstFlt) {
+            if (srcFlt.getWidth() < dstFlt.getWidth())
+              computeLHS = mlir::arith::ExtFOp::create(builder, loc,
+                                                       computeType, computeLHS)
+                               .getResult();
+          } else if (srcInt && dstFlt) {
+            bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
+            computeLHS = isSigned ? mlir::arith::SIToFPOp::create(
+                                        builder, loc, computeType, computeLHS)
+                                        .getResult()
+                                  : mlir::arith::UIToFPOp::create(
+                                        builder, loc, computeType, computeLHS)
+                                        .getResult();
+          }
+        }
+      }
+
+      mlir::Value computeResult;
+      mlir::Type valueType = computeLHS.getType();
 
       switch (binOp->getOpcode()) {
       case clang::BO_AddAssign: {
-        REGISTER_ASSIGN_IOP(AddIOp, oldValue, rhsValue)
-        REGISTER_ASSIGN_FOP(AddFOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_IOP(AddIOp, computeLHS, rhsValue)
+        REGISTER_ASSIGN_FOP(AddFOp, computeLHS, rhsValue)
         break;
       }
       case clang::BO_SubAssign: {
-        REGISTER_ASSIGN_IOP(SubIOp, oldValue, rhsValue)
-        REGISTER_ASSIGN_FOP(SubFOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_IOP(SubIOp, computeLHS, rhsValue)
+        REGISTER_ASSIGN_FOP(SubFOp, computeLHS, rhsValue)
         break;
       }
       case clang::BO_MulAssign: {
-        REGISTER_ASSIGN_IOP(MulIOp, oldValue, rhsValue)
-        REGISTER_ASSIGN_FOP(MulFOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_IOP(MulIOp, computeLHS, rhsValue)
+        REGISTER_ASSIGN_FOP(MulFOp, computeLHS, rhsValue)
         break;
       }
       case clang::BO_DivAssign: {
-        REGISTER_ASSIGN_IOP(DivSIOp, oldValue, rhsValue)
-        REGISTER_ASSIGN_FOP(DivFOp, oldValue, rhsValue)
+        REGISTER_ASSIGN_IOP(DivSIOp, computeLHS, rhsValue)
+        REGISTER_ASSIGN_FOP(DivFOp, computeLHS, rhsValue)
         break;
       }
       case clang::BO_RemAssign: {
-        REGISTER_ASSIGN_IOP(RemSIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(RemSIOp, computeLHS, rhsValue) break;
       }
       case clang::BO_AndAssign: {
-        REGISTER_ASSIGN_IOP(AndIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(AndIOp, computeLHS, rhsValue) break;
       }
       case clang::BO_OrAssign: {
-        REGISTER_ASSIGN_IOP(OrIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(OrIOp, computeLHS, rhsValue) break;
       }
       case clang::BO_XorAssign: {
-        REGISTER_ASSIGN_IOP(XOrIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(XOrIOp, computeLHS, rhsValue) break;
       }
       case clang::BO_ShlAssign: {
-        REGISTER_ASSIGN_IOP(ShLIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(ShLIOp, computeLHS, rhsValue) break;
       }
       case clang::BO_ShrAssign: {
-        REGISTER_ASSIGN_IOP(ShRSIOp, oldValue, rhsValue)
-        break;
+        REGISTER_ASSIGN_IOP(ShRSIOp, computeLHS, rhsValue) break;
       }
       default:
-        llvm::errs() << "Unsupported compound assignment operator: "
+        llvm::errs() << "Unsupported compound assignment: "
                      << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
                      << "\n";
         return nullptr;
       }
-    }
 
-    if (isIndexedLHS && savedLHSAccess) {
-      mlir::memref::StoreOp::create(builder, loc, resultValue,
-                                    savedLHSAccess->base,
-                                    savedLHSAccess->indices);
-    }
-    if (isMemberLHS) {
-      mlir::LLVM::StoreOp::create(builder, loc, resultValue, memberPtr);
-    }
-    if (isScalarLHS) {
-      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsMemref,
-                                    mlir::ValueRange{});
-    }
+      resultValue = computeResult;
+      if (computeResult && computeResult.getType() != lhsType) {
+        auto srcInt =
+            mlir::dyn_cast<mlir::IntegerType>(computeResult.getType());
+        auto dstInt = mlir::dyn_cast<mlir::IntegerType>(lhsType);
+        auto srcFlt = mlir::dyn_cast<mlir::FloatType>(computeResult.getType());
+        auto dstFlt = mlir::dyn_cast<mlir::FloatType>(lhsType);
 
-    return resultValue;
+        if (srcInt && dstInt && srcInt.getWidth() > dstInt.getWidth())
+          resultValue = mlir::arith::TruncIOp::create(builder, loc, lhsType,
+                                                      computeResult)
+                            .getResult();
+        else if (srcFlt && dstFlt && srcFlt.getWidth() > dstFlt.getWidth())
+          resultValue = mlir::arith::TruncFOp::create(builder, loc, lhsType,
+                                                      computeResult)
+                            .getResult();
+      }
+
+      if (isIndexedLHS && savedLHSAccess) {
+        mlir::memref::StoreOp::create(builder, loc, resultValue,
+                                      savedLHSAccess->base,
+                                      savedLHSAccess->indices);
+      } else if (isMemberLHS) {
+        mlir::LLVM::StoreOp::create(builder, loc, resultValue, memberPtr);
+      } else if (isScalarLHS) {
+        mlir::memref::StoreOp::create(builder, loc, resultValue, lhsMemref);
+      }
+
+      return resultValue;
+    }
   }
 
   mlir::Value lhsValue = generateExpr(lhs);
