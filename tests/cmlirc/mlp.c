@@ -1,6 +1,6 @@
 // RUN: cmlirc %s -function=mlp --mem2reg --licm --canonicalize --sscp --symdce --cse --const-prop | FileCheck %s
 
-void mlp(float *output, float *input) {
+void mlp(float output[2], const float input[2]) {
   float weights[2][2] = {{0.1, 0.2}, {0.3, 0.4}};
   float bias[2] = {0.1, 0.2};
 
