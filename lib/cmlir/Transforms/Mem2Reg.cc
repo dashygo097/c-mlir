@@ -194,36 +194,17 @@ struct ForwardStoreToLoadPattern
         return mlir::failure();
     }
 
-    if (stores.empty())
+    if (stores.size() != 1)
       return mlir::failure();
+
+    mlir::memref::StoreOp store = stores[0];
 
     mlir::DominanceInfo domInfo(alloca->getParentOfType<mlir::func::FuncOp>());
 
-    mlir::memref::StoreOp reachingStore;
-    for (mlir::memref::StoreOp store : stores) {
-      if (!domInfo.dominates(store.getOperation(), loadOp.getOperation()))
-        continue;
-
-      bool anotherStoreDominates = false;
-      for (mlir::memref::StoreOp other : stores) {
-        if (other == store)
-          continue;
-        if (domInfo.dominates(other.getOperation(), loadOp.getOperation())) {
-          anotherStoreDominates = true;
-          break;
-        }
-      }
-      if (anotherStoreDominates)
-        continue;
-
-      reachingStore = store;
-      break;
-    }
-
-    if (!reachingStore)
+    if (!domInfo.dominates(store.getOperation(), loadOp.getOperation()))
       return mlir::failure();
 
-    rewriter.replaceOp(loadOp, reachingStore.getValue());
+    rewriter.replaceOp(loadOp, store.getValue());
     return mlir::success();
   }
 };
