@@ -120,7 +120,7 @@ analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
     return std::nullopt;
 
   auto *varDecl = mlir::dyn_cast<clang::VarDecl>(initStmt->getSingleDecl());
-  if (!varDecl || !varDecl->hasInit())
+  if (!varDecl || !varDecl->hasInit() || !varDecl->getType()->isIntegerType())
     return std::nullopt;
 
   auto *cond =

@@ -120,7 +120,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
 
   mlir::Block *beforeBlock = &whileOp.getBefore().front();
   {
-    mlir::OpBuilder::InsertionGuard g(builder);
+    mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(beforeBlock);
 
     mlir::Value cond = forStmt->getCond()
