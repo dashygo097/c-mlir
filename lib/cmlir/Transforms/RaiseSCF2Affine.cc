@@ -11,7 +11,7 @@
 
 namespace cmlir {
 
-static mlir::Value resolveIndexCastChain(mlir::Value v) {
+mlir::Value resolveIndexCastChain(mlir::Value v) {
   auto outerCast = v.getDefiningOp<mlir::arith::IndexCastOp>();
   if (!outerCast)
     return v;
@@ -31,7 +31,7 @@ static mlir::Value resolveIndexCastChain(mlir::Value v) {
   return resolveIndexCastChain(original);
 }
 
-static bool isLegalAffineIndex(mlir::Value v) {
+bool isLegalAffineIndex(mlir::Value v) {
   if (mlir::affine::isValidDim(v) || mlir::affine::isValidSymbol(v))
     return true;
 
@@ -45,6 +45,35 @@ static bool isLegalAffineIndex(mlir::Value v) {
   return false;
 }
 
+bool getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
+                  mlir::AffineMap &map,
+                  llvm::SmallVectorImpl<mlir::Value> &operands) {
+  if (auto c = bound.getDefiningOp<mlir::arith::ConstantIndexOp>()) {
+    map = mlir::AffineMap::getConstantMap(c.value(), ctx);
+    return true;
+  }
+
+  mlir::Value resolved = resolveIndexCastChain(bound);
+
+  if (mlir::affine::isValidSymbol(resolved)) {
+    // affine_map<()[s0] -> (s0)>
+    map = mlir::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/1,
+                               mlir::getAffineSymbolExpr(0, ctx));
+    operands.push_back(resolved);
+    return true;
+  }
+
+  if (mlir::affine::isValidDim(resolved)) {
+    // affine_map<(d0) -> (d0)>
+    map = mlir::AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
+                               mlir::getAffineDimExpr(0, ctx));
+    operands.push_back(resolved);
+    return true;
+  }
+
+  return false;
+}
+
 struct RaiseSCFFor2AffineForPattern
     : public mlir::OpRewritePattern<mlir::scf::ForOp> {
   using mlir::OpRewritePattern<mlir::scf::ForOp>::OpRewritePattern;
@@ -53,19 +82,24 @@ struct RaiseSCFFor2AffineForPattern
   matchAndRewrite(mlir::scf::ForOp forOp,
                   mlir::PatternRewriter &rewriter) const override {
 
-    auto lbConst =
-        forOp.getLowerBound().getDefiningOp<mlir::arith::ConstantIndexOp>();
-    auto ubConst =
-        forOp.getUpperBound().getDefiningOp<mlir::arith::ConstantIndexOp>();
-    auto stepConst =
-        forOp.getStep().getDefiningOp<mlir::arith::ConstantIndexOp>();
-    if (!lbConst || !ubConst || !stepConst)
-      return mlir::failure();
-
+    mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Location loc = forOp.getLoc();
 
+    mlir::AffineMap lbMap, ubMap;
+    llvm::SmallVector<mlir::Value> lbOperands, ubOperands;
+
+    if (!getBoundInfo(forOp.getLowerBound(), ctx, lbMap, lbOperands))
+      return mlir::failure();
+    if (!getBoundInfo(forOp.getUpperBound(), ctx, ubMap, ubOperands))
+      return mlir::failure();
+
+    auto stepConst =
+        forOp.getStep().getDefiningOp<mlir::arith::ConstantIndexOp>();
+    if (!stepConst)
+      return mlir::failure();
+
     auto affineFor = mlir::affine::AffineForOp::create(
-        rewriter, loc, lbConst.value(), ubConst.value(), stepConst.value(),
+        rewriter, loc, lbOperands, lbMap, ubOperands, ubMap, stepConst.value(),
         forOp.getInitArgs(),
         [](mlir::OpBuilder &, mlir::Location, mlir::Value, mlir::ValueRange) {
         });
@@ -85,60 +119,51 @@ struct RaiseSCFFor2AffineForPattern
 
     rewriter.setInsertionPointToEnd(affineBody);
     for (auto &op : scfBody->without_terminator()) {
-
-      // memref.load → affine.load
       if (auto loadOp = mlir::dyn_cast<mlir::memref::LoadOp>(op)) {
-        llvm::SmallVector<mlir::Value> fullIndices;
-        bool legalIndices = true;
-        for (mlir::Value index : loadOp.getIndices()) {
-          mlir::Value resolved =
-              resolveIndexCastChain(mapping.lookupOrDefault(index));
-          if (!isLegalAffineIndex(resolved)) {
-            legalIndices = false;
+        llvm::SmallVector<mlir::Value> idxs;
+        bool ok = true;
+        for (mlir::Value idx : loadOp.getIndices()) {
+          mlir::Value r = resolveIndexCastChain(mapping.lookupOrDefault(idx));
+          if (!isLegalAffineIndex(r)) {
+            ok = false;
             break;
           }
-          fullIndices.push_back(resolved);
+          idxs.push_back(r);
         }
-        if (legalIndices) {
-          auto newLoad = mlir::affine::AffineLoadOp::create(
-              rewriter, loadOp.getLoc(), loadOp.getMemRef(), fullIndices);
-          mapping.map(loadOp.getResult(), newLoad.getResult());
+        if (ok) {
+          auto nl = mlir::affine::AffineLoadOp::create(
+              rewriter, loadOp.getLoc(), loadOp.getMemRef(), idxs);
+          mapping.map(loadOp.getResult(), nl.getResult());
           continue;
         }
       }
-
-      // memref.store → affine.store
       if (auto storeOp = mlir::dyn_cast<mlir::memref::StoreOp>(op)) {
-        llvm::SmallVector<mlir::Value> fullIndices;
-        bool legalIndices = true;
-        for (mlir::Value index : storeOp.getIndices()) {
-          mlir::Value resolved =
-              resolveIndexCastChain(mapping.lookupOrDefault(index));
-          if (!isLegalAffineIndex(resolved)) {
-            legalIndices = false;
+        llvm::SmallVector<mlir::Value> idxs;
+        bool ok = true;
+        for (mlir::Value idx : storeOp.getIndices()) {
+          mlir::Value r = resolveIndexCastChain(mapping.lookupOrDefault(idx));
+          if (!isLegalAffineIndex(r)) {
+            ok = false;
             break;
           }
-          fullIndices.push_back(resolved);
+          idxs.push_back(r);
         }
-        if (legalIndices) {
+        if (ok) {
           mlir::affine::AffineStoreOp::create(
               rewriter, storeOp.getLoc(),
               mapping.lookupOrDefault(storeOp.getValue()), storeOp.getMemRef(),
-              fullIndices);
+              idxs);
           continue;
         }
       }
-
-      // Generic fallback: clone with mapping
       rewriter.clone(op, mapping);
     }
 
     auto scfYield = mlir::cast<mlir::scf::YieldOp>(scfBody->getTerminator());
-    llvm::SmallVector<mlir::Value> yieldOperands;
+    llvm::SmallVector<mlir::Value> yieldOps;
     for (mlir::Value v : scfYield.getOperands())
-      yieldOperands.push_back(mapping.lookupOrDefault(v));
-    mlir::affine::AffineYieldOp::create(rewriter, scfYield.getLoc(),
-                                        yieldOperands);
+      yieldOps.push_back(mapping.lookupOrDefault(v));
+    mlir::affine::AffineYieldOp::create(rewriter, scfYield.getLoc(), yieldOps);
 
     rewriter.replaceOp(forOp, affineFor.getResults());
     return mlir::success();
