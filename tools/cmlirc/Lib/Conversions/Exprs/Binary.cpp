@@ -198,19 +198,19 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
                                                       computeResult)
                             .getResult();
       }
-
-      if (isIndexedLHS && savedLHSAccess) {
-        mlir::memref::StoreOp::create(builder, loc, resultValue,
-                                      savedLHSAccess->base,
-                                      savedLHSAccess->indices);
-      } else if (isMemberLHS) {
-        mlir::LLVM::StoreOp::create(builder, loc, resultValue, memberPtr);
-      } else if (isScalarLHS) {
-        mlir::memref::StoreOp::create(builder, loc, resultValue, lhsMemref);
-      }
-
-      return resultValue;
     }
+
+    if (isIndexedLHS && savedLHSAccess) {
+      mlir::memref::StoreOp::create(builder, loc, resultValue,
+                                    savedLHSAccess->base,
+                                    savedLHSAccess->indices);
+    } else if (isMemberLHS) {
+      mlir::LLVM::StoreOp::create(builder, loc, resultValue, memberPtr);
+    } else if (isScalarLHS) {
+      mlir::memref::StoreOp::create(builder, loc, resultValue, lhsMemref);
+    }
+
+    return resultValue;
   }
 
   mlir::Value lhsValue = generateExpr(lhs);
