@@ -1,4 +1,5 @@
 #include "../../../Converter.h"
+#include "../../Utils/Casts.h"
 #include "./CFUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
