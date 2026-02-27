@@ -9,62 +9,62 @@
 
 namespace cmlir {
 
-// Check if memref is a scalar (rank-0)
-bool isScalarMemRef(mlir::Type type) {
-  auto memrefType = mlir::dyn_cast<mlir::MemRefType>(type);
-  return memrefType && memrefType.hasRank() && memrefType.getRank() == 0;
-}
-
-// Check if all uses are load/store
-bool isPromotable(mlir::memref::AllocaOp alloca) {
-  if (!isScalarMemRef(alloca.getType()))
-    return false;
-
-  for (mlir::Operation *user : alloca->getUsers()) {
-    if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
-      return false;
+struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
+  // Check if memref is a scalar (rank-0)
+  bool isScalarMemRef(mlir::Type type) {
+    auto memrefType = mlir::dyn_cast<mlir::MemRefType>(type);
+    return memrefType && memrefType.hasRank() && memrefType.getRank() == 0;
   }
-  return true;
-}
 
-// Recursively replace loads/stores in a region
-void replaceLoadsStores(mlir::Region &region,
-                        const llvm::DenseSet<mlir::Value> &promotedAllocas,
-                        llvm::DenseMap<mlir::Value, mlir::Value> &currentValues,
-                        mlir::IRMapping &mapping) {
-  for (mlir::Block &block : region) {
-    for (mlir::Operation &op : llvm::make_early_inc_range(block)) {
-      // Handle loads
-      if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
-        if (promotedAllocas.count(load.getMemRef())) {
-          mlir::Value replacement = currentValues[load.getMemRef()];
-          mapping.map(load.getResult(), replacement);
-          load.getResult().replaceAllUsesWith(replacement);
-          load.erase();
-          continue;
+  // Check if all uses are load/store
+  bool isPromotable(mlir::memref::AllocaOp alloca) {
+    if (!isScalarMemRef(alloca.getType()))
+      return false;
+
+    for (mlir::Operation *user : alloca->getUsers()) {
+      if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
+        return false;
+    }
+    return true;
+  }
+
+  // Recursively replace loads/stores in a region
+  void
+  replaceLoadsStores(mlir::Region &region,
+                     const llvm::DenseSet<mlir::Value> &promotedAllocas,
+                     llvm::DenseMap<mlir::Value, mlir::Value> &currentValues,
+                     mlir::IRMapping &mapping) {
+    for (mlir::Block &block : region) {
+      for (mlir::Operation &op : llvm::make_early_inc_range(block)) {
+        // Handle loads
+        if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
+          if (promotedAllocas.count(load.getMemRef())) {
+            mlir::Value replacement = currentValues[load.getMemRef()];
+            mapping.map(load.getResult(), replacement);
+            load.getResult().replaceAllUsesWith(replacement);
+            load.erase();
+            continue;
+          }
         }
-      }
 
-      // Handle stores
-      if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
-        if (promotedAllocas.count(store.getMemRef())) {
-          mlir::Value newValue = mapping.lookupOrDefault(store.getValue());
-          currentValues[store.getMemRef()] = newValue;
-          store.erase();
-          continue;
+        // Handle stores
+        if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
+          if (promotedAllocas.count(store.getMemRef())) {
+            mlir::Value newValue = mapping.lookupOrDefault(store.getValue());
+            currentValues[store.getMemRef()] = newValue;
+            store.erase();
+            continue;
+          }
         }
-      }
 
-      // Recursively handle nested regions
-      for (mlir::Region &nestedRegion : op.getRegions()) {
-        replaceLoadsStores(nestedRegion, promotedAllocas, currentValues,
-                           mapping);
+        // Recursively handle nested regions
+        for (mlir::Region &nestedRegion : op.getRegions()) {
+          replaceLoadsStores(nestedRegion, promotedAllocas, currentValues,
+                             mapping);
+        }
       }
     }
   }
-}
-
-struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
 
   // Process a single loop, returns true if modified
   bool processLoop(mlir::scf::ForOp forOp) {
