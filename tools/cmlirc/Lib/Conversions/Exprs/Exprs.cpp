@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "clang/AST/Expr.h"
 
 namespace cmlirc {
 
@@ -19,6 +20,7 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
   REGISTER_EXPR_CONVERSION(StringLiteral)
   REGISTER_EXPR_CONVERSION(DeclRefExpr)
   REGISTER_EXPR_CONVERSION(ImplicitCastExpr)
+  REGISTER_EXPR_CONVERSION(CStyleCastExpr)
   REGISTER_EXPR_CONVERSION(ArraySubscriptExpr)
   REGISTER_EXPR_CONVERSION(UnaryOperator)
   REGISTER_EXPR_CONVERSION(BinaryOperator)

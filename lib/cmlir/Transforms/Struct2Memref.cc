@@ -18,7 +18,7 @@ namespace cmlir {
 // =>
 // memref<2xf32>
 
-bool isStructElemSameType(mlir::LLVM::LLVMStructType structType) {
+static bool isStructElemSameType(mlir::LLVM::LLVMStructType structType) {
   if (structType.getBody().empty()) {
     return false;
   }

@@ -11,7 +11,7 @@
 
 namespace cmlir {
 
-mlir::Value resolveIndexCastChain(mlir::Value v) {
+static mlir::Value resolveIndexCastChain(mlir::Value v) {
   auto outerCast = v.getDefiningOp<mlir::arith::IndexCastOp>();
   if (!outerCast)
     return v;
@@ -31,7 +31,7 @@ mlir::Value resolveIndexCastChain(mlir::Value v) {
   return resolveIndexCastChain(original);
 }
 
-bool isLegalAffineIndex(mlir::Value v) {
+static bool isLegalAffineIndex(mlir::Value v) {
   if (mlir::affine::isValidDim(v) || mlir::affine::isValidSymbol(v))
     return true;
 
@@ -45,9 +45,9 @@ bool isLegalAffineIndex(mlir::Value v) {
   return false;
 }
 
-bool getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
-                  mlir::AffineMap &map,
-                  llvm::SmallVectorImpl<mlir::Value> &operands) {
+static bool getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
+                         mlir::AffineMap &map,
+                         llvm::SmallVectorImpl<mlir::Value> &operands) {
   if (auto c = bound.getDefiningOp<mlir::arith::ConstantIndexOp>()) {
     map = mlir::AffineMap::getConstantMap(c.value(), ctx);
     return true;
