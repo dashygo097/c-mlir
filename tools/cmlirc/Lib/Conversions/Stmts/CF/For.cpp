@@ -115,24 +115,27 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  auto whileOp = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
-                                            mlir::ValueRange{});
+  if (forStmt->getInit())
+    TraverseStmt(forStmt->getInit());
 
-  mlir::Block *beforeBlock = &whileOp.getBefore().front();
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToStart(beforeBlock);
-
-    mlir::Value cond = forStmt->getCond()
-                           ? convertToBool(generateExpr(forStmt->getCond()))
-                           : detail::boolConst(builder, loc, true);
-    mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
-  }
+  auto whileOp = mlir::scf::WhileOp::create(
+      builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::Value cond = forStmt->getCond()
+                               ? convertToBool(generateExpr(forStmt->getCond()))
+                               : detail::boolConst(b, l, true);
+        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+      },
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
+      });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();
-  builder.setInsertionPointToStart(afterBlock);
 
-  loopStack_.push_back({beforeBlock, afterBlock});
+  afterBlock->back().erase();
+
+  builder.setInsertionPointToEnd(afterBlock);
+  loopStack_.push_back({&whileOp.getBefore().front(), afterBlock});
   TraverseStmt(forStmt->getBody());
   if (forStmt->getInc())
     generateExpr(forStmt->getInc());
@@ -149,9 +152,6 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  if (forStmt->getInit())
-    TraverseStmt(forStmt->getInit());
-
   auto info =
       detail::analyseForLoop(forStmt, builder, loc, [this](clang::Expr *e) {
         return generateExpr(e);
@@ -161,6 +161,9 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     emitWhileStyleForLoop(forStmt);
     return true;
   }
+
+  if (forStmt->getInit())
+    TraverseStmt(forStmt->getInit());
 
   clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
   uint32_t forLine = SM.getSpellingLineNumber(forStmt->getForLoc());
