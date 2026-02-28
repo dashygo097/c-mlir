@@ -277,6 +277,12 @@ struct Struct2MemrefPass
       signalPassFailure();
       return;
     }
+
+    op->walk([](mlir::Operation *op) {
+      if (mlir::isOpTriviallyDead(op)) {
+        op->erase();
+      }
+    });
   }
 };
 
