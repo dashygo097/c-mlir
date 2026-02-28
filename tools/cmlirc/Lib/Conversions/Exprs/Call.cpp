@@ -52,9 +52,58 @@ static bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
                   llvm::ArrayRef<mlir::Type> retTypes) -> bool {
     auto funcType = builder.getFunctionType(declArgTypes, retTypes);
     getOrCreateFunctionDecl(builder, module, name, funcType);
+
+    llvm::SmallVector<mlir::Value> promotedArgs;
+    for (auto [arg, declTy] : llvm::zip(callArgs, declArgTypes)) {
+      mlir::Type argTy = arg.getType();
+      if (argTy == declTy) {
+        promotedArgs.push_back(arg);
+        continue;
+      }
+      // int → float
+      if (mlir::isa<mlir::IntegerType>(argTy) &&
+          mlir::isa<mlir::FloatType>(declTy)) {
+        promotedArgs.push_back(
+            mlir::arith::SIToFPOp::create(builder, loc, declTy, arg)
+                .getResult());
+        continue;
+      }
+      // float → float
+      if (mlir::isa<mlir::FloatType>(argTy) &&
+          mlir::isa<mlir::FloatType>(declTy)) {
+        auto srcW = mlir::cast<mlir::FloatType>(argTy).getWidth();
+        auto dstW = mlir::cast<mlir::FloatType>(declTy).getWidth();
+        if (srcW < dstW)
+          promotedArgs.push_back(
+              mlir::arith::ExtFOp::create(builder, loc, declTy, arg)
+                  .getResult());
+        else
+          promotedArgs.push_back(
+              mlir::arith::TruncFOp::create(builder, loc, declTy, arg)
+                  .getResult());
+        continue;
+      }
+      // int → int
+      if (mlir::isa<mlir::IntegerType>(argTy) &&
+          mlir::isa<mlir::IntegerType>(declTy)) {
+        auto srcW = mlir::cast<mlir::IntegerType>(argTy).getWidth();
+        auto dstW = mlir::cast<mlir::IntegerType>(declTy).getWidth();
+        if (srcW < dstW)
+          promotedArgs.push_back(
+              mlir::arith::ExtSIOp::create(builder, loc, declTy, arg)
+                  .getResult());
+        else
+          promotedArgs.push_back(
+              mlir::arith::TruncIOp::create(builder, loc, declTy, arg)
+                  .getResult());
+        continue;
+      }
+      promotedArgs.push_back(arg); // fallback
+    }
+
     llvm::SmallVector<mlir::Type, 1> retTys(retTypes.begin(), retTypes.end());
     auto callOp =
-        mlir::func::CallOp::create(builder, loc, name, retTys, callArgs);
+        mlir::func::CallOp::create(builder, loc, name, retTys, promotedArgs);
     outResult = callOp.getNumResults() > 0 ? callOp.getResult(0) : nullptr;
     return true;
   };
