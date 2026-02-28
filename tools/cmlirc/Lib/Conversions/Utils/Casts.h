@@ -3,6 +3,7 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 
 namespace cmlirc::detail {
 inline mlir::Value indexConst(mlir::OpBuilder &builder, mlir::Location loc,
@@ -52,9 +53,11 @@ inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
 inline std::optional<int64_t> getConstantInt(mlir::Value value) {
   while (auto cast = value.getDefiningOp<mlir::arith::IndexCastOp>())
     value = cast.getIn();
+
   if (auto c = value.getDefiningOp<mlir::arith::ConstantOp>())
     if (auto ia = mlir::dyn_cast<mlir::IntegerAttr>(c.getValue()))
       return ia.getInt();
+
   return std::nullopt;
 }
 

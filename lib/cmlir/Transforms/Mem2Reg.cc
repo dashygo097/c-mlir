@@ -24,7 +24,212 @@ static bool isPromotable(mlir::memref::AllocaOp alloca) {
   return true;
 }
 
-struct PromoteAllocaToIterArgPattern
+struct PromoteSCFWhileAllocaToIterArgPattern
+    : public mlir::OpRewritePattern<mlir::scf::WhileOp> {
+  using mlir::OpRewritePattern<mlir::scf::WhileOp>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::scf::WhileOp whileOp,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    auto parentFunc = whileOp->getParentOfType<mlir::func::FuncOp>();
+    if (!parentFunc)
+      return mlir::failure();
+
+    llvm::SmallVector<mlir::memref::AllocaOp> allocasToPromote;
+    llvm::SmallVector<mlir::Value> initialValues;
+
+    parentFunc.walk([&](mlir::memref::AllocaOp alloca) {
+      if (!isPromotable(alloca))
+        return;
+      if (alloca->getBlock() != whileOp->getBlock())
+        return;
+      if (!alloca->isBeforeInBlock(whileOp.getOperation()))
+        return;
+
+      bool usedInLoop =
+          llvm::any_of(alloca->getUsers(), [&](mlir::Operation *u) {
+            return whileOp->isAncestor(u);
+          });
+      if (!usedInLoop)
+        return;
+
+      for (mlir::Operation *user : alloca->getUsers()) {
+        if (mlir::isa<mlir::memref::StoreOp>(user) &&
+            whileOp.getBefore().isAncestor(user->getParentRegion()))
+          return;
+      }
+
+      mlir::Value initValue;
+      for (mlir::Operation *user : alloca->getUsers()) {
+        auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user);
+        if (store && store->getBlock() == whileOp->getBlock() &&
+            store->isBeforeInBlock(whileOp.getOperation())) {
+          initValue = store.getValue();
+          break;
+        }
+      }
+      if (!initValue)
+        return;
+
+      allocasToPromote.push_back(alloca);
+      initialValues.push_back(initValue);
+    });
+
+    if (allocasToPromote.empty())
+      return mlir::failure();
+
+    size_t numOld = whileOp.getOperands().size();
+    llvm::SmallVector<mlir::Value> newOperands(whileOp.getOperands().begin(),
+                                               whileOp.getOperands().end());
+    newOperands.append(initialValues.begin(), initialValues.end());
+
+    llvm::SmallVector<mlir::Type> newResultTypes(
+        whileOp.getResultTypes().begin(), whileOp.getResultTypes().end());
+    for (auto &v : initialValues)
+      newResultTypes.push_back(v.getType());
+
+    auto newWhile = mlir::scf::WhileOp::create(
+        rewriter, whileOp.getLoc(), newResultTypes, newOperands,
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+          mlir::scf::YieldOp::create(b, l);
+        },
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+          mlir::scf::YieldOp::create(b, l);
+        });
+
+    mlir::Block *newBefore = &newWhile.getBefore().front();
+    mlir::Block *oldBefore = &whileOp.getBefore().front();
+
+    rewriter.eraseOp(&newBefore->back());
+
+    mlir::IRMapping beforeMapping;
+    for (size_t i = 0; i < oldBefore->getNumArguments(); ++i)
+      beforeMapping.map(oldBefore->getArgument(i), newBefore->getArgument(i));
+
+    // promoted alloca → new before block arg
+    llvm::DenseSet<mlir::Value> promotedSet;
+    llvm::DenseMap<mlir::Value, mlir::Value> beforeValues; // alloca → SSA val
+    for (size_t i = 0; i < allocasToPromote.size(); ++i) {
+      mlir::Value allocaVal = allocasToPromote[i].getResult();
+      mlir::BlockArgument arg = newBefore->getArgument(numOld + i);
+      promotedSet.insert(allocaVal);
+      beforeValues[allocaVal] = arg;
+    }
+
+    rewriter.setInsertionPointToEnd(newBefore);
+    for (mlir::Operation &op : oldBefore->without_terminator()) {
+      // Replace loads from promoted allocas with before-block iter args
+      if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
+        if (promotedSet.count(load.getMemRef())) {
+          beforeMapping.map(load.getResult(), beforeValues[load.getMemRef()]);
+          continue;
+        }
+      }
+      rewriter.clone(op, beforeMapping);
+    }
+
+    // Clone scf.condition, passing promoted args through unchanged
+    auto oldCond =
+        mlir::cast<mlir::scf::ConditionOp>(oldBefore->getTerminator());
+    llvm::SmallVector<mlir::Value> condArgs;
+    for (mlir::Value v : oldCond.getArgs())
+      condArgs.push_back(beforeMapping.lookupOrDefault(v));
+    // Pass promoted values through condition so they reach the after block
+    for (size_t i = 0; i < allocasToPromote.size(); ++i)
+      condArgs.push_back(beforeValues[allocasToPromote[i].getResult()]);
+    mlir::scf::ConditionOp::create(
+        rewriter, oldCond.getLoc(),
+        beforeMapping.lookupOrDefault(oldCond.getCondition()), condArgs);
+
+    mlir::Block *newAfter = &newWhile.getAfter().front();
+    mlir::Block *oldAfter = &whileOp.getAfter().front();
+
+    rewriter.eraseOp(&newAfter->back());
+
+    mlir::IRMapping afterMapping;
+    for (size_t i = 0; i < oldAfter->getNumArguments(); ++i)
+      afterMapping.map(oldAfter->getArgument(i), newAfter->getArgument(i));
+
+    // promoted alloca → new after block arg (mirrors condition pass-through)
+    llvm::DenseMap<mlir::Value, mlir::Value> afterValues;
+    for (size_t i = 0; i < allocasToPromote.size(); ++i) {
+      mlir::Value allocaVal = allocasToPromote[i].getResult();
+      mlir::BlockArgument arg =
+          newAfter->getArgument(oldAfter->getNumArguments() + i);
+      afterValues[allocaVal] = arg;
+    }
+
+    rewriter.setInsertionPointToEnd(newAfter);
+    for (mlir::Operation &op : oldAfter->without_terminator()) {
+      if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
+        if (promotedSet.count(load.getMemRef())) {
+          afterMapping.map(load.getResult(), afterValues[load.getMemRef()]);
+          continue;
+        }
+      }
+      if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
+        if (promotedSet.count(store.getMemRef())) {
+          afterValues[store.getMemRef()] =
+              afterMapping.lookupOrDefault(store.getValue());
+          continue;
+        }
+      }
+      mlir::Operation *cloned = rewriter.clone(op, afterMapping);
+      // Substitute nested loads inside cloned ops with nested regions
+      if (cloned->getNumRegions() > 0) {
+        llvm::SmallVector<mlir::memref::LoadOp> nestedLoads;
+        cloned->walk([&](mlir::memref::LoadOp nl) {
+          if (promotedSet.count(nl.getMemRef()))
+            nestedLoads.push_back(nl);
+        });
+        for (auto nl : nestedLoads) {
+          auto it = afterValues.find(nl.getMemRef());
+          if (it != afterValues.end())
+            rewriter.replaceOp(nl, it->second);
+        }
+      }
+    }
+
+    // Build scf.yield: old yielded values + updated promoted values
+    auto oldYield = mlir::cast<mlir::scf::YieldOp>(oldAfter->getTerminator());
+    llvm::SmallVector<mlir::Value> yieldVals;
+    for (mlir::Value v : oldYield.getOperands())
+      yieldVals.push_back(afterMapping.lookupOrDefault(v));
+    for (mlir::memref::AllocaOp alloca : allocasToPromote)
+      yieldVals.push_back(afterValues[alloca.getResult()]);
+    mlir::scf::YieldOp::create(rewriter, oldYield.getLoc(), yieldVals);
+
+    for (size_t i = 0; i < whileOp.getNumResults(); ++i)
+      rewriter.replaceAllUsesWith(whileOp.getResult(i), newWhile.getResult(i));
+
+    // Replace post-loop loads from promoted allocas with final while results
+    for (size_t i = 0; i < allocasToPromote.size(); ++i) {
+      mlir::Value finalVal = newWhile.getResults()[numOld + i];
+      mlir::Value allocaResult = allocasToPromote[i].getResult();
+      for (mlir::Operation *user :
+           llvm::make_early_inc_range(allocaResult.getUsers())) {
+        auto load = mlir::dyn_cast<mlir::memref::LoadOp>(user);
+        if (load && load->getBlock() == newWhile->getBlock() &&
+            newWhile->isBeforeInBlock(load.getOperation()))
+          rewriter.replaceOp(load, finalVal);
+      }
+    }
+
+    rewriter.eraseOp(whileOp);
+
+    for (mlir::memref::AllocaOp alloca : allocasToPromote) {
+      for (mlir::Operation *user :
+           llvm::make_early_inc_range(alloca->getUsers()))
+        rewriter.eraseOp(user);
+      rewriter.eraseOp(alloca);
+    }
+
+    return mlir::success();
+  }
+};
+
+struct PromoteSCFForAllocaToIterArgPattern
     : public mlir::OpRewritePattern<mlir::scf::ForOp> {
   using mlir::OpRewritePattern<mlir::scf::ForOp>::OpRewritePattern;
 
@@ -229,7 +434,8 @@ struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
-    patterns.add<PromoteAllocaToIterArgPattern>(op->getContext());
+    patterns.add<PromoteSCFForAllocaToIterArgPattern>(op->getContext());
+    patterns.add<PromoteSCFWhileAllocaToIterArgPattern>(op->getContext());
     patterns.add<ForwardStoreToLoadPattern>(op->getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
