@@ -13,12 +13,12 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
         mlir::Value cond = convertToBool(generateExpr(whileStmt->getCond()));
-        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+        mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
-        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
+      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
       });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();
