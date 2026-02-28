@@ -37,6 +37,13 @@ inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
                            mlir::Value value) {
   if (value.getType().isIndex())
     return value;
+
+  if (mlir::isa<mlir::FloatType>(value.getType())) {
+    value =
+        mlir::arith::FPToSIOp::create(builder, loc, builder.getI64Type(), value)
+            .getResult();
+  }
+
   return mlir::arith::IndexCastOp::create(builder, loc, builder.getIndexType(),
                                           value)
       .getResult();
