@@ -11,22 +11,22 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  auto whileOp = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
-                                            mlir::ValueRange{});
-
-  mlir::Block *beforeBlock = &whileOp.getBefore().front();
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToStart(beforeBlock);
-
-    mlir::Value cond = convertToBool(generateExpr(whileStmt->getCond()));
-    mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
-  }
+  auto whileOp = mlir::scf::WhileOp::create(
+      builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::Value cond = convertToBool(generateExpr(whileStmt->getCond()));
+        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+      },
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
+      });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();
-  builder.setInsertionPointToStart(afterBlock);
 
-  loopStack_.push_back({beforeBlock, afterBlock});
+  afterBlock->back().erase();
+
+  builder.setInsertionPointToEnd(afterBlock);
+  loopStack_.push_back({&whileOp.getBefore().front(), afterBlock});
   TraverseStmt(whileStmt->getBody());
   loopStack_.pop_back();
 

@@ -31,7 +31,7 @@ public:
   // bool TraverseCaseStmt(clang::CaseStmt *caseStmt);
   // bool TraverseDefaultStmt(clang::DefaultStmt *defaultStmt);
   bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
-  bool TraverseDoStmt(clang::DoStmt *doStmt);
+  // bool TraverseDoStmt(clang::DoStmt *doStmt);
   bool TraverseForStmt(clang::ForStmt *forStmt);
   // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
