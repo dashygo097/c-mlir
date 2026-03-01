@@ -3,19 +3,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include <string>
 
 namespace cmlirc {
-
-std::vector<std::string> split_string(const std::string &str, char delimiter) {
-  std::vector<std::string> tokens;
-  std::string token;
-  std::istringstream tokenStream(str);
-  while (std::getline(tokenStream, token, delimiter)) {
-    tokens.push_back(token);
-  }
-  return tokens;
-}
 
 mlir::func::FuncOp getOrCreateFunctionDecl(mlir::OpBuilder &builder,
                                            mlir::ModuleOp module,

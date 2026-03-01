@@ -1,4 +1,5 @@
 #include "../../../Converter.h"
+#include "../../Utils/Casts.h"
 #include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
@@ -13,12 +14,13 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
-      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
-        mlir::Value cond = convertToBool(generateExpr(whileStmt->getCond()));
-        mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::Value cond =
+            detail::toBool(builder, loc, generateExpr(whileStmt->getCond()));
+        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
       },
-      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
-        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
       });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();

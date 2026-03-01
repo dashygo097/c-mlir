@@ -1,4 +1,5 @@
 #include "../../../Converter.h"
+#include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
@@ -14,8 +15,8 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
       [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
-        mlir::scf::ConditionOp::create(b, l, detail::boolConst(b, l, true),
-                                       mlir::ValueRange{});
+        mlir::scf::ConditionOp::create(
+            builder, l, detail::boolConst(b, l, true), mlir::ValueRange{});
       },
       [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
         mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
@@ -29,9 +30,10 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
   TraverseStmt(doStmt->getBody());
   loopStack.pop_back();
 
-  mlir::Value cond = doStmt->getCond()
-                         ? convertToBool(generateExpr(doStmt->getCond()))
-                         : detail::boolConst(builder, loc, true);
+  mlir::Value cond =
+      doStmt->getCond()
+          ? detail::toBool(builder, loc, generateExpr(doStmt->getCond()))
+          : detail::boolConst(builder, loc, true);
   mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
 
   builder.setInsertionPointAfter(whileOp);

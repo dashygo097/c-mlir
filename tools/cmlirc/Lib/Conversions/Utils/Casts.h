@@ -1,7 +1,7 @@
 #ifndef CMLIRC_CASTS_H
 #define CMLIRC_CASTS_H
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "./Constants.h"
 
 namespace cmlirc::detail {
 inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
@@ -18,6 +18,31 @@ inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
   return mlir::arith::IndexCastOp::create(builder, loc, builder.getIndexType(),
                                           value)
       .getResult();
+}
+
+inline mlir::Value toBool(mlir::OpBuilder &builder, mlir::Location loc,
+                          mlir::Value value) {
+  mlir::Type type = value.getType();
+
+  if (type.isInteger(1))
+    return value;
+
+  if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
+    return mlir::arith::CmpIOp::create(builder, loc,
+                                       mlir::arith::CmpIPredicate::ne, value,
+                                       detail::intConst(builder, loc, type, 0))
+        .getResult();
+  }
+
+  if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
+    return mlir::arith::CmpFOp::create(
+               builder, loc,
+               mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
+               value, detail::floatConst(builder, loc, type, 0.0))
+        .getResult();
+  }
+
+  return nullptr;
 }
 
 inline std::optional<int64_t> getInt(mlir::Value value) {
