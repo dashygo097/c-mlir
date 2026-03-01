@@ -1,6 +1,7 @@
 #include "./ContextManager.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -21,6 +22,7 @@ ContextManager::ContextManager(clang::ASTContext *clangCtx) {
   mlir_context_->getOrLoadDialect<mlir::func::FuncDialect>();
   mlir_context_->getOrLoadDialect<mlir::memref::MemRefDialect>();
   mlir_context_->getOrLoadDialect<mlir::arith::ArithDialect>();
+  mlir_context_->getOrLoadDialect<mlir::cf::ControlFlowDialect>();
   mlir_context_->getOrLoadDialect<mlir::scf::SCFDialect>();
   mlir_context_->getOrLoadDialect<mlir::affine::AffineDialect>();
   mlir_context_->getOrLoadDialect<mlir::math::MathDialect>();

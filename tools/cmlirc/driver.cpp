@@ -42,9 +42,10 @@ llvm::cl::opt<bool>
                         llvm::cl::desc("Enable loop vectorization"),
                         llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
-                                 llvm::cl::desc("Enable canonicalization"),
-                                 llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool>
+    ControlFlowSink("control-flow-sink", llvm::cl::init(false),
+                    llvm::cl::desc("Enable control flow sinking"),
+                    llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
     CSE("cse", llvm::cl::init(false),
@@ -55,6 +56,10 @@ llvm::cl::opt<bool>
     SymbolDCE("symdce", llvm::cl::init(false),
               llvm::cl::desc("Enable symbol dead code elimination"),
               llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
+                                 llvm::cl::desc("Enable canonicalization"),
+                                 llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
