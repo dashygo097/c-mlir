@@ -19,7 +19,7 @@ struct LoopHints {
   std::optional<uint64_t> interleaveCount; // loop_interleave_count(N)
 };
 
-using LoopHintMap = llvm::DenseMap<unsigned, LoopHints>;
+using LoopHintMap = llvm::DenseMap<uint32_t, LoopHints>;
 
 class CMLIRPragmaHandler : public clang::PragmaHandler {
 public:
@@ -30,6 +30,7 @@ public:
                     clang::Token &firstTok) override;
 
 private:
+  // components
   LoopHintMap &hints_;
 };
 

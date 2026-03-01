@@ -1,5 +1,5 @@
-#ifndef CMLIRC_CGUTILS_H
-#define CMLIRC_CGUTILS_H
+#ifndef CMLIRC_LOOPUTILS_H
+#define CMLIRC_LOOPUTILS_H
 
 #include "../../../Converter.h"
 #include "mlir/IR/Builders.h"
@@ -30,4 +30,4 @@ analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
 
 } // namespace cmlirc::detail
 
-#endif // CMLIRC_CGUTILS_H
+#endif // CMLIRC_LOOPUTILS_H

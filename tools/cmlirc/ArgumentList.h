@@ -11,8 +11,6 @@ extern llvm::cl::opt<std::string> SystemRoot;
 extern llvm::cl::opt<std::string> OutputFile;
 extern llvm::cl::opt<std::string> FunctionName;
 
-extern llvm::cl::opt<bool> EnableLoopUnroll;
-extern llvm::cl::opt<bool> EnableLoopVectorize;
 extern llvm::cl::opt<bool> Canonicalize;
 extern llvm::cl::opt<bool> CSE;
 extern llvm::cl::opt<bool> SymbolDCE;

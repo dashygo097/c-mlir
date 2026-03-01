@@ -38,11 +38,11 @@ public:
 
   // loop optimizations
   struct SimpleLoopInfo {
-    const clang::VarDecl *inductionVar = nullptr;
+    const clang::VarDecl *inductionVar{nullptr};
     mlir::Value lowerBound;
     mlir::Value upperBound;
     mlir::Value step;
-    bool isIncrementing = true;
+    bool isIncrementing{true};
 
     explicit operator bool() const {
       return inductionVar && lowerBound && upperBound && step;
@@ -76,23 +76,23 @@ private:
 
   struct ArrayAccessInfo {
     mlir::Value base;
-    llvm::SmallVector<mlir::Value, 4> indices;
+    llvm::SmallVector<mlir::Value, 4> indices{};
   };
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
   struct LoopContext {
-    mlir::Block *headerBlock;
-    mlir::Block *exitBlock;
+    mlir::Block *headerBlock{nullptr};
+    mlir::Block *exitBlock{nullptr};
   };
   llvm::SmallVector<LoopContext, 4> loopStack;
 
-  // side effect analysis
+  // helpers
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
   std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,
                                         const clang::FieldDecl *fieldDecl);
 
   // type traits
-  [[nodiscard]] mlir::Type convertType(clang::QualType type);
+  [[nodiscard]] mlir::Type convertType(const clang::QualType type);
   [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
   [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
   [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);

@@ -32,16 +32,6 @@ llvm::cl::opt<std::string>
                  llvm::cl::cat(toolOptions));
 
 // Passes
-llvm::cl::opt<bool> EnableLoopUnroll("enable-loop-unroll",
-                                     llvm::cl::init(false),
-                                     llvm::cl::desc("Enable loop unrolling"),
-                                     llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    EnableLoopVectorize("enable-loop-vectorize", llvm::cl::init(false),
-                        llvm::cl::desc("Enable loop vectorization"),
-                        llvm::cl::cat(toolOptions));
-
 llvm::cl::opt<bool>
     ControlFlowSink("control-flow-sink", llvm::cl::init(false),
                     llvm::cl::desc("Enable control flow sinking"),

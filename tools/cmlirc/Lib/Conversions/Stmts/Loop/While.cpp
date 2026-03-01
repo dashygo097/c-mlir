@@ -1,5 +1,5 @@
 #include "../../../Converter.h"
-#include "./CFUtils.h"
+#include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
