@@ -5,14 +5,14 @@
 
 namespace cmlirc {
 
-static void skipToEOD(clang::Preprocessor &PP) {
+void skipToEOD(clang::Preprocessor &PP) {
   clang::Token tok;
   do {
     PP.Lex(tok);
   } while (tok.isNot(clang::tok::eod) && tok.isNot(clang::tok::eof));
 }
 
-static bool isEndOfDirective(const clang::Token &tok) {
+bool isEndOfDirective(const clang::Token &tok) {
   return tok.is(clang::tok::eod) || tok.is(clang::tok::eof);
 }
 

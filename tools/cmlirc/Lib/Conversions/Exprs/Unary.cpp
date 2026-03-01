@@ -1,10 +1,10 @@
 #include "../../Converter.h"
-#include "../Utils/Numeric.h"
+#include "../Utils/Numerics.h"
 #include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
 
-static bool isMemrefLValueWithIndices(clang::Expr *expr) {
+bool isMemrefLValueWithIndices(clang::Expr *expr) {
   clang::Expr *base = expr->IgnoreParenImpCasts();
   if (mlir::isa<clang::ArraySubscriptExpr>(base))
     return true;

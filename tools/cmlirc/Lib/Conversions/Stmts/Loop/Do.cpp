@@ -1,5 +1,5 @@
 #include "../../../Converter.h"
-#include "../../Utils/Casts.h"
+#include "../../Utils/Constants.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
