@@ -173,10 +173,16 @@ struct PromoteSCFForAllocaToIterArgPattern
     rewriter.eraseOp(forOp);
 
     for (mlir::memref::AllocaOp alloca : allocasToPromote) {
+      mlir::Value allocaResult = alloca.getResult();
+
       for (mlir::Operation *user :
-           llvm::make_early_inc_range(alloca->getUsers()))
-        rewriter.eraseOp(user);
-      rewriter.eraseOp(alloca);
+           llvm::make_early_inc_range(allocaResult.getUsers())) {
+        if (user->getBlock() == alloca->getBlock())
+          rewriter.eraseOp(user);
+      }
+
+      if (allocaResult.use_empty())
+        rewriter.eraseOp(alloca);
     }
 
     return mlir::success();
@@ -385,11 +391,16 @@ struct PromoteSCFWhileAllocaToIterArgPattern
     }
 
     rewriter.eraseOp(whileOp);
+
     for (mlir::memref::AllocaOp alloca : allocasToPromote) {
+      mlir::Value allocaResult = alloca.getResult();
       for (mlir::Operation *user :
-           llvm::make_early_inc_range(alloca->getUsers()))
-        rewriter.eraseOp(user);
-      rewriter.eraseOp(alloca);
+           llvm::make_early_inc_range(allocaResult.getUsers())) {
+        if (user->getBlock() == alloca->getBlock())
+          rewriter.eraseOp(user);
+      }
+      if (allocaResult.use_empty())
+        rewriter.eraseOp(alloca);
     }
 
     return mlir::success();
