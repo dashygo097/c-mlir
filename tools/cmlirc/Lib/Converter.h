@@ -8,6 +8,28 @@
 
 namespace cmlirc {
 
+struct SimpleLoopInfo {
+  const clang::VarDecl *inductionVar{nullptr};
+  mlir::Value lowerBound;
+  mlir::Value upperBound;
+  mlir::Value step;
+  bool isIncrementing{true};
+
+  explicit operator bool() const {
+    return inductionVar && lowerBound && upperBound && step;
+  }
+};
+
+struct LoopContext {
+  mlir::Block *headerBlock{nullptr};
+  mlir::Block *exitBlock{nullptr};
+};
+
+struct ArrayAccessInfo {
+  mlir::Value base;
+  llvm::SmallVector<mlir::Value, 4> indices{};
+};
+
 class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
   explicit CMLIRConverter(ContextManager &ctx, LoopHintMap &loopHints)
@@ -37,17 +59,7 @@ public:
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   // loop optimizations
-  struct SimpleLoopInfo {
-    const clang::VarDecl *inductionVar{nullptr};
-    mlir::Value lowerBound;
-    mlir::Value upperBound;
-    mlir::Value step;
-    bool isIncrementing{true};
 
-    explicit operator bool() const {
-      return inductionVar && lowerBound && upperBound && step;
-    }
-  };
   void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
                           mlir::Value ivIndex, mlir::Block *continueBlock,
                           clang::Stmt *body);
@@ -74,20 +86,11 @@ private:
   mlir::func::FuncOp currentFunc;
   mlir::Value *returnValueCapture;
 
-  struct ArrayAccessInfo {
-    mlir::Value base;
-    llvm::SmallVector<mlir::Value, 4> indices{};
-  };
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
-  struct LoopContext {
-    mlir::Block *headerBlock{nullptr};
-    mlir::Block *exitBlock{nullptr};
-  };
   llvm::SmallVector<LoopContext, 4> loopStack;
 
   // helpers
-  [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
   std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,
                                         const clang::FieldDecl *fieldDecl);
 
@@ -99,9 +102,8 @@ private:
   [[nodiscard]] mlir::Type convertTypedefType(const clang::TypedefType *type);
   [[nodiscard]] mlir::Type convertRecordType(const clang::RecordType *type);
 
-  [[nodiscard]] mlir::Value convertToBool(mlir::Value value);
-
   // expr traits
+  [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
   mlir::Value generateExpr(clang::Expr *expr);
 
   // paren
@@ -128,11 +130,16 @@ private:
 
   // unary
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
-  mlir::Value generateIncrementDecrement(clang::Expr *expr, bool isIncrement,
-                                         bool isPrefix);
+  mlir::Value generateAddrOfUnaryOperator(clang::Expr *addrOfOp);
+  mlir::Value generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
+                                          bool isPrefix);
 
   // binary
   mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
+  mlir::Value generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp);
+  mlir::Value generatePureBinaryOperator(clang::BinaryOperator *pureBinOp);
+  mlir::Value generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs);
+  mlir::Value generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs);
 
   // conditional
   mlir::Value generateConditionalOperator(clang::ConditionalOperator *condOp);

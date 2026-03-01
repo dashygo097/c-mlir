@@ -90,7 +90,7 @@ mlir::Value extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
   return {};
 }
 
-void adjustBounds(mlir::OpBuilder &b, mlir::Location loc,
+void adjustBounds(mlir::OpBuilder &builder, mlir::Location loc,
                   clang::BinaryOperatorKind condOp, bool isIncrementing,
                   mlir::Value initVal, mlir::Value condVal, mlir::Value &lb,
                   mlir::Value &ub) {
@@ -98,20 +98,20 @@ void adjustBounds(mlir::OpBuilder &b, mlir::Location loc,
     lb = initVal;
     ub = condVal;
     if (condOp == clang::BO_LE)
-      ub = addInt(b, loc, ub, 1);
+      ub = addInt(builder, loc, ub, 1);
   } else {
     lb = condVal;
     ub = initVal;
     if (condOp == clang::BO_GT) {
-      lb = addInt(b, loc, lb, 1);
-      ub = addInt(b, loc, ub, 1);
+      lb = addInt(builder, loc, lb, 1);
+      ub = addInt(builder, loc, ub, 1);
     } else if (condOp == clang::BO_GE) {
-      ub = addInt(b, loc, ub, 1);
+      ub = addInt(builder, loc, ub, 1);
     }
   }
 }
 
-std::optional<CMLIRConverter::SimpleLoopInfo>
+std::optional<SimpleLoopInfo>
 analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
                mlir::Location loc,
                std::function<mlir::Value(clang::Expr *)> genExpr) {
@@ -150,7 +150,7 @@ analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
   adjustBounds(builder, loc, cond->getOpcode(), isIncrementing, initVal,
                condVal, lb, ub);
 
-  return CMLIRConverter::SimpleLoopInfo{varDecl, lb, ub, step, isIncrementing};
+  return SimpleLoopInfo{varDecl, lb, ub, step, isIncrementing};
 }
 
 } // namespace cmlirc::detail

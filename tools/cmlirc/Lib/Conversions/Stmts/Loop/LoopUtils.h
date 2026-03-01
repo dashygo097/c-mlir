@@ -23,7 +23,7 @@ void adjustBounds(mlir::OpBuilder &b, mlir::Location loc,
                   mlir::Value initVal, mlir::Value condVal, mlir::Value &lb,
                   mlir::Value &ub);
 
-std::optional<CMLIRConverter::SimpleLoopInfo>
+std::optional<SimpleLoopInfo>
 analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
                mlir::Location loc,
                std::function<mlir::Value(clang::Expr *)> genExpr);

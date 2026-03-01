@@ -121,14 +121,15 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
 
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
-      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
-        mlir::Value cond = forStmt->getCond()
-                               ? convertToBool(generateExpr(forStmt->getCond()))
-                               : detail::boolConst(builder, loc, true);
-        mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::Value cond =
+            forStmt->getCond()
+                ? detail::toBool(builder, loc, generateExpr(forStmt->getCond()))
+                : detail::boolConst(b, l, true);
+        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
       },
-      [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::ValueRange args) {
-        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
       });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();

@@ -1,10 +1,19 @@
 add_clang_executable(cmlirc
+  Lib/Conversions/Types/Builtin.cpp
+  Lib/Conversions/Types/Pointer.cpp
+  Lib/Conversions/Types/Array.cpp
+  Lib/Conversions/Types/Typedef.cpp
+  Lib/Conversions/Types/Record.cpp
   Lib/Conversions/Types/Types.cpp
 
+  Lib/Conversions/Exprs/Binary/Assign.cpp
+  Lib/Conversions/Exprs/Binary/Pure.cpp
+  Lib/Conversions/Exprs/Binary/Binary.cpp
+  Lib/Conversions/Exprs/Unary/AddrOf.cpp
+  Lib/Conversions/Exprs/Unary/IncDec.cpp
+  Lib/Conversions/Exprs/Unary/Unary.cpp
   Lib/Conversions/Exprs/Paren.cpp
   Lib/Conversions/Exprs/Literals.cpp
-  Lib/Conversions/Exprs/Unary.cpp
-  Lib/Conversions/Exprs/Binary.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ImplicitCast.cpp
   Lib/Conversions/Exprs/CStyleCast.cpp
@@ -14,6 +23,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/Call.cpp
   Lib/Conversions/Exprs/CXXConstruct.cpp
   Lib/Conversions/Exprs/Member.cpp
+  Lib/Conversions/Exprs/SideEffects.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/CF/If.cpp
@@ -32,8 +42,6 @@ add_clang_executable(cmlirc
   Lib/Conversions/Decls/Var.cpp
   Lib/Conversions/Decls/Function.cpp
   Lib/Conversions/Decls/Record.cpp
-
-  Lib/Conversions/SideEffects.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
   Lib/Context/ContextManager.cpp
