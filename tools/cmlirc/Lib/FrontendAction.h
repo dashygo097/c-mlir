@@ -45,11 +45,8 @@ public:
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());
 
-    if (options::EnableLoopUnroll)
-      pm.addPass(cmlir::createLoopUnrollPass());
-
-    if (options::EnableLoopVectorize)
-      pm.addPass(cmlir::createLoopVectorizePass());
+    pm.addPass(cmlir::createLoopUnrollPass());
+    pm.addPass(cmlir::createLoopVectorizePass());
 
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());

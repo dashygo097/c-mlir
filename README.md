@@ -117,7 +117,7 @@ ninja check-cmlirc
 
 ## Acknowledgement
 
-- [Polygeist](https://github.com/llvm/Polygeist.git)
+- This work is inspired by [Polygeist](https://github.com/llvm/Polygeist.git)
 
 ## License
 

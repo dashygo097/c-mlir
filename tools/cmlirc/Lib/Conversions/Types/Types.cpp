@@ -5,9 +5,8 @@
 
 namespace cmlirc {
 
-mlir::Type CMLIRConverter::convertType(clang::QualType type) {
-  type = type.getCanonicalType();
-  const clang::Type *typePtr = type.getTypePtr();
+mlir::Type CMLIRConverter::convertType(const clang::QualType type) {
+  const clang::Type *typePtr = type.getCanonicalType().getTypePtr();
 
 #define REGISTER_TYPE(type)                                                    \
   if (auto *node = mlir::dyn_cast<clang::type>(typePtr)) {                     \

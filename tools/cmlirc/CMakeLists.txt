@@ -16,13 +16,16 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
-  Lib/Conversions/Stmts/CF/CFUtils.cpp
   Lib/Conversions/Stmts/CF/If.cpp
-  Lib/Conversions/Stmts/CF/For.cpp
-  Lib/Conversions/Stmts/CF/While.cpp
-  Lib/Conversions/Stmts/CF/Do.cpp
   Lib/Conversions/Stmts/CF/Break.cpp
   Lib/Conversions/Stmts/CF/Continue.cpp
+  Lib/Conversions/Stmts/CF/Switch.cpp
+  Lib/Conversions/Stmts/CF/Case.cpp
+  Lib/Conversions/Stmts/CF/Default.cpp
+  Lib/Conversions/Stmts/Loop/LoopUtils.cpp
+  Lib/Conversions/Stmts/Loop/For.cpp
+  Lib/Conversions/Stmts/Loop/While.cpp
+  Lib/Conversions/Stmts/Loop/Do.cpp
   Lib/Conversions/Stmts/Return.cpp
   Lib/Conversions/Stmts/Stmts.cpp
 

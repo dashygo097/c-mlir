@@ -1,6 +1,6 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
-#include "./CFUtils.h"
+#include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
@@ -58,7 +58,7 @@ void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
   auto outerFor = mlir::scf::ForOp::create(builder, loc, info.lowerBound,
                                            outerUB, outerStep);
   {
-    mlir::OpBuilder::InsertionGuard g(builder);
+    mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(outerFor.getBody());
 
     for (int64_t j = 0; j < factor; ++j) {
