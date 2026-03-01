@@ -96,7 +96,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     if (memrefType.getRank() == 0)
       return base;
 
-    lastArrayAccess_ = ArrayAccessInfo{
+    lastArrayAccess = ArrayAccessInfo{
         base, mlir::ValueRange{detail::indexConst(builder, loc, 0)}};
     return base;
   }
@@ -107,7 +107,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
       if (uo->getOpcode() == clang::UO_Deref) {
         mlir::Value inner = generateExpr(uo->getSubExpr());
-        lastArrayAccess_.reset();
+        lastArrayAccess.reset();
         return inner;
       }
     }
@@ -117,12 +117,12 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
       if (!base)
         return nullptr;
 
-      if (!lastArrayAccess_) {
+      if (!lastArrayAccess) {
         llvm::errs() << "AddrOf: array access info not available\n";
         return nullptr;
       }
-      ArrayAccessInfo access = *lastArrayAccess_;
-      lastArrayAccess_.reset();
+      ArrayAccessInfo access = *lastArrayAccess;
+      lastArrayAccess.reset();
 
       auto srcType = mlir::dyn_cast<mlir::MemRefType>(access.base.getType());
       if (!srcType)
@@ -223,9 +223,9 @@ mlir::Value CMLIRConverter::generateIncrementDecrement(clang::Expr *expr,
 
   std::optional<ArrayAccessInfo> access;
   if (isIndexedAccess) {
-    if (lastArrayAccess_) {
-      access = lastArrayAccess_;
-      lastArrayAccess_.reset();
+    if (lastArrayAccess) {
+      access = lastArrayAccess;
+      lastArrayAccess.reset();
     } else {
       llvm::errs() << "Array access info not available\n";
       return nullptr;

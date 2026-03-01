@@ -78,13 +78,13 @@ private:
     mlir::Value base;
     llvm::SmallVector<mlir::Value, 4> indices;
   };
-  std::optional<ArrayAccessInfo> lastArrayAccess_;
+  std::optional<ArrayAccessInfo> lastArrayAccess;
 
   struct LoopContext {
     mlir::Block *headerBlock;
     mlir::Block *exitBlock;
   };
-  llvm::SmallVector<LoopContext, 4> loopStack_;
+  llvm::SmallVector<LoopContext, 4> loopStack;
 
   // side effect analysis
   [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;

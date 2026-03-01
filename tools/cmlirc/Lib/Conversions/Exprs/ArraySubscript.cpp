@@ -41,7 +41,7 @@ CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
     indexValues.push_back(indexValue);
   }
 
-  lastArrayAccess_ = ArrayAccessInfo{base, indexValues};
+  lastArrayAccess = ArrayAccessInfo{base, indexValues};
 
   return base;
 }
