@@ -1,5 +1,6 @@
 #include "../../../Converter.h"
 #include "../../Utils/Constants.h"
+#include "../../Utils/Numerics.h"
 #include "clang/AST/OperationKinds.h"
 
 namespace cmlirc {
@@ -19,14 +20,10 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     mlir::Value v = generateExpr(subExpr);
     if (!v)
       return nullptr;
-    if (mlir::isa<mlir::IntegerType>(v.getType())) {
-      return mlir::arith::SubIOp::create(
-                 builder, loc, detail::intConst(builder, loc, v.getType(), 0),
-                 v)
-          .getResult();
-    }
+    if (mlir::isa<mlir::IntegerType>(v.getType()))
+      return detail::negi(builder, loc, v);
     if (mlir::isa<mlir::FloatType>(v.getType()))
-      return mlir::arith::NegFOp::create(builder, loc, v).getResult();
+      return detail::negf(builder, loc, v);
 
     return nullptr;
   }
@@ -69,11 +66,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     mlir::Value v = generateExpr(subExpr);
     if (!v)
       return nullptr;
-    if (!mlir::isa<mlir::IntegerType>(v.getType()))
-      return nullptr;
-    return mlir::arith::XOrIOp::create(
-               builder, loc, v, detail::intConst(builder, loc, v.getType(), -1))
-        .getResult();
+    return detail::noti(builder, loc, v);
   }
 
   // Dereference

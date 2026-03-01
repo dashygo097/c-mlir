@@ -6,28 +6,47 @@
 
 namespace cmlirc::detail {
 
-inline mlir::Value addInt(mlir::OpBuilder &builder, mlir::Location loc,
-                          mlir::Value value, int64_t amount) {
+// Arithmetic
+inline mlir::Value addi(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value, int64_t amount) {
   mlir::Value amountValue = intConst(builder, loc, value.getType(), amount);
   return emitIntOp<mlir::arith::AddIOp>(builder, loc, value, amountValue);
 }
 
-inline mlir::Value subInt(mlir::OpBuilder &builder, mlir::Location loc,
-                          mlir::Value value, int64_t amount) {
+inline mlir::Value addf(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value, double amount) {
+  mlir::Value amountValue = floatConst(builder, loc, value.getType(), amount);
+  return emitFloatOp<mlir::arith::AddFOp>(builder, loc, value, amountValue);
+}
+
+inline mlir::Value subi(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value, int64_t amount) {
   mlir::Value amountValue = intConst(builder, loc, value.getType(), amount);
   return emitIntOp<mlir::arith::SubIOp>(builder, loc, value, amountValue);
 }
 
-inline mlir::Value addFloat(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Value value, double amount) {
+inline mlir::Value subf(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value, double amount) {
   mlir::Value amountValue = floatConst(builder, loc, value.getType(), amount);
-  return emitIntOp<mlir::arith::AddFOp>(builder, loc, value, amountValue);
+  return emitFloatOp<mlir::arith::SubFOp>(builder, loc, value, amountValue);
 }
 
-inline mlir::Value subFloat(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Value value, double amount) {
-  mlir::Value amountValue = floatConst(builder, loc, value.getType(), amount);
-  return emitIntOp<mlir::arith::SubFOp>(builder, loc, value, amountValue);
+inline mlir::Value negi(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value) {
+  mlir::Value zero = intConst(builder, loc, value.getType(), 0);
+  return emitIntOp<mlir::arith::SubIOp>(builder, loc, zero, value);
+}
+
+inline mlir::Value negf(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value) {
+  return emitFloatOp<mlir::arith::NegFOp>(builder, loc, value);
+}
+
+// Bitwise
+inline mlir::Value noti(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value) {
+  mlir::Value allOnes = intConst(builder, loc, value.getType(), -1);
+  return emitIntOp<mlir::arith::XOrIOp>(builder, loc, value, allOnes);
 }
 
 } // namespace cmlirc::detail

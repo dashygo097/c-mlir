@@ -98,15 +98,15 @@ void adjustBounds(mlir::OpBuilder &builder, mlir::Location loc,
     lb = initVal;
     ub = condVal;
     if (condOp == clang::BO_LE)
-      ub = addInt(builder, loc, ub, 1);
+      ub = addi(builder, loc, ub, 1);
   } else {
     lb = condVal;
     ub = initVal;
     if (condOp == clang::BO_GT) {
-      lb = addInt(builder, loc, lb, 1);
-      ub = addInt(builder, loc, ub, 1);
+      lb = addi(builder, loc, lb, 1);
+      ub = addi(builder, loc, ub, 1);
     } else if (condOp == clang::BO_GE) {
-      ub = addInt(builder, loc, ub, 1);
+      ub = addi(builder, loc, ub, 1);
     }
   }
 }
