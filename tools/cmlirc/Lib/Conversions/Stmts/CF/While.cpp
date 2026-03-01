@@ -26,9 +26,9 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   afterBlock->back().erase();
 
   builder.setInsertionPointToEnd(afterBlock);
-  loopStack_.push_back({&whileOp.getBefore().front(), afterBlock});
+  loopStack.push_back({&whileOp.getBefore().front(), afterBlock});
   TraverseStmt(whileStmt->getBody());
-  loopStack_.pop_back();
+  loopStack.pop_back();
 
   detail::ensureYield(builder, loc, afterBlock);
   builder.setInsertionPointAfter(whileOp);

@@ -23,9 +23,9 @@ void CMLIRConverter::emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
     mlir::memref::StoreOp::create(builder, loc, iv, symbolTable[inductionVar],
                                   mlir::ValueRange{});
 
-  loopStack_.push_back({continueBlock, nullptr});
+  loopStack.push_back({continueBlock, nullptr});
   TraverseStmt(body);
-  loopStack_.pop_back();
+  loopStack.pop_back();
 }
 
 void CMLIRConverter::emitFullyUnrolledLoop(const SimpleLoopInfo &info,
@@ -135,11 +135,11 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   afterBlock->back().erase();
 
   builder.setInsertionPointToEnd(afterBlock);
-  loopStack_.push_back({&whileOp.getBefore().front(), afterBlock});
+  loopStack.push_back({&whileOp.getBefore().front(), afterBlock});
   TraverseStmt(forStmt->getBody());
   if (forStmt->getInc())
     generateExpr(forStmt->getInc());
-  loopStack_.pop_back();
+  loopStack.pop_back();
 
   detail::ensureYield(builder, loc, afterBlock);
   builder.setInsertionPointAfter(whileOp);

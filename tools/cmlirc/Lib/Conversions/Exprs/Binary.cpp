@@ -56,9 +56,9 @@ CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
     mlir::Value memberPtr;
 
     if (isIndexedLHS) {
-      if (lastArrayAccess_) {
-        savedLHSAccess = lastArrayAccess_;
-        lastArrayAccess_.reset();
+      if (lastArrayAccess) {
+        savedLHSAccess = lastArrayAccess;
+        lastArrayAccess.reset();
       } else {
         llvm::errs() << "Failed to get array access info for LHS\n";
         return nullptr;

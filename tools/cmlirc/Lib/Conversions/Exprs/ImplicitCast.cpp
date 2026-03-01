@@ -25,12 +25,12 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
       if (memrefType.hasRank() && memrefType.getRank() == 0) {
         return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
       } else if (memrefType.hasRank() && memrefType.getRank() > 0) {
-        if (lastArrayAccess_ && lastArrayAccess_->base == subValue) {
+        if (lastArrayAccess && lastArrayAccess->base == subValue) {
           mlir::Value result =
-              mlir::memref::LoadOp::create(builder, loc, lastArrayAccess_->base,
-                                           lastArrayAccess_->indices)
+              mlir::memref::LoadOp::create(builder, loc, lastArrayAccess->base,
+                                           lastArrayAccess->indices)
                   .getResult();
-          lastArrayAccess_.reset();
+          lastArrayAccess.reset();
           return result;
         } else {
           return subValue;

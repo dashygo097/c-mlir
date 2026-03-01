@@ -25,9 +25,9 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
   beforeBlock->back().erase();
 
   builder.setInsertionPointToEnd(beforeBlock);
-  loopStack_.push_back({beforeBlock, &whileOp.getAfter().front()});
+  loopStack.push_back({beforeBlock, &whileOp.getAfter().front()});
   TraverseStmt(doStmt->getBody());
-  loopStack_.pop_back();
+  loopStack.pop_back();
 
   mlir::Value cond = doStmt->getCond()
                          ? convertToBool(generateExpr(doStmt->getCond()))

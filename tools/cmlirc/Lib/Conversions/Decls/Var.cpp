@@ -26,7 +26,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
   if (clangType->isPointerType()) {
     if (decl->hasInit()) {
       mlir::Value initValue = generateExpr(decl->getInit());
-      lastArrayAccess_.reset();
+      lastArrayAccess.reset();
       if (initValue)
         symbolTable[decl] = initValue;
     }
