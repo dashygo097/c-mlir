@@ -1,6 +1,7 @@
 #include "./LoopUtils.h"
 #include "../../Utils/Casts.h"
-#include "../../Utils/Numeric.h"
+#include "../../Utils/Constants.h"
+#include "../../Utils/Numerics.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc::detail {

@@ -1,7 +1,7 @@
 #ifndef CMLIRC_NUMERIC_H
 #define CMLIRC_NUMERIC_H
 
-#include "./Casts.h"
+#include "./Constants.h"
 
 namespace cmlirc::detail {
 

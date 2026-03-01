@@ -1,5 +1,6 @@
 #include "../../Converter.h"
-#include "../Utils/Casts.h"
+#include "../Utils/Constants.h"
+#include "../Utils/Operators.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"

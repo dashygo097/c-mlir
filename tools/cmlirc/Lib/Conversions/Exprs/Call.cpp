@@ -35,10 +35,10 @@ mlir::func::FuncOp getOrCreateFunctionDecl(mlir::OpBuilder &builder,
   return funcOp;
 }
 
-static bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::ModuleOp module, const std::string &name,
-                              llvm::ArrayRef<mlir::Value> callArgs,
-                              mlir::Value &outResult) {
+bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::ModuleOp module, const std::string &name,
+                       llvm::ArrayRef<mlir::Value> callArgs,
+                       mlir::Value &outResult) {
   mlir::MLIRContext *ctx = builder.getContext();
 
   auto i32 = mlir::IntegerType::get(ctx, 32);

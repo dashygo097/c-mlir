@@ -2,38 +2,8 @@
 #define CMLIRC_CASTS_H
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinAttributes.h"
 
 namespace cmlirc::detail {
-inline mlir::Value indexConst(mlir::OpBuilder &builder, mlir::Location loc,
-                              int64_t value) {
-  return mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
-                                         builder.getIndexAttr(value))
-      .getResult();
-}
-
-inline mlir::Value boolConst(mlir::OpBuilder &builder, mlir::Location loc,
-                             bool value) {
-  return mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                         builder.getBoolAttr(value))
-      .getResult();
-}
-
-inline mlir::Value intConst(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Type type, int64_t value) {
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getIntegerAttr(type, value))
-      .getResult();
-}
-
-inline mlir::Value floatConst(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Type type, double value) {
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getFloatAttr(type, value))
-      .getResult();
-}
-
 inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
                            mlir::Value value) {
   if (value.getType().isIndex())
@@ -50,7 +20,7 @@ inline mlir::Value toIndex(mlir::OpBuilder &builder, mlir::Location loc,
       .getResult();
 }
 
-inline std::optional<int64_t> getConstantInt(mlir::Value value) {
+inline std::optional<int64_t> getInt(mlir::Value value) {
   while (auto cast = value.getDefiningOp<mlir::arith::IndexCastOp>())
     value = cast.getIn();
 
@@ -59,6 +29,72 @@ inline std::optional<int64_t> getConstantInt(mlir::Value value) {
       return ia.getInt();
 
   return std::nullopt;
+}
+
+inline std::optional<double> getFloat(mlir::Value value) {
+  while (auto cast = value.getDefiningOp<mlir::arith::IndexCastOp>())
+    value = cast.getIn();
+
+  if (auto c = value.getDefiningOp<mlir::arith::ConstantOp>())
+    if (auto fa = mlir::dyn_cast<mlir::FloatAttr>(c.getValue()))
+      return fa.getValueAsDouble();
+
+  return std::nullopt;
+}
+
+inline mlir::Value promoteValue(mlir::OpBuilder &b, mlir::Location loc,
+                                mlir::Value value, mlir::Type targetType,
+                                bool isSigned) {
+  mlir::Type srcType = value.getType();
+  if (srcType == targetType)
+    return value;
+
+  auto srcInt = mlir::dyn_cast<mlir::IntegerType>(srcType);
+  auto dstInt = mlir::dyn_cast<mlir::IntegerType>(targetType);
+  auto srcFlt = mlir::dyn_cast<mlir::FloatType>(srcType);
+  auto dstFlt = mlir::dyn_cast<mlir::FloatType>(targetType);
+
+  // int → wider int
+  if (srcInt && dstInt && srcInt.getWidth() < dstInt.getWidth())
+    return isSigned ? mlir::arith::ExtSIOp::create(b, loc, targetType, value)
+                          .getResult()
+                    : mlir::arith::ExtUIOp::create(b, loc, targetType, value)
+                          .getResult();
+
+  // float → wider float
+  if (srcFlt && dstFlt && srcFlt.getWidth() < dstFlt.getWidth())
+    return mlir::arith::ExtFOp::create(b, loc, targetType, value).getResult();
+
+  // int → float
+  if (srcInt && dstFlt)
+    return isSigned ? mlir::arith::SIToFPOp::create(b, loc, targetType, value)
+                          .getResult()
+                    : mlir::arith::UIToFPOp::create(b, loc, targetType, value)
+                          .getResult();
+
+  return value;
+}
+
+inline mlir::Value truncateValue(mlir::OpBuilder &b, mlir::Location loc,
+                                 mlir::Value value, mlir::Type targetType) {
+  mlir::Type srcType = value.getType();
+  if (srcType == targetType)
+    return value;
+
+  auto srcInt = mlir::dyn_cast<mlir::IntegerType>(srcType);
+  auto dstInt = mlir::dyn_cast<mlir::IntegerType>(targetType);
+  auto srcFlt = mlir::dyn_cast<mlir::FloatType>(srcType);
+  auto dstFlt = mlir::dyn_cast<mlir::FloatType>(targetType);
+
+  // wider int → int
+  if (srcInt && dstInt && srcInt.getWidth() > dstInt.getWidth())
+    return mlir::arith::TruncIOp::create(b, loc, targetType, value).getResult();
+
+  // wider float → float
+  if (srcFlt && dstFlt && srcFlt.getWidth() > dstFlt.getWidth())
+    return mlir::arith::TruncFOp::create(b, loc, targetType, value).getResult();
+
+  return value;
 }
 
 } // namespace cmlirc::detail

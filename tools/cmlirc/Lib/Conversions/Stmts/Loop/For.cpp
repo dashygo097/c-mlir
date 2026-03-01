@@ -1,5 +1,6 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
+#include "../../Utils/Constants.h"
 #include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
@@ -171,9 +172,9 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
 
   if (hintIt != loop_hints_.end()) {
     const LoopHints &h = hintIt->second;
-    auto lb = detail::getConstantInt(info->lowerBound);
-    auto ub = detail::getConstantInt(info->upperBound);
-    auto st = detail::getConstantInt(info->step);
+    auto lb = detail::getInt(info->lowerBound);
+    auto ub = detail::getInt(info->upperBound);
+    auto st = detail::getInt(info->step);
 
     if (lb && ub && st && *st > 0) {
       int64_t tripCount = (*ub - *lb + *st - 1) / *st;
