@@ -27,6 +27,22 @@ mlir::Value emitIntOp(mlir::OpBuilder &builder, mlir::Location loc,
   return nullptr;
 }
 
+template <typename FloatOp>
+mlir::Value emitFloatOp(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value) {
+  if (mlir::isa<mlir::FloatType>(value.getType()))
+    return FloatOp::create(builder, loc, value).getResult();
+  return nullptr;
+}
+
+template <typename FloatOp>
+mlir::Value emitFloatOp(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value lhs, mlir::Value rhs) {
+  if (mlir::isa<mlir::FloatType>(lhs.getType()))
+    return FloatOp::create(builder, loc, lhs, rhs).getResult();
+  return nullptr;
+}
+
 inline mlir::Value emitCmpOp(mlir::OpBuilder &builder, mlir::Location loc,
                              mlir::arith::CmpIPredicate iPred,
                              mlir::arith::CmpFPredicate fPred, mlir::Value lhs,

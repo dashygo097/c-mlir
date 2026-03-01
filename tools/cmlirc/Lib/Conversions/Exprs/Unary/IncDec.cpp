@@ -17,11 +17,11 @@ bool isIndexedLValue(clang::Expr *expr) {
 mlir::Value applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value value, bool isIncrement) {
   if (mlir::isa<mlir::IntegerType>(value.getType()))
-    return isIncrement ? detail::addInt(builder, loc, value, 1)
-                       : detail::subInt(builder, loc, value, 1);
+    return isIncrement ? detail::addi(builder, loc, value, 1)
+                       : detail::subi(builder, loc, value, 1);
   if (mlir::isa<mlir::FloatType>(value.getType()))
-    return isIncrement ? detail::addFloat(builder, loc, value, 1.0)
-                       : detail::subFloat(builder, loc, value, 1.0);
+    return isIncrement ? detail::addf(builder, loc, value, 1.0)
+                       : detail::subf(builder, loc, value, 1.0);
   llvm::errs() << "cmlirc: unsupported type for increment/decrement\n";
   return nullptr;
 }
