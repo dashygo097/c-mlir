@@ -36,17 +36,20 @@ public:
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
 
-    if (options::EnableLoopUnroll)
-      pm.addPass(cmlir::createLoopUnrollPass());
-
-    if (options::EnableLoopVectorize)
-      pm.addPass(cmlir::createLoopVectorizePass());
-
     if (options::Canonicalize)
       pm.addPass(mlir::createCanonicalizerPass());
 
     if (options::CSE)
       pm.addPass(mlir::createCSEPass());
+
+    if (options::SymbolDCE)
+      pm.addPass(mlir::createSymbolDCEPass());
+
+    if (options::EnableLoopUnroll)
+      pm.addPass(cmlir::createLoopUnrollPass());
+
+    if (options::EnableLoopVectorize)
+      pm.addPass(cmlir::createLoopVectorizePass());
 
     if (options::SymbolDCE)
       pm.addPass(mlir::createSymbolDCEPass());
@@ -59,6 +62,15 @@ public:
 
     if (options::SSCP)
       pm.addPass(mlir::createSCCPPass());
+
+    if (options::ControlFlowSink)
+      pm.addPass(mlir::createControlFlowSinkPass());
+
+    if (options::Canonicalize)
+      pm.addPass(mlir::createCanonicalizerPass());
+
+    if (options::CSE)
+      pm.addPass(mlir::createCSEPass());
 
     if (options::Struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
