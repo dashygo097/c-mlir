@@ -86,13 +86,12 @@ private:
   llvm::DenseMap<const clang::RecordDecl *,
                  std::vector<const clang::FieldDecl *>>
       recordFieldTable;
+
   mlir::func::FuncOp currentFunc;
   mlir::Value *returnValueCapture;
-
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
   llvm::SmallVector<LoopContext, 4> loopStack;
-
   llvm::SmallVector<BreakTarget, 4> breakStack;
 
   // helpers
