@@ -1,6 +1,6 @@
 // RUN: split-file %s %t
-// RUN: cmlirc %t/init_vla0.cpp --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK0
-// RUN: cmlirc %t/init_vla1.cpp --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK1
+// RUN: cmlirc %t/init_vla0.cpp | FileCheck %s --check-prefix=CHECK0
+// RUN: cmlirc %t/init_vla1.cpp | FileCheck %s --check-prefix=CHECK1
 
 //--- init_vla0.cpp
 int init_vla(int n) {

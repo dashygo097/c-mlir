@@ -1,7 +1,7 @@
 // RUN: split-file %s %t
 
-// RUN: cmlirc %t/dist2.c --mem2reg --canonicalize --cse --licm --sscp --symdce --const-prop | FileCheck %s --check-prefix=CHECK
-// RUN: cmlirc %t/dist2_struct2memref.c --mem2reg --canonicalize --cse --licm --sscp --symdce --const-prop --struct-to-memref | FileCheck %s --check-prefix=CHECKMEMREF
+// RUN: cmlirc %t/dist2.c | FileCheck %s --check-prefix=CHECK
+// RUN: cmlirc %t/dist2_struct2memref.c --struct-to-memref | FileCheck %s --check-prefix=CHECKMEMREF
 
 //--- dist2.c
 struct Point {

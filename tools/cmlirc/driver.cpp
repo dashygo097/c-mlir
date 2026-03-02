@@ -33,57 +33,14 @@ llvm::cl::opt<std::string>
 
 // Passes
 llvm::cl::opt<bool>
-    ControlFlowSink("control-flow-sink", llvm::cl::init(false),
-                    llvm::cl::desc("Enable control flow sinking"),
-                    llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    CSE("cse", llvm::cl::init(false),
-        llvm::cl::desc("Enable common subexpression elimination (CSE)"),
-        llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    SymbolDCE("symdce", llvm::cl::init(false),
-              llvm::cl::desc("Enable symbol dead code elimination"),
-              llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool> Canonicalize("canonicalize", llvm::cl::init(false),
-                                 llvm::cl::desc("Enable canonicalization"),
-                                 llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
-                               llvm::cl::desc("Enable function inlining"),
-                               llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    ConstProp("const-prop", llvm::cl::init(false),
-              llvm::cl::desc("Enable constant propagation (const-prop)"),
-              llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    SSCP("sscp", llvm::cl::init(false),
-         llvm::cl::desc("Enable sparse simple constant propagation (SSCP)"),
-         llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
     Struct2Memref("struct-to-memref", llvm::cl::init(false),
                   llvm::cl::desc("Enable struct to memref promotion"),
                   llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    Mem2Reg("mem2reg", llvm::cl::init(false),
-            llvm::cl::desc("Enable memory to register promotion (mem2reg)"),
-            llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool> RaiseSCF2Affine("raise-scf-to-affine",
                                     llvm::cl::init(false),
                                     llvm::cl::desc("Raise scf to affine"),
                                     llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
-    LICM("licm", llvm::cl::init(false),
-         llvm::cl::desc("Enable loop-invariant code motion (LICM)"),
-         llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool> FMA("fma", llvm::cl::init(false),
                         llvm::cl::desc("Enable fused multiply-add (FMA)"),

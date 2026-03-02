@@ -1,7 +1,7 @@
 // RUN: split-file %s %t
 
-// RUN: cmlirc %t/reduce_sum.c -function=reduce_sum64 --mem2reg --symdce --cse --canonicalize --licm --sscp | FileCheck %s
-// RUN: cmlirc %t/reduce_sum_loop_unroll.c -function=reduce_sum64 --mem2reg --symdce --cse --canonicalize --licm --sscp | FileCheck %s --check-prefix=CHECKUNROLL
+// RUN: cmlirc %t/reduce_sum.c -function=reduce_sum64 | FileCheck %s
+// RUN: cmlirc %t/reduce_sum_loop_unroll.c -function=reduce_sum64 | FileCheck %s --check-prefix=CHECKUNROLL
 
 //--- reduce_sum.c
 float reduce_sum64(float a[64]) {

@@ -1,7 +1,7 @@
 // RUN: split-file %s %t
 
 // RUN: cmlirc %t/pre_decrement.c | FileCheck %s --check-prefix=CHECKPRE
-// RUN: cmlirc %t/post_decrement.c --canonicalize | FileCheck %s --check-prefix=CHECKPOST
+// RUN: cmlirc %t/post_decrement.c | FileCheck %s --check-prefix=CHECKPOST
 
 //--- pre_decrement.c
 int pre_decrement(int a) { return --a; }

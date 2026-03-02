@@ -1,4 +1,4 @@
-// RUN: cmlirc %s --mem2reg --canonicalize --cse --licm --sscp --symdce --const-prop --fma | FileCheck %s
+// RUN: cmlirc %s --fma | FileCheck %s
 
 float fma(float a, float b, float c) {
   return a * b + c;

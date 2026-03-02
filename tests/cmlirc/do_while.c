@@ -1,4 +1,4 @@
-// RUN: cmlirc %s -function=do_while --canonicalize --cse --symdce --mem2reg --const-prop | FileCheck %s
+// RUN: cmlirc %s -function=do_while | FileCheck %s
 
 int do_while() {
   int i = 0;

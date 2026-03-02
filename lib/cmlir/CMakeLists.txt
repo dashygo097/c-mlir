@@ -3,6 +3,7 @@ add_mlir_dialect_library(cmlir
   Transforms/ConstProp.cc
   Transforms/FMA.cc
   Transforms/Struct2Memref.cc
+  Transforms/FlattenCond.cc
   Transforms/LoopUnroll.cc
   Transforms/LoopVectorize.cc
   Transforms/RaiseSCF2Affine.cc

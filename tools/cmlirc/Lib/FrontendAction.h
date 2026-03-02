@@ -36,76 +36,30 @@ public:
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
 
-    if (options::Canonicalize)
-      pm.addPass(mlir::createCanonicalizerPass());
-
-    if (options::CSE)
-      pm.addPass(mlir::createCSEPass());
-
-    if (options::SymbolDCE)
-      pm.addPass(mlir::createSymbolDCEPass());
-
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
+    pm.addPass(mlir::createSymbolDCEPass());
     pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(cmlir::createLoopVectorizePass());
-
-    if (options::SymbolDCE)
-      pm.addPass(mlir::createSymbolDCEPass());
-
-    if (options::FuncInline)
-      pm.addPass(mlir::createInlinerPass());
-
-    if (options::ConstProp)
-      pm.addPass(cmlir::createConstPropPass());
-
-    if (options::SSCP)
-      pm.addPass(mlir::createSCCPPass());
-
-    if (options::ControlFlowSink)
-      pm.addPass(mlir::createControlFlowSinkPass());
-
-    if (options::Canonicalize)
-      pm.addPass(mlir::createCanonicalizerPass());
-
-    if (options::CSE)
-      pm.addPass(mlir::createCSEPass());
-
+    pm.addPass(cmlir::createConstPropPass());
+    pm.addPass(mlir::createSCCPPass());
+    pm.addPass(mlir::createControlFlowSinkPass());
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
     if (options::Struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
-
-    if (options::Mem2Reg) {
-      pm.addPass(mlir::createMem2Reg());
-      pm.addPass(cmlir::createMem2RegPass());
-    }
-
-    if (options::ConstProp)
-      pm.addPass(cmlir::createConstPropPass());
-
+    pm.addPass(mlir::createMem2Reg());
+    pm.addPass(cmlir::createMem2RegPass());
+    pm.addPass(cmlir::createFlattenCondPass());
+    pm.addPass(cmlir::createConstPropPass());
     if (options::RaiseSCF2Affine)
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
-
     if (options::FMA)
       pm.addPass(cmlir::createFMAPass());
-
-    if (options::Canonicalize)
-      pm.addPass(mlir::createCanonicalizerPass());
-
-    if (options::CSE)
-      pm.addPass(mlir::createCSEPass());
-
-    if (options::SymbolDCE)
-      pm.addPass(mlir::createSymbolDCEPass());
-
-    if (options::LICM)
-      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-
-    if (options::Canonicalize)
-      pm.addPass(mlir::createCanonicalizerPass());
-
-    if (options::CSE)
-      pm.addPass(mlir::createCSEPass());
-
-    if (options::SymbolDCE)
-      pm.addPass(mlir::createSymbolDCEPass());
+    pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
+    pm.addPass(mlir::createSymbolDCEPass());
 
     if (mlir::failed(pm.run(context_manager_->Module())))
       llvm::errs() << "Failed to run optimization passes\n";
