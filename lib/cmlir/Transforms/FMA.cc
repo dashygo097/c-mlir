@@ -9,11 +9,6 @@
 
 namespace cmlir {
 
-// %0 = memref.alloca() : memref<4x4xf32>
-// %1 = memref.load %0[%i, %j] : memref<4x4xf32>
-// =>
-// %0 = memref.alloca() : memref<4x4xf32>
-// %1 = affine.load %0[%i, %j] : memref<4x4xf32>
 struct FuseMultiplyAddPattern
     : public mlir::OpRewritePattern<mlir::arith::AddFOp> {
   using mlir::OpRewritePattern<mlir::arith::AddFOp>::OpRewritePattern;
