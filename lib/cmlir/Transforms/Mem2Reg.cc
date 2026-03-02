@@ -434,7 +434,6 @@ struct ForwardStoreToLoadPattern
     }
 
     // FIXME: We could handle multiple stores if they are in different blocks
-    // and the
     if (stores.size() != 1)
       return mlir::failure();
 
