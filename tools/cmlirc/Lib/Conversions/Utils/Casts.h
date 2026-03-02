@@ -63,7 +63,7 @@ inline std::optional<double> getFloat(mlir::Value value) {
   return std::nullopt;
 }
 
-inline mlir::Value promoteValue(mlir::OpBuilder &b, mlir::Location loc,
+inline mlir::Value promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value value, mlir::Type targetType,
                                 bool isSigned) {
   mlir::Type srcType = value.getType();
@@ -77,26 +77,29 @@ inline mlir::Value promoteValue(mlir::OpBuilder &b, mlir::Location loc,
 
   // int → wider int
   if (srcInt && dstInt && srcInt.getWidth() < dstInt.getWidth())
-    return isSigned ? mlir::arith::ExtSIOp::create(b, loc, targetType, value)
-                          .getResult()
-                    : mlir::arith::ExtUIOp::create(b, loc, targetType, value)
-                          .getResult();
+    return isSigned
+               ? mlir::arith::ExtSIOp::create(builder, loc, targetType, value)
+                     .getResult()
+               : mlir::arith::ExtUIOp::create(builder, loc, targetType, value)
+                     .getResult();
 
   // float → wider float
   if (srcFlt && dstFlt && srcFlt.getWidth() < dstFlt.getWidth())
-    return mlir::arith::ExtFOp::create(b, loc, targetType, value).getResult();
+    return mlir::arith::ExtFOp::create(builder, loc, targetType, value)
+        .getResult();
 
   // int → float
   if (srcInt && dstFlt)
-    return isSigned ? mlir::arith::SIToFPOp::create(b, loc, targetType, value)
-                          .getResult()
-                    : mlir::arith::UIToFPOp::create(b, loc, targetType, value)
-                          .getResult();
+    return isSigned
+               ? mlir::arith::SIToFPOp::create(builder, loc, targetType, value)
+                     .getResult()
+               : mlir::arith::UIToFPOp::create(builder, loc, targetType, value)
+                     .getResult();
 
   return value;
 }
 
-inline mlir::Value truncateValue(mlir::OpBuilder &b, mlir::Location loc,
+inline mlir::Value truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
                                  mlir::Value value, mlir::Type targetType) {
   mlir::Type srcType = value.getType();
   if (srcType == targetType)
@@ -109,11 +112,13 @@ inline mlir::Value truncateValue(mlir::OpBuilder &b, mlir::Location loc,
 
   // wider int → int
   if (srcInt && dstInt && srcInt.getWidth() > dstInt.getWidth())
-    return mlir::arith::TruncIOp::create(b, loc, targetType, value).getResult();
+    return mlir::arith::TruncIOp::create(builder, loc, targetType, value)
+        .getResult();
 
   // wider float → float
   if (srcFlt && dstFlt && srcFlt.getWidth() > dstFlt.getWidth())
-    return mlir::arith::TruncFOp::create(b, loc, targetType, value).getResult();
+    return mlir::arith::TruncFOp::create(builder, loc, targetType, value)
+        .getResult();
 
   return value;
 }
