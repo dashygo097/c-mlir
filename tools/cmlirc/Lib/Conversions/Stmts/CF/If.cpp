@@ -28,9 +28,8 @@ bool branchEndsWithReturn(clang::Stmt *stmt) {
 }
 
 bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
-  if (!currentFunc) {
+  if (!currentFunc)
     return true;
-  }
 
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -50,9 +49,8 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   bool isNested = (returnValueCapture != nullptr);
 
   llvm::SmallVector<mlir::Type, 1> resultTypes;
-  if (bothReturn && currentFunc.getFunctionType().getNumResults() > 0) {
+  if (bothReturn && currentFunc.getFunctionType().getNumResults() > 0)
     resultTypes.push_back(currentFunc.getFunctionType().getResult(0));
-  }
 
   auto ifOp = mlir::scf::IfOp::create(
       builder, loc, mlir::TypeRange{resultTypes}, condBool, hasElse);
@@ -62,9 +60,8 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
 
   mlir::Value thenReturnValue = nullptr;
   mlir::Value *savedReturnCapture = returnValueCapture;
-  if (bothReturn) {
+  if (bothReturn)
     returnValueCapture = &thenReturnValue;
-  }
 
   TraverseStmt(ifStmt->getThen());
 
@@ -74,20 +71,18 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
 
   if (thenBlock->empty() ||
       !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-    if (bothReturn && thenReturnValue) {
+    if (bothReturn && thenReturnValue)
       mlir::scf::YieldOp::create(builder, loc, thenReturnValue);
-    } else {
+    else
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-    }
   } else if (bothReturn && mlir::isa<mlir::func::ReturnOp>(thenBlock->back())) {
     auto returnOp = llvm::cast<mlir::func::ReturnOp>(thenBlock->back());
     mlir::ValueRange returnOperands = returnOp.getOperands();
     returnOp.erase();
-    if (!returnOperands.empty()) {
+    if (!returnOperands.empty())
       mlir::scf::YieldOp::create(builder, loc, returnOperands[0]);
-    } else {
+    else
       mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-    }
   }
 
   if (hasElse) {
@@ -96,9 +91,8 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
 
     mlir::Value elseReturnValue = nullptr;
     savedReturnCapture = returnValueCapture;
-    if (bothReturn) {
+    if (bothReturn)
       returnValueCapture = &elseReturnValue;
-    }
 
     TraverseStmt(ifStmt->getElse());
 
@@ -108,32 +102,29 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
 
     if (elseBlock->empty() ||
         !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      if (bothReturn && elseReturnValue) {
+      if (bothReturn && elseReturnValue)
         mlir::scf::YieldOp::create(builder, loc, elseReturnValue);
-      } else {
+      else
         mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-      }
     } else if (bothReturn &&
                mlir::isa<mlir::func::ReturnOp>(elseBlock->back())) {
       auto returnOp = llvm::cast<mlir::func::ReturnOp>(elseBlock->back());
       mlir::ValueRange returnOperands = returnOp.getOperands();
       returnOp.erase();
-      if (!returnOperands.empty()) {
+      if (!returnOperands.empty())
         mlir::scf::YieldOp::create(builder, loc, returnOperands[0]);
-      } else {
+      else
         mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-      }
     }
   }
 
   builder.setInsertionPointAfter(ifOp);
 
   if (bothReturn && ifOp.getNumResults() > 0) {
-    if (isNested && savedReturnCapture) {
+    if (isNested && savedReturnCapture)
       *savedReturnCapture = ifOp.getResult(0);
-    } else {
+    else
       mlir::func::ReturnOp::create(builder, loc, ifOp.getResult(0));
-    }
   }
 
   return true;
