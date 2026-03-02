@@ -97,7 +97,11 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
       return nullptr;
 
     // Truncate back to the LHS storage type if computation widened it.
-    resultValue = detail::truncateValue(builder, loc, computed, lhsType);
+    if (auto *compOp = mlir::dyn_cast<clang::CompoundAssignOperator>(binOp)) {
+      bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
+      resultValue =
+          detail::truncateValue(builder, loc, computed, lhsType, isSigned);
+    }
   }
 
   // Store result

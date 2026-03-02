@@ -30,8 +30,6 @@ add_clang_executable(cmlirc
   Lib/Conversions/Stmts/CF/Break.cpp
   Lib/Conversions/Stmts/CF/Continue.cpp
   Lib/Conversions/Stmts/CF/Switch.cpp
-  Lib/Conversions/Stmts/CF/Case.cpp
-  Lib/Conversions/Stmts/CF/Default.cpp
   Lib/Conversions/Stmts/Loop/LoopUtils.cpp
   Lib/Conversions/Stmts/Loop/For.cpp
   Lib/Conversions/Stmts/Loop/While.cpp
@@ -60,6 +58,7 @@ target_link_libraries(cmlirc PRIVATE
   MLIRArithDialect
   MLIRFuncDialect
   MLIRMemRefDialect
+  MLIRControlFlowDialect
   MLIRSCFDialect 
   MLIRSCFTransforms
   MLIRMathDialect
