@@ -48,7 +48,6 @@ public:
     pm.addPass(mlir::createCSEPass());
     if (options::Struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
-    pm.addPass(cmlir::createFlattenCondPass());
     pm.addPass(cmlir::createConstPropPass());
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(cmlir::createMem2RegPass());

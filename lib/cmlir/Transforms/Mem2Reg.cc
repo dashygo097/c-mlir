@@ -24,98 +24,6 @@ static bool isPromotable(mlir::memref::AllocaOp alloca) {
   return true;
 }
 
-// %alloca = memref.alloca() : memref<i32>
-// memref.store %init, %alloca[]
-// %r1 = scf.if %c1 -> (i32) { yield %a } else { %v = load %alloca[]; yield %v
-// } memref.store %r1, %alloca[] %r2 = scf.if %c2 -> (i32) { yield %b } else {
-// %v = load %alloca[]; yield %v } memref.store %r2, %alloca[] %final =
-// memref.load %alloca[] return %final
-// =>
-// %r1 = arith.select %c1, %a, %init
-// %r2 = arith.select %c2, %b, %r1
-// return %r2
-struct PromoteSCFIfAllocaToSelectPattern
-    : public mlir::OpRewritePattern<mlir::memref::AllocaOp> {
-  using mlir::OpRewritePattern<mlir::memref::AllocaOp>::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::memref::AllocaOp alloca,
-                  mlir::PatternRewriter &rewriter) const override {
-
-    if (!isScalarMemRef(alloca.getType()))
-      return mlir::failure();
-
-    mlir::Block *parentBlock = alloca->getBlock();
-
-    mlir::memref::StoreOp initStore;
-    for (mlir::Operation *user : alloca->getUsers()) {
-      auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user);
-      if (store && store->getBlock() == parentBlock) {
-        initStore = store;
-        break;
-      }
-    }
-    if (!initStore)
-      return mlir::failure();
-
-    mlir::Value currentSSAVal = initStore.getValue();
-
-    bool changed = false;
-
-    for (mlir::Operation &op :
-         llvm::make_early_inc_range(parentBlock->getOperations())) {
-      if (&op == alloca.getOperation() || &op == initStore.getOperation())
-        continue;
-
-      if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
-        if (load.getMemRef() == alloca.getResult()) {
-          rewriter.replaceOp(load, currentSSAVal);
-          changed = true;
-        }
-        continue;
-      }
-
-      if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
-        if (store.getMemRef() == alloca.getResult()) {
-          currentSSAVal = store.getValue();
-          rewriter.eraseOp(store);
-          changed = true;
-        }
-        continue;
-      }
-
-      if (auto ifOp = mlir::dyn_cast<mlir::scf::IfOp>(&op)) {
-        if (!ifOp.elseBlock())
-          continue;
-        ifOp.getElseRegion().walk([&](mlir::memref::LoadOp nestedLoad) {
-          if (nestedLoad.getMemRef() == alloca.getResult())
-            rewriter.replaceOp(nestedLoad, currentSSAVal);
-        });
-        ifOp.getThenRegion().walk([&](mlir::memref::LoadOp nestedLoad) {
-          if (nestedLoad.getMemRef() == alloca.getResult())
-            rewriter.replaceOp(nestedLoad, currentSSAVal);
-        });
-        continue;
-      }
-    }
-
-    if (!changed)
-      return mlir::failure();
-
-    bool hasRemainingStores =
-        llvm::any_of(alloca->getUsers(), [](mlir::Operation *u) {
-          return mlir::isa<mlir::memref::StoreOp>(u);
-        });
-    if (!hasRemainingStores) {
-      rewriter.eraseOp(initStore);
-      if (alloca->use_empty())
-        rewriter.eraseOp(alloca);
-    }
-
-    return mlir::success();
-  }
-};
-
 struct PromoteSCFForAllocaToIterArgPattern
     : public mlir::OpRewritePattern<mlir::scf::ForOp> {
   using mlir::OpRewritePattern<mlir::scf::ForOp>::OpRewritePattern;
@@ -546,7 +454,6 @@ struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
-    patterns.add<PromoteSCFIfAllocaToSelectPattern>(op->getContext());
     patterns.add<PromoteSCFForAllocaToIterArgPattern>(op->getContext());
     patterns.add<PromoteSCFWhileAllocaToIterArgPattern>(op->getContext());
     patterns.add<ForwardStoreToLoadPattern>(op->getContext());
