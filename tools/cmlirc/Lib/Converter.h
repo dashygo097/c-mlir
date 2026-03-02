@@ -30,6 +30,12 @@ struct ArrayAccessInfo {
   llvm::SmallVector<mlir::Value, 4> indices{};
 };
 
+enum class BreakTargetKind { ScfYield, CfBranch };
+struct BreakTarget {
+  BreakTargetKind kind;
+  mlir::Block *block{nullptr};
+};
+
 class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
   explicit CMLIRConverter(ContextManager &ctx, LoopHintMap &loopHints)
@@ -54,7 +60,7 @@ public:
   bool TraverseDoStmt(clang::DoStmt *doStmt);
   bool TraverseForStmt(clang::ForStmt *forStmt);
   bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
-  bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
+  // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   // loop optimizations
 
@@ -87,6 +93,8 @@ private:
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
   llvm::SmallVector<LoopContext, 4> loopStack;
+
+  llvm::SmallVector<BreakTarget, 4> breakStack;
 
   // helpers
   std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,

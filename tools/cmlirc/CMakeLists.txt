@@ -58,7 +58,6 @@ target_link_libraries(cmlirc PRIVATE
   MLIRArithDialect
   MLIRFuncDialect
   MLIRMemRefDialect
-  MLIRControlFlowDialect
   MLIRSCFDialect 
   MLIRSCFTransforms
   MLIRMathDialect
