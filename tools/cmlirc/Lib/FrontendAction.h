@@ -50,13 +50,17 @@ public:
       pm.addPass(cmlir::createStruct2MemrefPass());
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(cmlir::createMem2RegPass());
-    pm.addPass(cmlir::createFlattenCondPass());
     pm.addPass(cmlir::createConstPropPass());
+    pm.addPass(cmlir::createFlattenCondPass());
+    pm.addPass(mlir::createMem2Reg());
+    pm.addPass(cmlir::createMem2RegPass());
     if (options::RaiseSCF2Affine)
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
     if (options::FMA)
       pm.addPass(cmlir::createFMAPass());
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+    pm.addPass(mlir::createMem2Reg());
+    pm.addPass(cmlir::createMem2RegPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createSymbolDCEPass());
