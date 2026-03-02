@@ -11,9 +11,8 @@ struct SwitchArm {
   bool isDefault{false};
 };
 
-static void collectArms(clang::SwitchStmt *sw,
-                        llvm::SmallVector<SwitchArm> &arms,
-                        clang::ASTContext &ctx) {
+void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
+                 clang::ASTContext &ctx) {
   auto *body = llvm::dyn_cast_or_null<clang::CompoundStmt>(sw->getBody());
   if (!body)
     return;
@@ -60,7 +59,7 @@ bool armFallsThrough(const SwitchArm &arm) {
 }
 
 // Detect continue anywhere in stmt tree (doesn't recurse into nested loops)
-static bool stmtHasContinue(clang::Stmt *s, int depth = 0) {
+bool stmtHasContinue(clang::Stmt *s, int depth = 0) {
   if (!s)
     return false;
   if (llvm::isa<clang::ContinueStmt>(s))
@@ -75,9 +74,9 @@ static bool stmtHasContinue(clang::Stmt *s, int depth = 0) {
 }
 
 // Emit one region (case or default)
-static bool emitSwitchRegion(CMLIRConverter &conv, mlir::OpBuilder &builder,
-                             mlir::Location loc, mlir::Region &region,
-                             llvm::ArrayRef<clang::Stmt *> stmts) {
+bool emitSwitchRegion(CMLIRConverter &conv, mlir::OpBuilder &builder,
+                      mlir::Location loc, mlir::Region &region,
+                      llvm::ArrayRef<clang::Stmt *> stmts) {
   // Ensure region has an entry block
   if (region.empty())
     region.push_back(new mlir::Block());

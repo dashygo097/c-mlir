@@ -27,6 +27,8 @@ bool branchEndsWithReturn(clang::Stmt *stmt) {
   return false;
 }
 
+// FIXME: Only support either non-return or both return in thenBlock and
+// elseBlock
 bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   if (!currentFunc)
     return true;
