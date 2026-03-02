@@ -6,12 +6,13 @@ mlir::Value
 CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
-  clang::CastKind castKind = castExpr->getCastKind();
   clang::Expr *subExpr = castExpr->getSubExpr();
 
   mlir::Type targetType = convertType(castExpr->getType());
 
-  switch (castKind) {
+  using CK = clang::CastKind;
+
+  switch (castExpr->getCastKind()) {
   case clang::CK_IntegralToFloating: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
@@ -25,7 +26,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
           .getResult();
   }
 
-  case clang::CK_FloatingToIntegral: {
+  case CK::CK_FloatingToIntegral: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -38,7 +39,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
           .getResult();
   }
 
-  case clang::CK_IntegralCast: {
+  case CK::CK_IntegralCast: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -66,7 +67,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     return subValue;
   }
 
-  case clang::CK_FloatingCast: {
+  case CK::CK_FloatingCast: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -85,7 +86,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     return subValue;
   }
 
-  case clang::CK_IntegralToBoolean: {
+  case CK::CK_IntegralToBoolean: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -97,7 +98,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
         .getResult();
   }
 
-  case clang::CK_FloatingToBoolean: {
+  case CK::CK_FloatingToBoolean: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -109,7 +110,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
         .getResult();
   }
 
-  case clang::CK_BooleanToSignedIntegral: {
+  case CK::CK_BooleanToSignedIntegral: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -117,14 +118,14 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
         .getResult();
   }
 
-  case clang::CK_BitCast: {
+  case CK::CK_BitCast: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
     return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
         .getResult();
   }
-  case clang::CK_NoOp: {
+  case CK::CK_NoOp: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
@@ -136,7 +137,9 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     if (!subValue)
       return nullptr;
     llvm::errs() << "Unsupported C-style cast kind: "
-                 << clang::CStyleCastExpr::getCastKindName(castKind) << "\n";
+                 << clang::CStyleCastExpr::getCastKindName(
+                        castExpr->getCastKind())
+                 << "\n";
     return subValue;
   }
 }

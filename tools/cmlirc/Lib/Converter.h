@@ -63,7 +63,6 @@ public:
   // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   // loop optimizations
-
   void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
                           mlir::Value ivIndex, mlir::Block *continueBlock,
                           clang::Stmt *body);
