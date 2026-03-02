@@ -42,7 +42,7 @@ static mlir::MemRefType structToMemrefType(mlir::LLVM::LLVMStructType st) {
 // func.func @foo(%arg0: !llvm.struct<(f32, f32)>) -> ...
 // =>
 // func.func @foo(%arg0: memref<?x2xf32>) -> ...
-struct StructFuncArgToMemrefPattern
+struct LLVMStructFuncArgToMemrefPattern
     : public mlir::OpRewritePattern<mlir::func::FuncOp> {
   using mlir::OpRewritePattern<mlir::func::FuncOp>::OpRewritePattern;
 
@@ -85,7 +85,7 @@ struct StructFuncArgToMemrefPattern
 // %ptr = llvm.alloca %structType, %arraySize
 // =>
 // %memref = memref.alloca %arraySize x numFields x elemType
-struct StructAlloca2MemrefPattern
+struct LLVMAllocaStruct2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::AllocaOp> {
   using mlir::OpRewritePattern<mlir::LLVM::AllocaOp>::OpRewritePattern;
 
@@ -142,7 +142,7 @@ struct StructAlloca2MemrefPattern
 // llvm.store %val, %gep
 // =>
 // memref.store %val, %base[%i, %field] : memref<?xNxelemType>
-struct StructStore2MemrefPattern
+struct LLVMStoreField2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::StoreOp> {
   using mlir::OpRewritePattern<mlir::LLVM::StoreOp>::OpRewritePattern;
 
@@ -188,7 +188,7 @@ struct StructStore2MemrefPattern
 // %val = llvm.load %gep
 // =>
 // %val = memref.load %base[%i, %field] : memref<?xNxelemType>
-struct StructLoad2MemrefPattern
+struct LLVMLoadField2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::LoadOp> {
   using mlir::OpRewritePattern<mlir::LLVM::LoadOp>::OpRewritePattern;
 
@@ -231,8 +231,8 @@ struct StructLoad2MemrefPattern
 
 // %val = llvm.extractvalue %arg[i] : !llvm.struct<(f32, f32)>
 // =>
-// %val = affine.load %arg[0, i] : memref<?x2xf32>
-struct StructExtractValue2LoadPattern
+// %val = memref.load %arg[0, i] : memref<?x2xf32>
+struct LLVMExtractValue2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::ExtractValueOp> {
   using mlir::OpRewritePattern<mlir::LLVM::ExtractValueOp>::OpRewritePattern;
 
@@ -267,11 +267,11 @@ struct Struct2MemrefPass
     auto op = getOperation();
     mlir::RewritePatternSet patterns(&getContext());
 
-    patterns.add<StructFuncArgToMemrefPattern>(&getContext());
-    patterns.add<StructAlloca2MemrefPattern>(&getContext());
-    patterns.add<StructStore2MemrefPattern>(&getContext());
-    patterns.add<StructLoad2MemrefPattern>(&getContext());
-    patterns.add<StructExtractValue2LoadPattern>(&getContext());
+    patterns.add<LLVMStructFuncArgToMemrefPattern>(&getContext());
+    patterns.add<LLVMAllocaStruct2MemrefPattern>(&getContext());
+    patterns.add<LLVMStoreField2MemrefPattern>(&getContext());
+    patterns.add<LLVMLoadField2MemrefPattern>(&getContext());
+    patterns.add<LLVMExtractValue2MemrefPattern>(&getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();

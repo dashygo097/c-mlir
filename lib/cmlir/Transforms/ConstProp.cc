@@ -10,7 +10,7 @@
 
 namespace cmlir {
 
-struct FoldConstantCastIntoAffineStorePattern
+struct FoldConstantCast4AffinePattern
     : public mlir::OpRewritePattern<mlir::affine::AffineStoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
@@ -101,7 +101,7 @@ struct FoldConstantCastIntoAffineStorePattern
   }
 };
 
-struct FoldConstantCastIntoMemrefStorePattern
+struct FoldConstantCast4MemrefPattern
     : public mlir::OpRewritePattern<mlir::memref::StoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
@@ -173,8 +173,8 @@ struct ConstPropPass : public impl::ConstPropPassBase<ConstPropPass> {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
-    patterns.add<FoldConstantCastIntoAffineStorePattern>(&getContext());
-    patterns.add<FoldConstantCastIntoMemrefStorePattern>(&getContext());
+    patterns.add<FoldConstantCast4AffinePattern>(&getContext());
+    patterns.add<FoldConstantCast4MemrefPattern>(&getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();
