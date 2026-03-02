@@ -1,25 +1,29 @@
 #include "../../../Converter.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
+
 bool CMLIRConverter::TraverseBreakStmt(clang::BreakStmt *) {
-  if (!currentFunc || loopStack.empty())
+  if (!currentFunc)
     return true;
 
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  mlir::Block *target = loopStack.back().exitBlock;
-  if (!target) {
-    llvm::errs() << "break: no exit block\n";
+  if (breakStack.empty()) {
+    llvm::errs() << "error: break outside switch — not supported in scf "
+                    "dialect.\n";
     return false;
   }
 
-  mlir::cf::BranchOp::create(builder, loc, target, mlir::ValueRange{});
+  auto &top = breakStack.back();
+  if (top.kind != BreakTargetKind::ScfYield) {
+    llvm::errs() << "error: break in loop context — not supported in pure "
+                    "scf dialect.\n";
+    return false;
+  }
 
-  mlir::Region *region = builder.getInsertionBlock()->getParent();
-  mlir::Block *dead = builder.createBlock(region);
-  builder.setInsertionPointToStart(dead);
+  mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
   return true;
 }
 

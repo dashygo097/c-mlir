@@ -1,14 +1,14 @@
 #include "../../../Converter.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "../../Utils/Casts.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/Stmt.h"
 
 namespace cmlirc {
+
 struct SwitchArm {
-  llvm::SmallVector<int64_t, 2> values; // empty → default
+  llvm::SmallVector<int64_t, 2> values;
   llvm::SmallVector<clang::Stmt *, 8> stmts;
   bool isDefault{false};
-  bool hasBreak{false};
 };
 
 static void collectArms(clang::SwitchStmt *sw,
@@ -21,21 +21,17 @@ static void collectArms(clang::SwitchStmt *sw,
   std::function<void(clang::Stmt *)> walk = [&](clang::Stmt *s) {
     if (!s)
       return;
-
     if (auto *cs = llvm::dyn_cast<clang::CaseStmt>(s)) {
       bool merge =
           !arms.empty() && arms.back().stmts.empty() && !arms.back().isDefault;
       if (!merge)
         arms.push_back({});
-
       clang::Expr::EvalResult result;
       if (cs->getLHS()->EvaluateAsInt(result, ctx))
         arms.back().values.push_back(result.Val.getInt().getSExtValue());
-
       walk(cs->getSubStmt());
       return;
     }
-
     if (auto *ds = llvm::dyn_cast<clang::DefaultStmt>(s)) {
       bool merge = !arms.empty() && arms.back().stmts.empty();
       if (!merge)
@@ -44,19 +40,62 @@ static void collectArms(clang::SwitchStmt *sw,
       walk(ds->getSubStmt());
       return;
     }
-
-    if (llvm::isa<clang::BreakStmt>(s)) {
-      if (!arms.empty())
-        arms.back().hasBreak = true;
-      return;
-    }
-
     if (!arms.empty())
       arms.back().stmts.push_back(s);
   };
 
   for (clang::Stmt *s : body->body())
     walk(s);
+}
+
+// Detect fallthrough: arm's last non-null stmt is not break/return
+bool armFallsThrough(const SwitchArm &arm) {
+  for (auto it = arm.stmts.rbegin(); it != arm.stmts.rend(); ++it) {
+    if (!*it)
+      continue;
+    return !llvm::isa<clang::BreakStmt>(*it) &&
+           !llvm::isa<clang::ReturnStmt>(*it);
+  }
+  return true; // empty arm falls through
+}
+
+// Detect continue anywhere in stmt tree (doesn't recurse into nested loops)
+static bool stmtHasContinue(clang::Stmt *s, int depth = 0) {
+  if (!s)
+    return false;
+  if (llvm::isa<clang::ContinueStmt>(s))
+    return true;
+  if (depth > 0 && llvm::isa<clang::ForStmt, clang::WhileStmt, clang::DoStmt,
+                             clang::SwitchStmt>(s))
+    return false;
+  for (clang::Stmt *c : s->children())
+    if (stmtHasContinue(c, depth + 1))
+      return true;
+  return false;
+}
+
+// Emit one region (case or default)
+static bool emitSwitchRegion(CMLIRConverter &conv, mlir::OpBuilder &builder,
+                             mlir::Location loc, mlir::Region &region,
+                             llvm::ArrayRef<clang::Stmt *> stmts) {
+  // Ensure region has an entry block
+  if (region.empty())
+    region.push_back(new mlir::Block());
+
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&region.front());
+
+  for (clang::Stmt *s : stmts)
+    conv.TraverseStmt(s);
+
+  // Terminate if needed — break already emitted scf.yield via TraverseBreakStmt
+  mlir::Block *exitBlock = builder.getInsertionBlock();
+  builder.setInsertionPointToEnd(exitBlock);
+  if (exitBlock->empty() ||
+      !exitBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+    mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+
+  return true;
 }
 
 bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
@@ -67,94 +106,95 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
   mlir::Location loc = builder.getUnknownLoc();
   clang::ASTContext &astCtx = context_manager_.ClangContext();
 
-  mlir::Value switchVal = generateExpr(sw->getCond());
-  if (!switchVal) {
-    llvm::errs() << "switch: bad condition\n";
-    return false;
-  }
-
-  // cf.switch requires i32
-  mlir::Type i32 = builder.getI32Type();
-  if (switchVal.getType() != i32) {
-    uint32_t w = mlir::cast<mlir::IntegerType>(switchVal.getType()).getWidth();
-    if (w < 32)
-      switchVal = mlir::arith::ExtSIOp::create(builder, loc, i32, switchVal)
-                      .getResult();
-    else
-      switchVal = mlir::arith::TruncIOp::create(builder, loc, i32, switchVal)
-                      .getResult();
-  }
-
+  // Collect arms
   llvm::SmallVector<SwitchArm> arms;
   collectArms(sw, arms, astCtx);
   if (arms.empty())
     return true;
 
-  // Create all blocks up front
-  mlir::Block *currentBlock = builder.getInsertionBlock();
-  mlir::Region *region = currentBlock->getParent();
-
-  llvm::SmallVector<mlir::Block *> armBlocks;
-  for (size_t i = 0; i < arms.size(); ++i)
-    armBlocks.push_back(builder.createBlock(region));
-  mlir::Block *mergeBlock = builder.createBlock(region);
-
-  // Identify default block
-  mlir::Block *defaultBlock = mergeBlock;
-  for (size_t i = 0; i < arms.size(); ++i) {
-    if (arms[i].isDefault) {
-      defaultBlock = armBlocks[i];
-      break;
+  // Validate: no fallthrough
+  for (size_t i = 0; i + 1 < arms.size(); ++i) {
+    if (armFallsThrough(arms[i])) {
+      llvm::errs() << "error: switch fallthrough is not supported in scf "
+                      "dialect (arm "
+                   << i << "). Add break.\n";
+      return false;
     }
   }
 
-  // Emit cf.switch in the entry block
-  llvm::SmallVector<int32_t> caseValues;
-  llvm::SmallVector<mlir::Block *> caseBlocks;
+  // Validate: no continue in any case arm
   for (size_t i = 0; i < arms.size(); ++i) {
-    if (arms[i].isDefault)
-      continue;
-    for (int64_t v : arms[i].values) {
-      caseValues.push_back(static_cast<int32_t>(v));
-      caseBlocks.push_back(armBlocks[i]);
+    for (clang::Stmt *s : arms[i].stmts) {
+      if (stmtHasContinue(s)) {
+        llvm::errs() << "error: continue inside switch case is not supported "
+                        "in scf dialect.\n";
+        return false;
+      }
     }
   }
 
-  builder.setInsertionPointToEnd(currentBlock);
-  mlir::cf::SwitchOp::create(builder, loc, switchVal, defaultBlock,
-                             mlir::ValueRange{},
-                             llvm::ArrayRef<int32_t>(caseValues),
-                             llvm::ArrayRef<mlir::Block *>(caseBlocks),
-                             llvm::SmallVector<mlir::ValueRange>(
-                                 caseBlocks.size(), mlir::ValueRange{}));
+  // Condition → index type
+  mlir::Value switchVal = generateExpr(sw->getCond());
+  if (!switchVal) {
+    llvm::errs() << "error: failed to generate switch condition\n";
+    return false;
+  }
+  if (!mlir::isa<mlir::IntegerType>(switchVal.getType())) {
+    llvm::errs() << "error: switch condition must be integer\n";
+    return false;
+  }
+  switchVal = detail::toIndex(builder, loc, switchVal);
 
-  // Emit arm bodies
-  loopStack.push_back({/*headerBlock=*/nullptr, /*exitBlock=*/mergeBlock});
-
-  for (size_t i = 0; i < arms.size(); ++i) {
-    mlir::Block *armBlock = armBlocks[i];
-    builder.setInsertionPointToStart(armBlock);
-
-    for (clang::Stmt *s : arms[i].stmts)
-      TraverseStmt(s);
-
-    mlir::Block *insertionBlock = builder.getInsertionBlock();
-    builder.setInsertionPointToEnd(insertionBlock);
-
-    if (!insertionBlock->empty() &&
-        insertionBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
-      continue;
-
-    mlir::Block *fallTarget =
-        arms[i].hasBreak
-            ? mergeBlock
-            : (i + 1 < arms.size() ? armBlocks[i + 1] : mergeBlock);
-    mlir::cf::BranchOp::create(builder, loc, fallTarget, mlir::ValueRange{});
+  // Separate default vs case arms
+  SwitchArm *defaultArm = nullptr;
+  llvm::SmallVector<SwitchArm *> caseArms;
+  for (auto &arm : arms) {
+    if (arm.isDefault)
+      defaultArm = &arm;
+    else
+      caseArms.push_back(&arm);
   }
 
-  loopStack.pop_back();
+  // Flatten: one entry per (value, arm)
+  llvm::SmallVector<int64_t> caseValues;
+  llvm::SmallVector<SwitchArm *> caseArmPerValue;
+  for (SwitchArm *arm : caseArms)
+    for (int64_t v : arm->values) {
+      caseValues.push_back(v);
+      caseArmPerValue.push_back(arm);
+    }
 
-  builder.setInsertionPointToStart(mergeBlock);
+  // Create scf.index_switch
+  auto switchOp = mlir::scf::IndexSwitchOp::create(
+      builder, loc,
+      /*resultTypes=*/mlir::TypeRange{}, switchVal,
+      llvm::ArrayRef<int64_t>(caseValues),
+      static_cast<unsigned>(caseValues.size()));
+
+  // Emit case regions (one per value)
+  breakStack.push_back({BreakTargetKind::ScfYield, nullptr});
+
+  for (size_t i = 0; i < caseValues.size(); ++i) {
+    mlir::Region &region = switchOp.getCaseRegions()[i];
+    if (!emitSwitchRegion(*this, builder, loc, region,
+                          caseArmPerValue[i]->stmts))
+      return false;
+  }
+
+  // Emit default region
+  {
+    mlir::Region &region = switchOp.getDefaultRegion();
+    llvm::ArrayRef<clang::Stmt *> stmts =
+        defaultArm ? llvm::ArrayRef<clang::Stmt *>(defaultArm->stmts)
+                   : llvm::ArrayRef<clang::Stmt *>{};
+    if (!emitSwitchRegion(*this, builder, loc, region, stmts))
+      return false;
+  }
+
+  breakStack.pop_back();
+
+  // Continue after switch
+  builder.setInsertionPointAfter(switchOp);
   return true;
 }
 
