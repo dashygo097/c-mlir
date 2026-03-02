@@ -1,34 +1,27 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 
 namespace cmlirc {
 
 bool branchEndsWithReturn(clang::Stmt *stmt) {
   if (!stmt)
     return false;
-
-  if (mlir::isa<clang::ReturnStmt>(stmt)) {
+  if (mlir::isa<clang::ReturnStmt>(stmt))
     return true;
-  }
-
   if (auto *compound = mlir::dyn_cast<clang::CompoundStmt>(stmt)) {
     if (compound->body_empty())
       return false;
     return branchEndsWithReturn(compound->body_back());
   }
-
   if (auto *ifStmt = mlir::dyn_cast<clang::IfStmt>(stmt)) {
     return branchEndsWithReturn(ifStmt->getThen()) &&
            (ifStmt->getElse() ? branchEndsWithReturn(ifStmt->getElse())
                               : false);
   }
-
   return false;
 }
 
-// FIXME: Only support either non-return or both return in thenBlock and
-// elseBlock
 bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   if (!currentFunc)
     return true;
@@ -41,93 +34,52 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     llvm::errs() << "Failed to generate if condition\n";
     return false;
   }
-
   mlir::Value condBool = detail::toBool(builder, loc, condition);
 
   bool hasElse = ifStmt->getElse() != nullptr;
   bool thenHasReturn = branchEndsWithReturn(ifStmt->getThen());
   bool elseHasReturn = hasElse && branchEndsWithReturn(ifStmt->getElse());
-  bool bothReturn = thenHasReturn && elseHasReturn;
-  bool isNested = (returnValueCapture != nullptr);
 
-  llvm::SmallVector<mlir::Type, 1> resultTypes;
-  if (bothReturn && currentFunc.getFunctionType().getNumResults() > 0)
-    resultTypes.push_back(currentFunc.getFunctionType().getResult(0));
+  mlir::Block *currentBlock = builder.getInsertionBlock();
+  mlir::Region *region = currentBlock->getParent();
 
-  auto ifOp = mlir::scf::IfOp::create(
-      builder, loc, mlir::TypeRange{resultTypes}, condBool, hasElse);
+  mlir::Block *mergeBlock = builder.createBlock(region);
+  mlir::Block *thenBlock = builder.createBlock(region);
+  mlir::Block *elseBlock = hasElse ? builder.createBlock(region) : mergeBlock;
 
-  mlir::Block *thenBlock = &ifOp.getThenRegion().front();
-  builder.setInsertionPointToStart(thenBlock);
+  builder.setInsertionPointToEnd(currentBlock);
+  mlir::cf::CondBranchOp::create(builder, loc, condBool, thenBlock,
+                                 mlir::ValueRange{}, elseBlock,
+                                 mlir::ValueRange{});
 
-  mlir::Value thenReturnValue = nullptr;
-  mlir::Value *savedReturnCapture = returnValueCapture;
-  if (bothReturn)
-    returnValueCapture = &thenReturnValue;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(thenBlock);
 
-  TraverseStmt(ifStmt->getThen());
+    TraverseStmt(ifStmt->getThen());
 
-  returnValueCapture = savedReturnCapture;
-
-  builder.setInsertionPointToEnd(thenBlock);
-
-  if (thenBlock->empty() ||
-      !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-    if (bothReturn && thenReturnValue)
-      mlir::scf::YieldOp::create(builder, loc, thenReturnValue);
-    else
-      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-  } else if (bothReturn && mlir::isa<mlir::func::ReturnOp>(thenBlock->back())) {
-    auto returnOp = llvm::cast<mlir::func::ReturnOp>(thenBlock->back());
-    mlir::ValueRange returnOperands = returnOp.getOperands();
-    returnOp.erase();
-    if (!returnOperands.empty())
-      mlir::scf::YieldOp::create(builder, loc, returnOperands[0]);
-    else
-      mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
+    builder.setInsertionPointToEnd(thenBlock);
+    if (thenBlock->empty() ||
+        !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+      mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
   }
 
   if (hasElse) {
-    mlir::Block *elseBlock = &ifOp.getElseRegion().front();
+    mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(elseBlock);
-
-    mlir::Value elseReturnValue = nullptr;
-    savedReturnCapture = returnValueCapture;
-    if (bothReturn)
-      returnValueCapture = &elseReturnValue;
 
     TraverseStmt(ifStmt->getElse());
 
-    returnValueCapture = savedReturnCapture;
-
     builder.setInsertionPointToEnd(elseBlock);
-
     if (elseBlock->empty() ||
-        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      if (bothReturn && elseReturnValue)
-        mlir::scf::YieldOp::create(builder, loc, elseReturnValue);
-      else
-        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-    } else if (bothReturn &&
-               mlir::isa<mlir::func::ReturnOp>(elseBlock->back())) {
-      auto returnOp = llvm::cast<mlir::func::ReturnOp>(elseBlock->back());
-      mlir::ValueRange returnOperands = returnOp.getOperands();
-      returnOp.erase();
-      if (!returnOperands.empty())
-        mlir::scf::YieldOp::create(builder, loc, returnOperands[0]);
-      else
-        mlir::scf::YieldOp::create(builder, builder.getUnknownLoc());
-    }
+        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+      mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
   }
 
-  builder.setInsertionPointAfter(ifOp);
+  builder.setInsertionPointToStart(mergeBlock);
 
-  if (bothReturn && ifOp.getNumResults() > 0) {
-    if (isNested && savedReturnCapture)
-      *savedReturnCapture = ifOp.getResult(0);
-    else
-      mlir::func::ReturnOp::create(builder, loc, ifOp.getResult(0));
-  }
+  (void)thenHasReturn;
+  (void)elseHasReturn;
 
   return true;
 }

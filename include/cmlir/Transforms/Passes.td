@@ -76,18 +76,6 @@ def LoopVectorizePass
   }];
 }
 
-def FlattenCondPass 
-    : Pass<"cmlir-flatten-cond"> {
-  let summary = "Flatten nested conditionals.";
-  let constructor = "cmlir::createFlattenCondPass()";
-  let description = [{
-    This pass flattens nested conditionals by performing the following steps:
-    1. Identify nested conditional structures (e.g., `if` statements within `if` statements) in the IR.
-    2. Transform these nested conditionals into a single-level structure by combining their conditions using logical operators (e.g., `and`, `or`).
-    3. Update the control flow to reflect the new flattened structure, ensuring that the semantics of the original code are preserved while simplifying the control flow for further optimizations.
-  }];
-}
-
 def RaiseSCF2AffinePass
     : Pass<"cmlir-raise-scf2affine"> {
   let summary = "Raise scf operations to affine operations.";
