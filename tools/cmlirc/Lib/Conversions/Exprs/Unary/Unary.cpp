@@ -9,14 +9,16 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = unOp->getSubExpr();
 
+  using CUO = clang::UnaryOperatorKind;
+
   switch (unOp->getOpcode()) {
 
   // Identity
-  case clang::UO_Plus:
+  case CUO::UO_Plus:
     return generateExpr(subExpr);
 
   // Arithmetic negation
-  case clang::UO_Minus: {
+  case CUO::UO_Minus: {
     mlir::Value v = generateExpr(subExpr);
     if (!v)
       return nullptr;
@@ -29,21 +31,21 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 
   // Increment / decrement
-  case clang::UO_PreInc:
+  case CUO::UO_PreInc:
     return generateIncDecUnaryOperator(subExpr, /*inc=*/true,
                                        /*pre=*/true);
-  case clang::UO_PostInc:
+  case CUO::UO_PostInc:
     return generateIncDecUnaryOperator(subExpr, /*inc=*/true,
                                        /*pre=*/false);
-  case clang::UO_PreDec:
+  case CUO::UO_PreDec:
     return generateIncDecUnaryOperator(subExpr, /*inc=*/false,
                                        /*pre=*/true);
-  case clang::UO_PostDec:
+  case CUO::UO_PostDec:
     return generateIncDecUnaryOperator(subExpr, /*inc=*/false,
                                        /*pre=*/false);
 
   // Logical NOT: operand == 0
-  case clang::UO_LNot: {
+  case CUO::UO_LNot: {
     mlir::Value v = generateExpr(subExpr);
     if (!v)
       return nullptr;
@@ -62,7 +64,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 
   // Bitwise NOT: value ^ ~0
-  case clang::UO_Not: {
+  case CUO::UO_Not: {
     mlir::Value v = generateExpr(subExpr);
     if (!v)
       return nullptr;
@@ -70,7 +72,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 
   // Dereference
-  case clang::UO_Deref: {
+  case CUO::UO_Deref: {
     mlir::Value base = generateExpr(subExpr);
     if (!base)
       return nullptr;
@@ -85,7 +87,7 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   }
 
   // Address-of
-  case clang::UO_AddrOf:
+  case CUO::UO_AddrOf:
     return generateAddrOfUnaryOperator(subExpr);
 
   default:
