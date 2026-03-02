@@ -1,9 +1,9 @@
 // RUN: split-file %s %t
 
-// RUN: cmlirc %t/init_list0.c --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK0
-// RUN: cmlirc %t/init_list1.c --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK1
-// RUN: cmlirc %t/init_list2.c --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK2
-// RUN: cmlirc %t/init_list3.c --canonicalize --cse --symdce --mem2reg --const-prop| FileCheck %s --check-prefix=CHECK3
+// RUN: cmlirc %t/init_list0.c | FileCheck %s --check-prefix=CHECK0
+// RUN: cmlirc %t/init_list1.c | FileCheck %s --check-prefix=CHECK1
+// RUN: cmlirc %t/init_list2.c | FileCheck %s --check-prefix=CHECK2
+// RUN: cmlirc %t/init_list3.c | FileCheck %s --check-prefix=CHECK3
 
 //--- init_list0.c
 int init_list() {

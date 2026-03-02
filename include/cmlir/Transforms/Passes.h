@@ -9,14 +9,15 @@ namespace cmlir {
 // Common Optimization Passes
 std::unique_ptr<mlir::Pass> createMem2RegPass();
 std::unique_ptr<mlir::Pass> createConstPropPass();
-std::unique_ptr<mlir::Pass> createFMAPass();
-std::unique_ptr<mlir::Pass> createStruct2MemrefPass();
+std::unique_ptr<mlir::Pass> createFlattenCondPass();
 
 // Loop Optimization Passes
 std::unique_ptr<mlir::Pass> createLoopUnrollPass();
 std::unique_ptr<mlir::Pass> createLoopVectorizePass();
 
-// Conversion Passes
+// Conversion Passes (optional)
+std::unique_ptr<mlir::Pass> createStruct2MemrefPass();
+std::unique_ptr<mlir::Pass> createFMAPass();
 std::unique_ptr<mlir::Pass> createRaiseSCF2AffinePass();
 
 void registerTransformPasses();
