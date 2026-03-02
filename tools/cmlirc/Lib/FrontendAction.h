@@ -48,10 +48,8 @@ public:
     pm.addPass(mlir::createCSEPass());
     if (options::Struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
-    pm.addPass(mlir::createMem2Reg());
-    pm.addPass(cmlir::createMem2RegPass());
-    pm.addPass(cmlir::createConstPropPass());
     pm.addPass(cmlir::createFlattenCondPass());
+    pm.addPass(cmlir::createConstPropPass());
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(cmlir::createMem2RegPass());
     if (options::RaiseSCF2Affine)

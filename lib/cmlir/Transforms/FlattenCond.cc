@@ -1,3 +1,4 @@
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -24,10 +25,15 @@ static bool isPromotable(mlir::memref::AllocaOp alloca) {
   return true;
 }
 
-// if (cond) { alloca = new_val; } (no else)
-// %x = load alloca
+// %alloca = memref.alloca() : memref<T>
+// memref.store %init, %alloca[]
+// scf.if %cond {
+//   memref.store %new_val, %alloca[]
+// }
+// %x = memref.load %alloca[]
 // =>
-// %x = select(cond, new_val, init_val)
+// %sel = arith.select %cond, %new_val, %init : T
+// memref.store %sel, %alloca[]
 struct FlattenSCFIf2ArithSelectPattern
     : public mlir::OpRewritePattern<mlir::scf::IfOp> {
   using mlir::OpRewritePattern<mlir::scf::IfOp>::OpRewritePattern;
@@ -36,7 +42,7 @@ struct FlattenSCFIf2ArithSelectPattern
   matchAndRewrite(mlir::scf::IfOp ifOp,
                   mlir::PatternRewriter &rewriter) const override {
 
-    // Only handle no-else case
+    // FIXME: Only handle the no-else case.
     if (ifOp.elseBlock())
       return mlir::failure();
 
@@ -60,40 +66,44 @@ struct FlattenSCFIf2ArithSelectPattern
       candidates.push_back(alloca);
     });
 
-    for (auto alloca : candidates) {
+    // insertAfter tracks where to place the next select + update store.
+    mlir::Operation *insertAfter = ifOp.getOperation();
+
+    for (mlir::memref::AllocaOp alloca : candidates) {
       mlir::Value allocaVal = alloca.getResult();
 
-      // Find pre-if init store in parent block
-      mlir::Value initValue;
+      // Find the latest pre-if initialising store
+      mlir::memref::StoreOp initStore;
       for (mlir::Operation *user : alloca->getUsers()) {
         auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user);
-        if (store && store->getBlock() == parentBlock &&
-            store->isBeforeInBlock(ifOp.getOperation())) {
-          initValue = store.getValue();
-          break;
-        }
+        if (!store)
+          continue;
+        if (store->getBlock() != parentBlock)
+          continue;
+        if (!store->isBeforeInBlock(ifOp.getOperation()))
+          continue;
+        if (!initStore || initStore->isBeforeInBlock(store.getOperation()))
+          initStore = store;
       }
-      if (!initValue)
+      if (!initStore)
         continue;
+      mlir::Value initValue = initStore.getValue();
 
-      // Find exactly one store inside then block (top-level, not nested)
+      // Require exactly one top-level store inside thenBlock
       mlir::memref::StoreOp innerStore;
       bool valid = true;
       for (mlir::Operation *user : alloca->getUsers()) {
         if (!ifOp->isAncestor(user))
           continue;
-        // Any non-store use inside the if is not safe
         auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user);
         if (!store) {
           valid = false;
           break;
         }
-        // Must be directly in thenBlock, not in deeper nesting
         if (store->getBlock() != thenBlock) {
           valid = false;
           break;
         }
-        // Only allow one inner store
         if (innerStore) {
           valid = false;
           break;
@@ -105,42 +115,47 @@ struct FlattenSCFIf2ArithSelectPattern
 
       mlir::Value storedVal = innerStore.getValue();
 
-      // storedVal must be defined outside thenBlock
-      if (auto *defOp = storedVal.getDefiningOp()) {
+      if (auto *defOp = storedVal.getDefiningOp())
         if (thenBlock->findAncestorOpInBlock(*defOp) != nullptr)
           continue;
-      }
 
-      // heck there are post-if loads to replace
-      bool hasPostIfLoad = false;
+      // Collect post-if loads that will be replaced
+      llvm::SmallVector<mlir::memref::LoadOp> postIfLoads;
       for (mlir::Operation *user : allocaVal.getUsers()) {
-        if (mlir::isa<mlir::memref::LoadOp>(user) &&
-            user->getBlock() == parentBlock && ifOp->isBeforeInBlock(user))
-          hasPostIfLoad = true;
+        auto load = mlir::dyn_cast<mlir::memref::LoadOp>(user);
+        if (load && load->getBlock() == parentBlock &&
+            ifOp->isBeforeInBlock(load.getOperation()))
+          postIfLoads.push_back(load);
       }
-      if (!hasPostIfLoad)
+      if (postIfLoads.empty())
         continue;
 
-      // Emit select after the if
-      rewriter.setInsertionPointAfter(ifOp);
+      // Emit arith.select
+      rewriter.setInsertionPointAfter(insertAfter);
       mlir::Value selectVal = mlir::arith::SelectOp::create(
                                   rewriter, ifOp.getLoc(), ifOp.getCondition(),
                                   storedVal, initValue)
                                   .getResult();
 
-      // Replace all post-if loads with selectVal
-      for (mlir::Operation *user :
-           llvm::make_early_inc_range(allocaVal.getUsers())) {
-        auto load = mlir::dyn_cast<mlir::memref::LoadOp>(user);
-        if (load && load->getBlock() == parentBlock &&
-            ifOp->isBeforeInBlock(load.getOperation())) {
-          rewriter.replaceOp(load, selectVal);
-          changed = true;
-        }
+      mlir::memref::StoreOp updateStore = mlir::memref::StoreOp::create(
+          rewriter, ifOp.getLoc(), selectVal, allocaVal, mlir::ValueRange{});
+
+      insertAfter = updateStore.getOperation();
+
+      for (mlir::memref::LoadOp load : postIfLoads) {
+        rewriter.replaceOp(load, selectVal);
+        changed = true;
       }
 
-      // Remove the now-dead inner store
       rewriter.eraseOp(innerStore);
+    }
+
+    // Erase the scf.if if its body is now a bare scf.yield
+    if (changed) {
+      bool thenIsEmpty = (thenBlock->getOperations().size() == 1 &&
+                          mlir::isa<mlir::scf::YieldOp>(thenBlock->front()));
+      if (thenIsEmpty)
+        rewriter.eraseOp(ifOp);
     }
 
     return changed ? mlir::success() : mlir::failure();
@@ -151,7 +166,6 @@ struct FlattenCondPass : public impl::FlattenCondPassBase<FlattenCondPass> {
   void runOnOperation() override {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
-
     patterns.add<FlattenSCFIf2ArithSelectPattern>(op->getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
@@ -159,10 +173,9 @@ struct FlattenCondPass : public impl::FlattenCondPassBase<FlattenCondPass> {
       return;
     }
 
-    op->walk([](mlir::Operation *op) {
-      if (mlir::isOpTriviallyDead(op)) {
-        op->erase();
-      }
+    op->walk([](mlir::Operation *inner) {
+      if (mlir::isOpTriviallyDead(inner))
+        inner->erase();
     });
   }
 };
