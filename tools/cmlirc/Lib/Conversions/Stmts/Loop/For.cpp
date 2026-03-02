@@ -2,6 +2,7 @@
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
 #include "./LoopUtils.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
@@ -124,7 +125,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
       [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
         mlir::Value cond =
             forStmt->getCond()
-                ? detail::toBool(builder, loc, generateExpr(forStmt->getCond()))
+                ? detail::toBool(b, l, generateExpr(forStmt->getCond()))
                 : detail::boolConst(b, l, true);
         mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
       },
@@ -132,19 +133,55 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
         mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
       });
 
+  mlir::Block *beforeBlock = &whileOp.getBefore().front();
   mlir::Block *afterBlock = &whileOp.getAfter().front();
-
   afterBlock->back().erase();
 
+  mlir::Block *exitBlock =
+      builder.createBlock(builder.getInsertionBlock()->getParent());
+
   builder.setInsertionPointToEnd(afterBlock);
-  loopStack.push_back({&whileOp.getBefore().front(), afterBlock});
+  loopStack.push_back({beforeBlock, exitBlock});
+
   TraverseStmt(forStmt->getBody());
-  if (forStmt->getInc())
-    generateExpr(forStmt->getInc());
+
+  if (forStmt->getInc()) {
+    builder.setInsertionPointToEnd(builder.getInsertionBlock());
+    if (builder.getInsertionBlock()->empty() ||
+        !builder.getInsertionBlock()
+             ->back()
+             .hasTrait<mlir::OpTrait::IsTerminator>())
+      generateExpr(forStmt->getInc());
+  }
+
   loopStack.pop_back();
 
-  detail::ensureYield(builder, loc, afterBlock);
+  for (mlir::Block &blk : whileOp.getAfter()) {
+    if (blk.empty() || !blk.back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+      mlir::OpBuilder::InsertionGuard guard(builder);
+      builder.setInsertionPointToEnd(&blk);
+      mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+    }
+  }
+
+  for (mlir::Block &blk : whileOp.getBefore()) {
+    if (blk.empty() || !blk.back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+      mlir::OpBuilder::InsertionGuard guard(builder);
+      builder.setInsertionPointToEnd(&blk);
+      mlir::Value f = detail::boolConst(builder, loc, false);
+      mlir::scf::ConditionOp::create(builder, loc, f, mlir::ValueRange{});
+    }
+  }
+
   builder.setInsertionPointAfter(whileOp);
+
+  if (builder.getInsertionBlock()->empty() ||
+      !builder.getInsertionBlock()
+           ->back()
+           .hasTrait<mlir::OpTrait::IsTerminator>())
+    mlir::cf::BranchOp::create(builder, loc, exitBlock, mlir::ValueRange{});
+
+  builder.setInsertionPointToStart(exitBlock);
 }
 
 bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {

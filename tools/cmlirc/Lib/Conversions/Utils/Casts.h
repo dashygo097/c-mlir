@@ -100,7 +100,8 @@ inline mlir::Value promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 inline mlir::Value truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
-                                 mlir::Value value, mlir::Type targetType) {
+                                 mlir::Value value, mlir::Type targetType,
+                                 bool isSigned = true) {
   mlir::Type srcType = value.getType();
   if (srcType == targetType)
     return value;
@@ -110,17 +111,44 @@ inline mlir::Value truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
   auto srcFlt = mlir::dyn_cast<mlir::FloatType>(srcType);
   auto dstFlt = mlir::dyn_cast<mlir::FloatType>(targetType);
 
-  // wider int → int
+  // int → narrower int
   if (srcInt && dstInt && srcInt.getWidth() > dstInt.getWidth())
     return mlir::arith::TruncIOp::create(builder, loc, targetType, value)
         .getResult();
 
-  // wider float → float
+  // float → narrower float
   if (srcFlt && dstFlt && srcFlt.getWidth() > dstFlt.getWidth())
     return mlir::arith::TruncFOp::create(builder, loc, targetType, value)
         .getResult();
 
+  //  float → int
+  if (srcFlt && dstInt)
+    return isSigned
+               ? mlir::arith::FPToSIOp::create(builder, loc, targetType, value)
+                     .getResult()
+               : mlir::arith::FPToUIOp::create(builder, loc, targetType, value)
+                     .getResult();
+
+  // int → float
+  if (srcInt && dstFlt)
+    return isSigned
+               ? mlir::arith::SIToFPOp::create(builder, loc, targetType, value)
+                     .getResult()
+               : mlir::arith::UIToFPOp::create(builder, loc, targetType, value)
+                     .getResult();
+
   return value;
+}
+
+inline mlir::Value castValue(mlir::OpBuilder &builder, mlir::Location loc,
+                             mlir::Value value, mlir::Type targetType,
+                             bool isSigned) {
+  mlir::Type srcType = value.getType();
+  if (srcType == targetType)
+    return value;
+  mlir::Value promoted =
+      promoteValue(builder, loc, value, targetType, isSigned);
+  return truncateValue(builder, loc, promoted, targetType, isSigned);
 }
 
 } // namespace cmlirc::detail

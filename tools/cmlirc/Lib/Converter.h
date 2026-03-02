@@ -49,14 +49,12 @@ public:
 
   // control flow
   bool TraverseIfStmt(clang::IfStmt *ifStmt);
-  // bool TraverseSwitchStmt(clang::SwitchStmt *switchStmt);
-  // bool TraverseCaseStmt(clang::CaseStmt *caseStmt);
-  // bool TraverseDefaultStmt(clang::DefaultStmt *defaultStmt);
+  bool TraverseSwitchStmt(clang::SwitchStmt *switchStmt);
   bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
   bool TraverseDoStmt(clang::DoStmt *doStmt);
   bool TraverseForStmt(clang::ForStmt *forStmt);
-  // bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
-  // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
+  bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
+  bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   // loop optimizations
 
