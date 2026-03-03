@@ -1,4 +1,6 @@
 #include "../../../Converter.h"
+#include "../../Utils/Constants.h"
+#include "../../Utils/Numerics.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -85,43 +87,27 @@ void emitSwitchAsIfCascade(CMLIRConverter &conv, mlir::OpBuilder &builder,
         if (arms[j].isDefault)
           continue;
         for (int64_t v : arms[j].values) {
-          mlir::Value cv =
-              mlir::arith::ConstantOp::create(
-                  builder, loc, i32,
-                  builder.getI32IntegerAttr(static_cast<int32_t>(v)))
-                  .getResult();
+          mlir::Value cv = detail::intConst(builder, loc, i32, v);
           mlir::Value neq =
               mlir::arith::CmpIOp::create(
                   builder, loc, mlir::arith::CmpIPredicate::ne, switchVal, cv)
                   .getResult();
           allNonMatch =
-              allNonMatch
-                  ? mlir::arith::AndIOp::create(builder, loc, allNonMatch, neq)
-                        .getResult()
-                  : neq;
+              allNonMatch ? detail::andl(builder, loc, allNonMatch, neq) : neq;
         }
       }
       if (!allNonMatch)
-        allNonMatch =
-            mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                            builder.getBoolAttr(true))
-                .getResult();
+        allNonMatch = detail::boolConst(builder, loc, true);
       cond = allNonMatch;
     } else {
       mlir::Value anyMatch;
       for (int64_t v : arm.values) {
-        mlir::Value cv = mlir::arith::ConstantOp::create(
-                             builder, loc, i32,
-                             builder.getI32IntegerAttr(static_cast<int32_t>(v)))
-                             .getResult();
+        mlir::Value cv = detail::intConst(builder, loc, i32, v);
         mlir::Value eq =
             mlir::arith::CmpIOp::create(
                 builder, loc, mlir::arith::CmpIPredicate::eq, switchVal, cv)
                 .getResult();
-        anyMatch = anyMatch
-                       ? mlir::arith::OrIOp::create(builder, loc, anyMatch, eq)
-                             .getResult()
-                       : eq;
+        anyMatch = anyMatch ? detail::orl(builder, loc, anyMatch, eq) : eq;
       }
       if (!anyMatch)
         continue;
