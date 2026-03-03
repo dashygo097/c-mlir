@@ -5,25 +5,6 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-
-bool branchEndsWithReturn(clang::Stmt *stmt) {
-  if (!stmt)
-    return false;
-  if (mlir::isa<clang::ReturnStmt>(stmt))
-    return true;
-  if (auto *compound = mlir::dyn_cast<clang::CompoundStmt>(stmt)) {
-    if (compound->body_empty())
-      return false;
-    return branchEndsWithReturn(compound->body_back());
-  }
-  if (auto *ifStmt = mlir::dyn_cast<clang::IfStmt>(stmt)) {
-    return branchEndsWithReturn(ifStmt->getThen()) &&
-           (ifStmt->getElse() ? branchEndsWithReturn(ifStmt->getElse())
-                              : false);
-  }
-  return false;
-}
-
 bool isInsideStructuredRegion(mlir::OpBuilder &builder,
                               mlir::func::FuncOp funcOp) {
   mlir::Block *block = builder.getInsertionBlock();
