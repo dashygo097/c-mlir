@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -34,14 +35,14 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
   clang::Expr *base = memberExpr->getBase();
   mlir::Value baseValue = generateExpr(base);
   if (!baseValue) {
-    llvm::errs() << "Failed to generate base expression\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate base expression\n";
     return nullptr;
   }
 
   clang::FieldDecl *fieldDecl =
       mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
   if (!fieldDecl) {
-    llvm::errs() << "Member is not a field\n";
+    llvm::WithColor::error() << "cmlirc: Member is not a field\n";
     return nullptr;
   }
 
@@ -53,7 +54,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
 
   const clang::RecordType *recordType = baseType->getAsStructureType();
   if (!recordType) {
-    llvm::errs() << "Base is not a struct type\n";
+    llvm::WithColor::error() << "cmlirc: Base is not a struct type\n";
     return nullptr;
   }
 
@@ -61,7 +62,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
 
   std::optional<uint32_t> fieldIndexOpt = getFieldIndex(recordDecl, fieldDecl);
   if (!fieldIndexOpt) {
-    llvm::errs() << "Field not found in struct\n";
+    llvm::WithColor::error() << "cmlirc: field not found in struct\n";
     return nullptr;
   }
   uint32_t fieldIndex = *fieldIndexOpt;
@@ -69,7 +70,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
   mlir::Type structType = convertType(baseType);
   auto llvmStructType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(structType);
   if (!llvmStructType) {
-    llvm::errs() << "Expected LLVM struct type\n";
+    llvm::WithColor::error() << "cmlirc: expected LLVM struct type\n";
     return nullptr;
   }
 
@@ -93,7 +94,8 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
     return fieldValue;
   }
 
-  llvm::errs() << "Unsupported base type for member access\n";
+  llvm::WithColor::error()
+      << "cmlirc: unsupported base type for member access\n";
   return nullptr;
 }
 

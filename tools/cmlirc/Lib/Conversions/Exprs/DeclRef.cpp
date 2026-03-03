@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
@@ -13,7 +14,8 @@ mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
         return val;
       return val;
     }
-    llvm::errs() << "Variable not found: " << varDecl->getName() << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: variable not found: " << varDecl->getName() << "\n";
     return nullptr;
   }
 
@@ -23,12 +25,13 @@ mlir::Value CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef) {
       return functionTable[funcDecl];
     }
 
-    llvm::errs() << "Function not found: " << funcDecl->getName() << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: function not found: " << funcDecl->getName() << "\n";
     return nullptr;
   }
 
-  llvm::errs() << "Unsupported DeclRefExpr type: "
-               << declRef->getDecl()->getDeclKindName() << "\n";
+  llvm::WithColor::error() << "cmlirc: unsupported DeclRefExpr type: "
+                           << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
 }
 } // namespace cmlirc

@@ -3,6 +3,7 @@
 #include "../../Utils/LHS.h"
 #include "../../Utils/Operators.h"
 #include "clang/AST/OperationKinds.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 // Emit the arithmetic for a compound-assignment operator (+=, -= …).
@@ -37,8 +38,8 @@ mlir::Value emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   case CBO::BO_ShrAssign:
     return detail::emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
   default:
-    llvm::errs() << "cmlirc: unsupported compound assignment: "
-                 << clang::BinaryOperator::getOpcodeStr(op) << "\n";
+    llvm::WithColor::error() << "cmlirc: unsupported compound assignment: "
+                             << clang::BinaryOperator::getOpcodeStr(op) << "\n";
     return nullptr;
   }
 }
@@ -53,7 +54,7 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
   // Evaluate LHS address
   mlir::Value lhsAddr = generateExpr(binOp->getLHS());
   if (!lhsAddr) {
-    llvm::errs() << "cmlirc: failed to generate LHS address\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate LHS address\n";
     return nullptr;
   }
 
@@ -61,7 +62,7 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
   std::optional<ArrayAccessInfo> arrayAccess;
   if (lhsKind == detail::LHSKind::Indexed) {
     if (!lastArrayAccess) {
-      llvm::errs() << "cmlirc: missing array access info for LHS\n";
+      llvm::WithColor::error() << "cmlirc: missing array access info for LHS\n";
       return nullptr;
     }
     arrayAccess = std::move(lastArrayAccess);
@@ -71,7 +72,7 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
   // Evaluate RHS value
   mlir::Value rhsValue = generateExpr(binOp->getRHS());
   if (!rhsValue) {
-    llvm::errs() << "cmlirc: failed to generate RHS\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate RHS\n";
     return nullptr;
   }
 

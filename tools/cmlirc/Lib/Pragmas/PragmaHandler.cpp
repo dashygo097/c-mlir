@@ -1,6 +1,7 @@
 #include "PragmaHandler.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Preprocessor.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace cmlirc {
@@ -150,10 +151,9 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
   }
 
   if (!ok)
-    llvm::errs() << "warning: malformed #pragma cmlir " << directive
-                 << " at line "
-                 << PP.getSourceManager().getSpellingLineNumber(Introducer.Loc)
-                 << "\n";
+    llvm::WithColor::warning()
+        << "cmlirc: malformed #pragma cmlir " << directive << " at line "
+        << PP.getSourceManager().getSpellingLineNumber(Introducer.Loc) << "\n";
 
   if (!isEndOfDirective(tok))
     skipToEOD(PP);

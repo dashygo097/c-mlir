@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -17,7 +18,8 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
         mlir::dyn_cast<mlir::LLVM::LLVMStructType>(structType);
 
     if (!llvmStructType) {
-      llvm::errs() << "Expected LLVM struct type for constructor\n";
+      llvm::WithColor::error()
+          << "cmlirc: expected LLVM struct type for constructor\n";
       return nullptr;
     }
 
@@ -57,7 +59,8 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
       mlir::Value argValue = generateExpr(arg);
 
       if (!argValue) {
-        llvm::errs() << "Failed to generate constructor argument " << i << "\n";
+        llvm::WithColor::error()
+            << "cmlirc: failed to generate constructor argument " << i << "\n";
         return nullptr;
       }
 
@@ -82,7 +85,7 @@ mlir::Value CMLIRConverter::generateCXXConstructExpr(
       return detail::floatConst(builder, loc, floatType, 0.0);
   }
 
-  llvm::errs() << "Unsupported constructor expression\n";
+  llvm::WithColor::error() << "cmlirc: unsupported constructor expression\n";
   return nullptr;
 }
 

@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "clang/AST/Expr.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -32,8 +33,9 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
 
 #undef REGISTER_EXPR_CONVERSION
 
-  llvm::errs() << "Unsupported expression conversion for expr: "
-               << expr->getStmtClassName() << "\n";
+  llvm::WithColor::error()
+      << "cmlirc: unsupported expression conversion for expr: "
+      << expr->getStmtClassName() << "\n";
   return nullptr;
 }
 

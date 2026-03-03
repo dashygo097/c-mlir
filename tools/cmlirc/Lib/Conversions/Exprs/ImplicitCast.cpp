@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -170,10 +171,10 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    llvm::errs() << "Unsupported cast kind: "
-                 << clang::ImplicitCastExpr::getCastKindName(
-                        castExpr->getCastKind())
-                 << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: unsupported cast kind: "
+        << clang::ImplicitCastExpr::getCastKindName(castExpr->getCastKind())
+        << "\n";
     return subValue;
   }
   }

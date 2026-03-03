@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -24,7 +25,8 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
           } else {
             mlir::Value value = generateExpr(init);
             if (!value) {
-              llvm::errs() << "Failed to generate init value\n";
+              llvm::WithColor::error()
+                  << "cmlirc: failed to generate init value\n";
               continue;
             }
 
@@ -52,7 +54,7 @@ CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {
 
   auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType);
   if (!memrefType) {
-    llvm::errs() << "InitListExpr must have memref type\n";
+    llvm::WithColor::error() << "cmlirc: InitListExpr must have memref type\n";
     return nullptr;
   }
 

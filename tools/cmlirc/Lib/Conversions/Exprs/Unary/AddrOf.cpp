@@ -1,5 +1,6 @@
 #include "../../../Converter.h"
 #include "clang/AST/OperationKinds.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *subExpr) {
@@ -20,7 +21,8 @@ mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *subExpr) {
   if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
     mlir::Value base = generateExpr(subExpr);
     if (!base || !lastArrayAccess) {
-      llvm::errs() << "cmlirc: AddrOf array: access info not available\n";
+      llvm::WithColor::error() << "cmlirc: access info for accessing array "
+                                  "subscript not available\n";
       return nullptr;
     }
     ArrayAccessInfo access = std::move(*lastArrayAccess);

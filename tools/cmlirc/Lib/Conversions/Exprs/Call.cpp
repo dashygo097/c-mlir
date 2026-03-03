@@ -3,6 +3,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -354,7 +355,7 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 
   const clang::FunctionDecl *calleeDecl = callExpr->getDirectCallee();
   if (!calleeDecl) {
-    llvm::errs() << "Indirect calls not supported\n";
+    llvm::WithColor::error() << "cmlirc: indirect calls not supported\n";
     return nullptr;
   }
 
@@ -376,7 +377,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
         for (uint32_t i = 0; i < num_args; ++i) {                              \
           mlir::Value arg = generateExpr(callExpr->getArg(i));                 \
           if (!arg) {                                                          \
-            llvm::errs() << "Failed to generate argument " << i << "\n";       \
+            llvm::WithColor::error()                                           \
+                << "cmlirc: failed to generate argument " << i << "\n";        \
             return nullptr;                                                    \
           }                                                                    \
           /* NOTE: C++ integer overload: Clang matched int overload directly,  \
@@ -444,7 +446,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   for (uint32_t i = 0; i < num_args; ++i) {
     mlir::Value v = generateExpr(callExpr->getArg(i));
     if (!v) {
-      llvm::errs() << "Failed to generate argument " << i << "\n";
+      llvm::WithColor::error()
+          << "cmlirc: failed to generate argument " << i << "\n";
       return nullptr;
     }
     argValues.push_back(v);

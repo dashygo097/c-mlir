@@ -3,6 +3,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -37,7 +38,7 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     mlir::Type mlirType = convertType(clangType);
     auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(mlirType);
     if (!structType) {
-      llvm::errs() << "Expected struct type\n";
+      llvm::WithColor::error() << "cmlirc: expected struct type\n";
       return false;
     }
 
@@ -139,8 +140,8 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
 
   mlir::Type mlirType = convertType(clangType);
   if (!mlirType) {
-    llvm::errs() << "Failed to convert type for variable: "
-                 << decl->getNameAsString() << "\n";
+    llvm::WithColor::error() << "cmlirc: failed to convert type for variable: "
+                             << decl->getNameAsString() << "\n";
     return false;
   }
 

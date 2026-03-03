@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -13,8 +14,8 @@ mlir::Type CMLIRConverter::convertRecordType(const clang::RecordType *type) {
   }
 
   if (!recordDecl->isCompleteDefinition()) {
-    llvm::errs() << "Incomplete struct definition: "
-                 << recordDecl->getNameAsString() << "\n";
+    llvm::WithColor::error() << "cmlirc: incomplete struct definition: "
+                             << recordDecl->getNameAsString() << "\n";
     return nullptr;
   }
 
@@ -23,8 +24,8 @@ mlir::Type CMLIRConverter::convertRecordType(const clang::RecordType *type) {
   for (auto *field : recordDecl->fields()) {
     mlir::Type fieldType = convertType(field->getType());
     if (!fieldType) {
-      llvm::errs() << "Failed to convert field type: "
-                   << field->getNameAsString() << "\n";
+      llvm::WithColor::error() << "cmlirc: failed to convert field type: "
+                               << field->getNameAsString() << "\n";
       return nullptr;
     }
     memberTypes.push_back(fieldType);

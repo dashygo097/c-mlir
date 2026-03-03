@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -135,10 +136,10 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    llvm::errs() << "Unsupported C-style cast kind: "
-                 << clang::CStyleCastExpr::getCastKindName(
-                        castExpr->getCastKind())
-                 << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: unsupported C-style cast kind: "
+        << clang::CStyleCastExpr::getCastKindName(castExpr->getCastKind())
+        << "\n";
     return subValue;
   }
 }
