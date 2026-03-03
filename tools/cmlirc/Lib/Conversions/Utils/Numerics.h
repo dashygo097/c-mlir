@@ -49,6 +49,28 @@ inline mlir::Value noti(mlir::OpBuilder &builder, mlir::Location loc,
   return emitIntOp<mlir::arith::XOrIOp>(builder, loc, value, allOnes);
 }
 
+// Logical
+inline mlir::Value notl(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value value) {
+  return emitIntOp<mlir::arith::XOrIOp>(builder, loc, value,
+                                        boolConst(builder, loc, true));
+}
+
+inline mlir::Value andl(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value lhs, mlir::Value rhs) {
+  return emitIntOp<mlir::arith::AndIOp>(builder, loc, lhs, rhs);
+}
+
+inline mlir::Value orl(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Value lhs, mlir::Value rhs) {
+  return emitIntOp<mlir::arith::OrIOp>(builder, loc, lhs, rhs);
+}
+
+inline mlir::Value xorl(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value lhs, mlir::Value rhs) {
+  return emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
+}
+
 } // namespace cmlirc::detail
 
 #endif // CMLIRC_NUMERICS_H
