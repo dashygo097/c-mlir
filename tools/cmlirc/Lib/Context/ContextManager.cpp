@@ -37,32 +37,42 @@ void ContextManager::dump(llvm::raw_ostream &out) {
   mlir::OpPrintingFlags flags;
   module_->print(ss, flags);
   ss.flush();
-
   llvm::StringRef ir(buf);
+
   while (!ir.empty()) {
+    // Comments → gray (#8b949e)
     if (ir.starts_with("//")) {
       auto end = ir.find('\n');
-      llvm::WithColor(out, llvm::raw_ostream::GREEN)
-          << ir.slice(0, end == llvm::StringRef::npos ? ir.size() : end);
-      ir = ir.drop_front(end == llvm::StringRef::npos ? ir.size() : end);
-      continue;
-    }
-    if (ir[0] == '"') {
-      auto end = ir.find('"', 1);
-      size_t len = (end == llvm::StringRef::npos ? ir.size() : end + 1);
-      llvm::WithColor(out, llvm::raw_ostream::GREEN) << ir.slice(0, len);
+      size_t len = (end == llvm::StringRef::npos ? ir.size() : end);
+      llvm::WithColor(out, llvm::raw_ostream::WHITE, /*bold=*/false)
+          << ir.slice(0, len);
       ir = ir.drop_front(len);
       continue;
     }
+
+    // Strings → light blue (#a5d6ff)
+    if (ir[0] == '"') {
+      auto end = ir.find('"', 1);
+      size_t len = (end == llvm::StringRef::npos ? ir.size() : end + 1);
+      llvm::WithColor(out, llvm::raw_ostream::BLUE, /*bold=*/false)
+          << ir.slice(0, len);
+      ir = ir.drop_front(len);
+      continue;
+    }
+
+    // Numbers → blue (#79c0ff)
     if (std::isdigit((unsigned char)ir[0])) {
       size_t len = 0;
       while (len < ir.size() && (std::isdigit((unsigned char)ir[len]) ||
                                  ir[len] == '.' || ir[len] == '_'))
         ++len;
-      llvm::WithColor(out, llvm::raw_ostream::MAGENTA) << ir.slice(0, len);
+      llvm::WithColor(out, llvm::raw_ostream::CYAN, /*bold=*/false)
+          << ir.slice(0, len);
       ir = ir.drop_front(len);
       continue;
     }
+
+    // Identifiers / keywords / types
     if (std::isalpha((unsigned char)ir[0]) || ir[0] == '_') {
       size_t len = 0;
       while (len < ir.size() && (std::isalnum((unsigned char)ir[len]) ||
@@ -71,22 +81,27 @@ void ContextManager::dump(llvm::raw_ostream &out) {
       llvm::StringRef word = ir.slice(0, len);
 
       if (word.contains('.')) {
-        llvm::WithColor(out, llvm::raw_ostream::YELLOW, /*bold=*/true) << word;
+        // dialect ops → purple (#d2a8ff)
+        llvm::WithColor(out, llvm::raw_ostream::MAGENTA, /*bold=*/true) << word;
       } else if (word == "func" || word == "return" || word == "module" ||
                  word == "do" || word == "default" || word == "case" ||
                  word == "to" || word == "step" || word == "iter_args") {
-        llvm::WithColor(out, llvm::raw_ostream::BLUE, /*bold=*/true) << word;
+        // keywords → red (#ff7b72)
+        llvm::WithColor(out, llvm::raw_ostream::RED, /*bold=*/true) << word;
       } else if (word == "i1" || word == "i8" || word == "i16" ||
                  word == "i32" || word == "i64" || word == "f32" ||
                  word == "f64" || word == "index" || word == "memref" ||
                  word == "ptr" || word == "none" || word == "vararg") {
-        llvm::WithColor(out, llvm::raw_ostream::CYAN) << word;
+        // types → blue (#79c0ff)
+        llvm::WithColor(out, llvm::raw_ostream::CYAN, /*bold=*/false) << word;
       } else {
         out << word;
       }
       ir = ir.drop_front(len);
       continue;
     }
+
+    // SSA values %foo → default text (white bold)
     if (ir[0] == '%') {
       size_t len = 1;
       while (len < ir.size() && (std::isalnum((unsigned char)ir[len]) ||
@@ -97,25 +112,31 @@ void ContextManager::dump(llvm::raw_ostream &out) {
       ir = ir.drop_front(len);
       continue;
     }
+
+    // Symbol refs @foo → orange (#ffa657)
     if (ir[0] == '@') {
       size_t len = 1;
       while (len < ir.size() &&
              (std::isalnum((unsigned char)ir[len]) || ir[len] == '_'))
         ++len;
-      llvm::WithColor(out, llvm::raw_ostream::MAGENTA, /*bold=*/true)
+      llvm::WithColor(out, llvm::raw_ostream::YELLOW, /*bold=*/true)
           << ir.slice(0, len);
       ir = ir.drop_front(len);
       continue;
     }
+
+    // Block labels ^bb0 → red
     if (ir[0] == '^') {
       size_t len = 1;
       while (len < ir.size() &&
              (std::isalnum((unsigned char)ir[len]) || ir[len] == '_'))
         ++len;
-      llvm::WithColor(out, llvm::raw_ostream::RED) << ir.slice(0, len);
+      llvm::WithColor(out, llvm::raw_ostream::RED, /*bold=*/false)
+          << ir.slice(0, len);
       ir = ir.drop_front(len);
       continue;
     }
+
     out << ir[0];
     ir = ir.drop_front(1);
   }
