@@ -2,6 +2,7 @@
 #include "../../Utils/Constants.h"
 #include "../../Utils/Numerics.h"
 #include "clang/AST/OperationKinds.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
@@ -91,9 +92,9 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
     return generateAddrOfUnaryOperator(subExpr);
 
   default:
-    llvm::errs() << "cmlirc: unsupported unary operator: "
-                 << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode())
-                 << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: unsupported unary operator: "
+        << clang::UnaryOperator::getOpcodeStr(unOp->getOpcode()) << "\n";
     return nullptr;
   }
 }

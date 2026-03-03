@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Numerics.h"
 #include "clang/AST/OperationKinds.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 // True when `expr` is an LHS that resolves to a memref + indices pair
@@ -22,7 +23,8 @@ mlir::Value applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
   if (mlir::isa<mlir::FloatType>(value.getType()))
     return isIncrement ? detail::addf(builder, loc, value, 1.0)
                        : detail::subf(builder, loc, value, 1.0);
-  llvm::errs() << "cmlirc: unsupported type for increment/decrement\n";
+  llvm::WithColor::error()
+      << "cmlirc: unsupported type for increment/decrement\n";
   return nullptr;
 }
 
@@ -53,14 +55,15 @@ mlir::Value CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
 
   mlir::Value memref = generateExpr(expr);
   if (!memref) {
-    llvm::errs() << "cmlirc: cannot get lvalue for increment/decrement\n";
+    llvm::WithColor::error()
+        << "cmlirc: cannot get lvalue for increment/decrement\n";
     return nullptr;
   }
 
   std::optional<ArrayAccessInfo> access;
   if (needsArrayAccess) {
     if (!lastArrayAccess) {
-      llvm::errs() << "cmlirc: array access info not available\n";
+      llvm::WithColor::error() << "cmlirc: array access info not available\n";
       return nullptr;
     }
     access = std::move(lastArrayAccess);

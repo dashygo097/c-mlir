@@ -3,6 +3,7 @@
 
 #include "../../Converter.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc::detail {
 enum class LHSKind { Scalar, Indexed, Member };
@@ -36,7 +37,7 @@ loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
   case LHSKind::Scalar:
     return mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
   }
-  llvm_unreachable("unhandled LHSKind");
+  llvm::WithColor::error() << "cmlirc: unhandled LHSKind";
 }
 
 // Store `value` to an LHS location.

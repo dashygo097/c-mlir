@@ -2,6 +2,7 @@
 #include "../../Utils/Casts.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -48,7 +49,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
 
   mlir::Value condition = generateExpr(ifStmt->getCond());
   if (!condition) {
-    llvm::errs() << "Failed to generate if condition\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate if condition\n";
     return false;
   }
   mlir::Value condBool = detail::toBool(builder, loc, condition);

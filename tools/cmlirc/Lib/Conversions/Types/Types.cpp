@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -18,7 +19,8 @@ mlir::Type CMLIRConverter::convertType(const clang::QualType type) {
 
 #undef REGISTER_TYPE
 
-  llvm::errs() << "Unsupported type: " << type.getAsString();
+  llvm::WithColor::error() << "cmlirc: unsupported type: "
+                           << type.getAsString();
   return nullptr;
 }
 

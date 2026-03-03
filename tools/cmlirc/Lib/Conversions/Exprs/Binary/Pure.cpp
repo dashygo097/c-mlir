@@ -4,6 +4,7 @@
 #include "../../Utils/Operators.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 // Handle pure value-producing binary expressions (no side effects on LHS).
@@ -15,7 +16,7 @@ CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
   mlir::Value lhs = generateExpr(binOp->getLHS());
   mlir::Value rhs = generateExpr(binOp->getRHS());
   if (!lhs || !rhs) {
-    llvm::errs() << "cmlirc: failed to generate binary operands\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate binary operands\n";
     return nullptr;
   }
 
@@ -73,9 +74,9 @@ CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
     return generateLOrBinaryOperator(lhs, rhs);
 
   default:
-    llvm::errs() << "cmlirc: unsupported binary operator: "
-                 << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode())
-                 << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: unsupported binary operator: "
+        << clang::BinaryOperator::getOpcodeStr(binOp->getOpcode()) << "\n";
     return nullptr;
   }
 }

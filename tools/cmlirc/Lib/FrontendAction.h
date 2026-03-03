@@ -63,7 +63,7 @@ public:
     pm.addPass(mlir::createSymbolDCEPass());
 
     if (mlir::failed(pm.run(context_manager_->Module())))
-      llvm::errs() << "Failed to run optimization passes\n";
+      llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
 
     context_manager_->dump(*output_stream_);
     output_stream_->flush();

@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 mlir::Type CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type) {
@@ -51,11 +52,12 @@ mlir::Type CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type) {
     return builder.getF64Type();
 
   case clang::BuiltinType::NullPtr:
-    llvm::errs() << "Warning: nullptr_t mapped to i64\n";
+    llvm::WithColor::warning() << "cmlirc: nullptr_t mapped to i64\n";
     return builder.getI64Type();
 
   default:
-    llvm::errs() << "Unsupported builtin type: " << type << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: unsupported builtin type: " << type << "\n";
   }
 
   return nullptr;

@@ -55,7 +55,8 @@ int main(int argc, const char **argv) {
       CommonOptionsParser::create(argc, argv, options::toolOptions);
 
   if (!ExpectedParser) {
-    llvm::errs() << ExpectedParser.takeError();
+    llvm::WithColor::error(llvm::errs(), "cmlirc")
+        << toString(ExpectedParser.takeError()) << "\n";
     return 1;
   }
 
@@ -76,8 +77,8 @@ int main(int argc, const char **argv) {
                                                      llvm::sys::fs::OF_None);
 
     if (ec) {
-      llvm::errs() << "Cannot open '" << options::OutputFile
-                   << "': " << ec.message() << "\n";
+      llvm::WithColor::error() << "cmlirc: cannot open '" << options::OutputFile
+                               << "': " << ec.message() << "\n";
       return 1;
     }
     out = fileOut.get();

@@ -3,6 +3,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/Stmt.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -70,7 +71,7 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
 
   mlir::Value switchVal = generateExpr(sw->getCond());
   if (!switchVal) {
-    llvm::errs() << "error: failed to generate switch condition\n";
+    llvm::WithColor::error() << "cmlirc: failed to generate switch condition\n";
     return false;
   }
   mlir::Value switchIdx = detail::toIndex(builder, loc, switchVal);

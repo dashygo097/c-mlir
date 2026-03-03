@@ -5,6 +5,7 @@
 #include "./Converter.h"
 #include "./Pragmas/PragmaHandler.h"
 #include "clang/AST/ASTConsumer.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -29,8 +30,8 @@ public:
       if (auto *FD = mlir::dyn_cast<clang::FunctionDecl>(Decl)) {
         if (FD->getNameAsString() == targetFuncName) {
           if (!FD->hasBody()) {
-            llvm::errs() << "Function '" << targetFuncName
-                         << "' found but has no body\n";
+            llvm::WithColor::error() << "cmlirc: function '" << targetFuncName
+                                     << "' found but has no body\n";
             return;
           }
 
@@ -42,7 +43,8 @@ public:
     }
 
     if (!found) {
-      llvm::errs() << "Function '" << targetFuncName << "' not found\n";
+      llvm::WithColor::error()
+          << "cmlirc: function '" << targetFuncName << "' not found\n";
     }
   }
 
