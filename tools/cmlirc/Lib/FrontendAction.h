@@ -32,7 +32,7 @@ public:
 
   void EndSourceFileAction() override {
     if (options::Verbose)
-      llvm::outs() << "\nGenerated MLIR: \n";
+      llvm::WithColor::remark() << "\nGenerated MLIR: \n";
 
     mlir::PassManager pm(&context_manager_->MLIRContext());
 
@@ -65,7 +65,7 @@ public:
     if (mlir::failed(pm.run(context_manager_->Module())))
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
 
-    context_manager_->dump(*output_stream_);
+    context_manager_->dumpColored(*output_stream_);
     output_stream_->flush();
   }
 

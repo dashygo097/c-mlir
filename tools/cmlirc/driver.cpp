@@ -55,8 +55,8 @@ int main(int argc, const char **argv) {
       CommonOptionsParser::create(argc, argv, options::toolOptions);
 
   if (!ExpectedParser) {
-    llvm::WithColor::error(llvm::errs(), "cmlirc")
-        << toString(ExpectedParser.takeError()) << "\n";
+    llvm::WithColor::error()
+        << "cmlirc: " << toString(ExpectedParser.takeError()) << "\n";
     return 1;
   }
 
