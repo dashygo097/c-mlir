@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
 
@@ -22,6 +23,22 @@ bool branchEndsWithReturn(clang::Stmt *stmt) {
   return false;
 }
 
+bool isInsideStructuredRegion(mlir::OpBuilder &builder,
+                              mlir::func::FuncOp funcOp) {
+  mlir::Block *block = builder.getInsertionBlock();
+  if (!block)
+    return false;
+  mlir::Region *blockRegion = block->getParent();
+  if (!blockRegion)
+    return false;
+  return blockRegion != &funcOp.getBody();
+}
+
+static void removeAutoYield(mlir::Block *block) {
+  if (!block->empty() && mlir::isa<mlir::scf::YieldOp>(block->back()))
+    block->back().erase();
+}
+
 bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   if (!currentFunc)
     return true;
@@ -37,8 +54,35 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   mlir::Value condBool = detail::toBool(builder, loc, condition);
 
   bool hasElse = ifStmt->getElse() != nullptr;
-  bool thenHasReturn = branchEndsWithReturn(ifStmt->getThen());
-  bool elseHasReturn = hasElse && branchEndsWithReturn(ifStmt->getElse());
+
+  if (isInsideStructuredRegion(builder, currentFunc)) {
+    auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
+                                        condBool, hasElse);
+    {
+      mlir::OpBuilder::InsertionGuard g(builder);
+      mlir::Block *thenBlock = &ifOp.getThenRegion().front();
+      removeAutoYield(thenBlock);
+      builder.setInsertionPointToStart(thenBlock);
+      TraverseStmt(ifStmt->getThen());
+      builder.setInsertionPointToEnd(thenBlock);
+      if (thenBlock->empty() ||
+          !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+    }
+    if (hasElse) {
+      mlir::OpBuilder::InsertionGuard g(builder);
+      mlir::Block *elseBlock = &ifOp.getElseRegion().front();
+      removeAutoYield(elseBlock);
+      builder.setInsertionPointToStart(elseBlock);
+      TraverseStmt(ifStmt->getElse());
+      builder.setInsertionPointToEnd(elseBlock);
+      if (elseBlock->empty() ||
+          !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+    }
+    builder.setInsertionPointAfter(ifOp);
+    return true;
+  }
 
   mlir::Block *currentBlock = builder.getInsertionBlock();
   mlir::Region *region = currentBlock->getParent();
@@ -51,25 +95,19 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   mlir::cf::CondBranchOp::create(builder, loc, condBool, thenBlock,
                                  mlir::ValueRange{}, elseBlock,
                                  mlir::ValueRange{});
-
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(thenBlock);
-
     TraverseStmt(ifStmt->getThen());
-
     builder.setInsertionPointToEnd(thenBlock);
     if (thenBlock->empty() ||
         !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
       mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
   }
-
   if (hasElse) {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(elseBlock);
-
     TraverseStmt(ifStmt->getElse());
-
     builder.setInsertionPointToEnd(elseBlock);
     if (elseBlock->empty() ||
         !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
@@ -77,10 +115,6 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   }
 
   builder.setInsertionPointToStart(mergeBlock);
-
-  (void)thenHasReturn;
-  (void)elseHasReturn;
-
   return true;
 }
 
