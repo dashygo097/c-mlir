@@ -20,7 +20,7 @@ struct SimpleLoopInfo {
   }
 };
 
-struct CFContext {
+struct LoopContext {
   mlir::Block *headerBlock{nullptr};
   mlir::Block *exitBlock{nullptr};
 };
@@ -92,8 +92,7 @@ private:
   mlir::Value *returnValueCapture;
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
-  llvm::SmallVector<CFContext, 4> loopStack;
-  llvm::SmallVector<CFContext, 4> switchStack;
+  llvm::SmallVector<LoopContext, 4> loopStack;
 
   // helpers
   std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,
