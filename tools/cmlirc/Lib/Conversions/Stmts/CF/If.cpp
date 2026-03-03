@@ -34,7 +34,7 @@ bool isInsideStructuredRegion(mlir::OpBuilder &builder,
   return blockRegion != &funcOp.getBody();
 }
 
-static void removeAutoYield(mlir::Block *block) {
+void removeAutoYield(mlir::Block *block) {
   if (!block->empty() && mlir::isa<mlir::scf::YieldOp>(block->back()))
     block->back().erase();
 }

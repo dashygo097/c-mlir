@@ -53,8 +53,8 @@ void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
     walk(s);
 }
 
-static bool isInsideStructuredRegion(mlir::OpBuilder &builder,
-                                     mlir::func::FuncOp funcOp) {
+bool isInsideStructuredRegion(mlir::OpBuilder &builder,
+                              mlir::func::FuncOp funcOp) {
   mlir::Block *block = builder.getInsertionBlock();
   if (!block)
     return false;
@@ -64,12 +64,11 @@ static bool isInsideStructuredRegion(mlir::OpBuilder &builder,
   return blockRegion != &funcOp.getBody();
 }
 
-static void emitSwitchAsIfCascade(CMLIRConverter &conv,
-                                  mlir::OpBuilder &builder, mlir::Location loc,
-                                  mlir::Value switchVal,
-                                  llvm::SmallVector<SwitchArm> &arms,
-                                  const clang::VarDecl *condVar,
-                                  mlir::Value condAlloca) {
+void emitSwitchAsIfCascade(CMLIRConverter &conv, mlir::OpBuilder &builder,
+                           mlir::Location loc, mlir::Value switchVal,
+                           llvm::SmallVector<SwitchArm> &arms,
+                           const clang::VarDecl *condVar,
+                           mlir::Value condAlloca) {
   mlir::Type i32 = builder.getI32Type();
 
   if (condVar && condAlloca)
