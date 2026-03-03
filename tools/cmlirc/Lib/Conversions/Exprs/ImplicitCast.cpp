@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Constants.h"
 
 namespace cmlirc {
 
@@ -123,9 +124,7 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    auto zeroAttr = builder.getIntegerAttr(subValue.getType(), 0);
-    mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+    mlir::Value zero = detail::intConst(builder, loc, subValue.getType(), 0);
     return mlir::arith::CmpIOp::create(
                builder, loc, mlir::arith::CmpIPredicate::ne, subValue, zero)
         .getResult();
@@ -135,9 +134,8 @@ CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    auto zeroAttr = builder.getFloatAttr(subValue.getType(), 0.0);
     mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+        detail::floatConst(builder, loc, subValue.getType(), 0.0);
     return mlir::arith::CmpFOp::create(
                builder, loc, mlir::arith::CmpFPredicate::UNE, subValue, zero)
         .getResult();

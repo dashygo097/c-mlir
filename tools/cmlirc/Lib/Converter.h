@@ -25,6 +25,13 @@ struct CFContext {
   mlir::Block *exitBlock{nullptr};
 };
 
+struct SwitchArm {
+  llvm::SmallVector<int64_t, 2> values;
+  llvm::SmallVector<clang::Stmt *, 8> stmts;
+  bool isDefault{false};
+  bool hasBreak{false};
+};
+
 struct ArrayAccessInfo {
   mlir::Value base;
   llvm::SmallVector<mlir::Value, 4> indices{};
