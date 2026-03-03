@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Constants.h"
 
 namespace cmlirc {
 
@@ -90,9 +91,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    auto zeroAttr = builder.getIntegerAttr(subValue.getType(), 0);
-    mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+    mlir::Value zero = detail::intConst(builder, loc, subValue.getType(), 0);
     return mlir::arith::CmpIOp::create(
                builder, loc, mlir::arith::CmpIPredicate::ne, subValue, zero)
         .getResult();
@@ -102,9 +101,8 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)
       return nullptr;
-    auto zeroAttr = builder.getFloatAttr(subValue.getType(), 0.0);
     mlir::Value zero =
-        mlir::arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
+        detail::floatConst(builder, loc, subValue.getType(), 0.0);
     return mlir::arith::CmpFOp::create(
                builder, loc, mlir::arith::CmpFPredicate::UNE, subValue, zero)
         .getResult();
@@ -125,6 +123,7 @@ CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) {
     return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
         .getResult();
   }
+
   case CK::CK_NoOp: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue)

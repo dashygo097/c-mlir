@@ -1,20 +1,10 @@
 #include "../../../Converter.h"
-#include "../../Utils/Constants.h"
-#include "../../Utils/Numerics.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/Stmt.h"
 
 namespace cmlirc {
-
-struct SwitchArm {
-  llvm::SmallVector<int64_t, 2> values;
-  llvm::SmallVector<clang::Stmt *, 8> stmts;
-  bool isDefault{false};
-  bool hasBreak{false};
-};
 
 void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
                  clang::ASTContext &ctx) {
@@ -55,85 +45,6 @@ void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
     walk(s);
 }
 
-bool isInsideStructuredRegion(mlir::OpBuilder &builder,
-                              mlir::func::FuncOp funcOp) {
-  mlir::Block *block = builder.getInsertionBlock();
-  if (!block)
-    return false;
-  mlir::Region *blockRegion = block->getParent();
-  if (!blockRegion)
-    return false;
-  return blockRegion != &funcOp.getBody();
-}
-
-void emitSwitchAsIfCascade(CMLIRConverter &conv, mlir::OpBuilder &builder,
-                           mlir::Location loc, mlir::Value switchVal,
-                           llvm::SmallVector<SwitchArm> &arms,
-                           const clang::VarDecl *condVar,
-                           mlir::Value condAlloca) {
-  mlir::Type i32 = builder.getI32Type();
-
-  if (condVar && condAlloca)
-    mlir::memref::StoreOp::create(builder, loc, switchVal, condAlloca,
-                                  mlir::ValueRange{});
-
-  for (size_t i = 0; i < arms.size(); ++i) {
-    const SwitchArm &arm = arms[i];
-
-    mlir::Value cond;
-    if (arm.isDefault) {
-      mlir::Value allNonMatch;
-      for (size_t j = 0; j < arms.size(); ++j) {
-        if (arms[j].isDefault)
-          continue;
-        for (int64_t v : arms[j].values) {
-          mlir::Value cv = detail::intConst(builder, loc, i32, v);
-          mlir::Value neq =
-              mlir::arith::CmpIOp::create(
-                  builder, loc, mlir::arith::CmpIPredicate::ne, switchVal, cv)
-                  .getResult();
-          allNonMatch =
-              allNonMatch ? detail::andl(builder, loc, allNonMatch, neq) : neq;
-        }
-      }
-      if (!allNonMatch)
-        allNonMatch = detail::boolConst(builder, loc, true);
-      cond = allNonMatch;
-    } else {
-      mlir::Value anyMatch;
-      for (int64_t v : arm.values) {
-        mlir::Value cv = detail::intConst(builder, loc, i32, v);
-        mlir::Value eq =
-            mlir::arith::CmpIOp::create(
-                builder, loc, mlir::arith::CmpIPredicate::eq, switchVal, cv)
-                .getResult();
-        anyMatch = anyMatch ? detail::orl(builder, loc, anyMatch, eq) : eq;
-      }
-      if (!anyMatch)
-        continue;
-      cond = anyMatch;
-    }
-
-    auto ifOp =
-        mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{}, cond, false);
-    {
-      mlir::OpBuilder::InsertionGuard g(builder);
-      mlir::Block *thenBlock = &ifOp.getThenRegion().front();
-      if (!thenBlock->empty() &&
-          mlir::isa<mlir::scf::YieldOp>(thenBlock->back()))
-        thenBlock->back().erase();
-      builder.setInsertionPointToStart(thenBlock);
-      for (clang::Stmt *s : arm.stmts)
-        conv.TraverseStmt(s);
-      builder.setInsertionPointToEnd(thenBlock);
-      if (thenBlock->empty() ||
-          !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
-        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-    }
-    builder.setInsertionPointAfter(ifOp);
-  }
-}
-
 bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
   if (!currentFunc)
     return true;
@@ -148,99 +59,79 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
     return false;
   }
 
-  mlir::Type i32 = builder.getI32Type();
-  if (switchVal.getType() != i32) {
-    uint32_t w = mlir::cast<mlir::IntegerType>(switchVal.getType()).getWidth();
-    if (w < 32)
-      switchVal = mlir::arith::ExtSIOp::create(builder, loc, i32, switchVal)
-                      .getResult();
-    else
-      switchVal = mlir::arith::TruncIOp::create(builder, loc, i32, switchVal)
-                      .getResult();
-  }
+  mlir::Value switchIdx = mlir::arith::IndexCastOp::create(
+                              builder, loc, builder.getIndexType(), switchVal)
+                              .getResult();
 
   llvm::SmallVector<SwitchArm> arms;
   collectArms(sw, arms, astCtx);
   if (arms.empty())
     return true;
 
-  if (isInsideStructuredRegion(builder, currentFunc)) {
-    const clang::VarDecl *condVar = nullptr;
-    mlir::Value condAlloca;
-    clang::Expr *condBase = sw->getCond()->IgnoreImpCasts();
-    if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condBase)) {
-      condVar = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl());
-      if (condVar) {
-        auto it = symbolTable.find(condVar);
-        if (it != symbolTable.end())
-          condAlloca = it->second;
-      }
+  clang::Expr *condBase = sw->getCond()->IgnoreImpCasts();
+  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condBase))
+    if (auto *var = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+      auto it = symbolTable.find(var);
+      if (it != symbolTable.end())
+        mlir::memref::StoreOp::create(builder, loc, switchVal, it->second,
+                                      mlir::ValueRange{});
     }
 
-    switchStack.push_back({nullptr, nullptr});
-    emitSwitchAsIfCascade(*this, builder, loc, switchVal, arms, condVar,
-                          condAlloca);
-    switchStack.pop_back();
-    return true;
-  }
-
-  mlir::Block *currentBlock = builder.getInsertionBlock();
-  mlir::Region *region = currentBlock->getParent();
-
-  mlir::Block *mergeBlock = builder.createBlock(region);
-  llvm::SmallVector<mlir::Block *> armBlocks;
-  for (size_t i = 0; i < arms.size(); ++i)
-    armBlocks.push_back(builder.createBlock(region));
-
-  mlir::Block *defaultBlock = mergeBlock;
-  for (size_t i = 0; i < arms.size(); ++i) {
-    if (arms[i].isDefault) {
-      defaultBlock = armBlocks[i];
-      break;
-    }
-  }
-
-  llvm::SmallVector<int32_t> caseValues;
-  llvm::SmallVector<mlir::Block *> caseBlocks;
+  llvm::SmallVector<int64_t> caseValues;
+  llvm::SmallVector<size_t> caseArmIdx;
   for (size_t i = 0; i < arms.size(); ++i) {
     if (arms[i].isDefault)
       continue;
     for (int64_t v : arms[i].values) {
-      caseValues.push_back(static_cast<int32_t>(v));
-      caseBlocks.push_back(armBlocks[i]);
+      caseValues.push_back(v);
+      caseArmIdx.push_back(i);
     }
   }
 
-  builder.setInsertionPointToEnd(currentBlock);
-  mlir::cf::SwitchOp::create(builder, loc, switchVal, defaultBlock,
-                             mlir::ValueRange{},
-                             llvm::ArrayRef<int32_t>(caseValues),
-                             llvm::ArrayRef<mlir::Block *>(caseBlocks),
-                             llvm::SmallVector<mlir::ValueRange>(
-                                 caseBlocks.size(), mlir::ValueRange{}));
+  int64_t defaultArmIdx = -1;
+  for (size_t i = 0; i < arms.size(); ++i)
+    if (arms[i].isDefault) {
+      defaultArmIdx = (int64_t)i;
+      break;
+    }
 
-  switchStack.push_back({nullptr, mergeBlock});
+  size_t numCases = caseValues.size();
 
-  for (size_t i = 0; i < arms.size(); ++i) {
-    mlir::Block *armBlock = armBlocks[i];
-    builder.setInsertionPointToStart(armBlock);
-    for (clang::Stmt *s : arms[i].stmts)
+  auto indexSwitch = mlir::scf::IndexSwitchOp::create(
+      builder, loc,
+      /*resultTypes=*/mlir::TypeRange{}, switchIdx,
+      llvm::ArrayRef<int64_t>(caseValues),
+      /*numRegions=*/numCases + 1);
+
+  auto emitArmIntoRegion = [&](mlir::Region &reg, size_t armIdx) {
+    mlir::Block *blk = new mlir::Block();
+    reg.push_back(blk);
+    mlir::OpBuilder::InsertionGuard g(builder);
+    builder.setInsertionPointToStart(blk);
+    for (clang::Stmt *s : arms[armIdx].stmts)
       TraverseStmt(s);
-    builder.setInsertionPointToEnd(armBlock);
-    if (!armBlock->empty() &&
-        armBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
-      continue;
-    if (arms[i].hasBreak)
-      mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
-    else {
-      mlir::Block *fallTarget =
-          (i + 1 < arms.size()) ? armBlocks[i + 1] : mergeBlock;
-      mlir::cf::BranchOp::create(builder, loc, fallTarget, mlir::ValueRange{});
-    }
+    builder.setInsertionPointToEnd(builder.getInsertionBlock());
+    if (builder.getInsertionBlock()->empty() ||
+        !builder.getInsertionBlock()
+             ->back()
+             .hasTrait<mlir::OpTrait::IsTerminator>())
+      mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+  };
+
+  for (size_t ci = 0; ci < numCases; ++ci)
+    emitArmIntoRegion(indexSwitch.getCaseRegions()[ci], caseArmIdx[ci]);
+
+  if (defaultArmIdx >= 0) {
+    emitArmIntoRegion(indexSwitch.getDefaultRegion(), (size_t)defaultArmIdx);
+  } else {
+    mlir::Block *blk = new mlir::Block();
+    indexSwitch.getDefaultRegion().push_back(blk);
+    mlir::OpBuilder::InsertionGuard g(builder);
+    builder.setInsertionPointToStart(blk);
+    mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
   }
 
-  switchStack.pop_back();
-  builder.setInsertionPointToStart(mergeBlock);
+  builder.setInsertionPointAfter(indexSwitch);
   return true;
 }
 
