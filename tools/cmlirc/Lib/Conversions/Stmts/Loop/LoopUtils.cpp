@@ -17,13 +17,14 @@ void ensureYield(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing) {
+  using CBO = clang::BinaryOperatorKind;
   switch (op) {
-  case clang::BO_LT:
-  case clang::BO_LE:
+  case CBO::BO_LT:
+  case CBO::BO_LE:
     isIncrementing = true;
     return true;
-  case clang::BO_GT:
-  case clang::BO_GE:
+  case CBO::BO_GT:
+  case CBO::BO_GE:
     isIncrementing = false;
     return true;
   default:

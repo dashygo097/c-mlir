@@ -1,3 +1,4 @@
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -22,6 +23,40 @@ static bool isPromotable(mlir::memref::AllocaOp alloca) {
     if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
       return false;
   return true;
+}
+
+static mlir::Block *getEnclosingBlockInRegion(mlir::Block *block,
+                                              mlir::Region *targetRegion) {
+  while (block) {
+    mlir::Region *r = block->getParent();
+    if (!r)
+      return nullptr;
+    if (r == targetRegion)
+      return block;
+    mlir::Operation *parentOp = r->getParentOp();
+    if (!parentOp)
+      return nullptr;
+    block = parentOp->getBlock();
+  }
+  return nullptr;
+}
+
+static void replaceNestedLoads(
+    mlir::Operation *clonedOp, const llvm::DenseSet<mlir::Value> &promotedSet,
+    const llvm::DenseMap<mlir::Value, mlir::Value> &currentValues,
+    mlir::PatternRewriter &rewriter) {
+  if (clonedOp->getNumRegions() == 0)
+    return;
+  llvm::SmallVector<mlir::memref::LoadOp> nestedLoads;
+  clonedOp->walk([&](mlir::memref::LoadOp nl) {
+    if (promotedSet.count(nl.getMemRef()))
+      nestedLoads.push_back(nl);
+  });
+  for (mlir::memref::LoadOp nl : nestedLoads) {
+    auto it = currentValues.find(nl.getMemRef());
+    if (it != currentValues.end())
+      rewriter.replaceOp(nl, it->second);
+  }
 }
 
 struct PromoteSCFForAllocaToIterArgPattern
@@ -53,14 +88,16 @@ struct PromoteSCFForAllocaToIterArgPattern
           continue;
         usedInLoop = true;
 
-        if (mlir::isa<mlir::memref::StoreOp>(user) &&
-            user->getBlock() != forOp.getBody())
-          return;
+        if (mlir::isa<mlir::memref::StoreOp>(user)) {
+          mlir::Block *enclosing = getEnclosingBlockInRegion(
+              user->getBlock(), &forOp.getBodyRegion());
+          if (enclosing != forOp.getBody())
+            return;
+        }
       }
       if (!usedInLoop)
         return;
 
-      // Must have a pre-loop initialising store
       mlir::Value initValue;
       for (mlir::Operation *user : alloca->getUsers()) {
         auto store = mlir::dyn_cast<mlir::memref::StoreOp>(user);
@@ -114,14 +151,12 @@ struct PromoteSCFForAllocaToIterArgPattern
     rewriter.setInsertionPointToEnd(newBody);
 
     for (mlir::Operation &op : oldBody->without_terminator()) {
-      // Direct (top-level) promoted load → SSA value
       if (auto load = mlir::dyn_cast<mlir::memref::LoadOp>(&op)) {
         if (promotedSet.count(load.getMemRef())) {
           mapping.map(load.getResult(), currentValues[load.getMemRef()]);
           continue;
         }
       }
-      // Direct (top-level) promoted store → update current value
       if (auto store = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
         if (promotedSet.count(store.getMemRef())) {
           currentValues[store.getMemRef()] =
@@ -130,21 +165,8 @@ struct PromoteSCFForAllocaToIterArgPattern
         }
       }
 
-      // Clone op
       mlir::Operation *clonedOp = rewriter.clone(op, mapping);
-
-      if (clonedOp->getNumRegions() > 0) {
-        llvm::SmallVector<mlir::memref::LoadOp> nestedLoads;
-        clonedOp->walk([&](mlir::memref::LoadOp nestedLoad) {
-          if (promotedSet.count(nestedLoad.getMemRef()))
-            nestedLoads.push_back(nestedLoad);
-        });
-        for (mlir::memref::LoadOp nestedLoad : nestedLoads) {
-          auto it = currentValues.find(nestedLoad.getMemRef());
-          if (it != currentValues.end())
-            rewriter.replaceOp(nestedLoad, it->second);
-        }
-      }
+      replaceNestedLoads(clonedOp, promotedSet, currentValues, rewriter);
     }
 
     auto oldYield = mlir::cast<mlir::scf::YieldOp>(oldBody->getTerminator());
@@ -174,13 +196,11 @@ struct PromoteSCFForAllocaToIterArgPattern
 
     for (mlir::memref::AllocaOp alloca : allocasToPromote) {
       mlir::Value allocaResult = alloca.getResult();
-
       for (mlir::Operation *user :
            llvm::make_early_inc_range(allocaResult.getUsers())) {
         if (user->getBlock() == alloca->getBlock())
           rewriter.eraseOp(user);
       }
-
       if (allocaResult.use_empty())
         rewriter.eraseOp(alloca);
     }
@@ -224,9 +244,11 @@ struct PromoteSCFWhileAllocaToIterArgPattern
           continue;
         if (!whileOp->isAncestor(user))
           continue;
-        mlir::Block *storeBlock = user->getBlock();
-        if (storeBlock != &whileOp.getBefore().front() &&
-            storeBlock != &whileOp.getAfter().front())
+        mlir::Block *enclosingBefore =
+            getEnclosingBlockInRegion(user->getBlock(), &whileOp.getBefore());
+        mlir::Block *enclosingAfter =
+            getEnclosingBlockInRegion(user->getBlock(), &whileOp.getAfter());
+        if (!enclosingBefore && !enclosingAfter)
           return;
       }
 
@@ -308,18 +330,7 @@ struct PromoteSCFWhileAllocaToIterArgPattern
         }
       }
       mlir::Operation *cloned = rewriter.clone(op, beforeMapping);
-      if (cloned->getNumRegions() > 0) {
-        llvm::SmallVector<mlir::memref::LoadOp> nestedLoads;
-        cloned->walk([&](mlir::memref::LoadOp nl) {
-          if (promotedSet.count(nl.getMemRef()))
-            nestedLoads.push_back(nl);
-        });
-        for (auto nl : nestedLoads) {
-          auto it = beforeValues.find(nl.getMemRef());
-          if (it != beforeValues.end())
-            rewriter.replaceOp(nl, it->second);
-        }
-      }
+      replaceNestedLoads(cloned, promotedSet, beforeValues, rewriter);
     }
 
     auto oldCond =
@@ -364,7 +375,8 @@ struct PromoteSCFWhileAllocaToIterArgPattern
           continue;
         }
       }
-      rewriter.clone(op, afterMapping);
+      mlir::Operation *cloned = rewriter.clone(op, afterMapping);
+      replaceNestedLoads(cloned, promotedSet, afterValues, rewriter);
     }
 
     auto oldYield = mlir::cast<mlir::scf::YieldOp>(oldAfter->getTerminator());
@@ -407,12 +419,6 @@ struct PromoteSCFWhileAllocaToIterArgPattern
   }
 };
 
-// %alloca = memref.alloca() : memref<T>
-// memref.store %val, %alloca[]
-// ...no other stores...
-// =>
-// %x = memref.load %alloca[]   →  replace %x with %val (across any nesting
-// depth)
 struct ForwardStoreToLoadPattern
     : public mlir::OpRewritePattern<mlir::memref::LoadOp> {
   using mlir::OpRewritePattern<mlir::memref::LoadOp>::OpRewritePattern;
@@ -433,12 +439,10 @@ struct ForwardStoreToLoadPattern
         return mlir::failure();
     }
 
-    // FIXME: We could handle multiple stores if they are in different blocks
     if (stores.size() != 1)
       return mlir::failure();
 
     mlir::memref::StoreOp store = stores[0];
-
     mlir::DominanceInfo domInfo(alloca->getParentOfType<mlir::func::FuncOp>());
 
     if (!domInfo.dominates(store.getOperation(), loadOp.getOperation()))
@@ -464,9 +468,8 @@ struct Mem2RegPass : public impl::Mem2RegPassBase<Mem2RegPass> {
     }
 
     op->walk([](mlir::Operation *op) {
-      if (mlir::isOpTriviallyDead(op)) {
+      if (mlir::isOpTriviallyDead(op))
         op->erase();
-      }
     });
   }
 };

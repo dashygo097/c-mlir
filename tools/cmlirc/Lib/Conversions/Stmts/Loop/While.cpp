@@ -12,21 +12,16 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  auto beforBuilder = [&](mlir::OpBuilder &b, mlir::Location l,
-                          mlir::ValueRange args) {
-    mlir::Value cond =
-        detail::toBool(builder, loc, generateExpr(whileStmt->getCond()));
-    mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
-  };
-
-  auto afterBuilder = [&](mlir::OpBuilder &b, mlir::Location l,
-                          mlir::ValueRange args) {
-    mlir::scf::YieldOp::create(b, l);
-  };
-
-  auto whileOp = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
-                                            mlir::ValueRange{}, beforBuilder,
-                                            afterBuilder);
+  auto whileOp = mlir::scf::WhileOp::create(
+      builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::Value cond =
+            detail::toBool(builder, loc, generateExpr(whileStmt->getCond()));
+        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+      },
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
+      });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();
 
