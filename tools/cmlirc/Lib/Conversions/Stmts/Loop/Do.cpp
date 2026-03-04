@@ -2,6 +2,7 @@
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
 #include "../../Utils/Numerics.h"
+#include "../../Utils/StmtUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
@@ -13,28 +14,28 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  mlir::Type i1 = builder.getI1Type();
-  mlir::Value falseVal = detail::boolConst(builder, loc, false);
-  mlir::Value breakFlag = mlir::memref::AllocaOp::create(
-                              builder, loc, mlir::MemRefType::get({}, i1))
-                              .getResult();
-  mlir::memref::StoreOp::create(builder, loc, falseVal, breakFlag,
-                                mlir::ValueRange{});
+  const bool hasBreak = detail::stmtHasBreakInLoop(doStmt);
 
-  auto beforeBuilder = [&](mlir::OpBuilder &b, mlir::Location l,
-                           mlir::ValueRange args) {
-    mlir::scf::ConditionOp::create(builder, l, detail::boolConst(b, l, true),
-                                   mlir::ValueRange{});
-  };
+  mlir::Value breakFlag;
+  if (hasBreak) {
+    mlir::Type i1 = builder.getI1Type();
+    mlir::Value falseVal = detail::boolConst(builder, loc, false);
+    breakFlag = mlir::memref::AllocaOp::create(builder, loc,
+                                               mlir::MemRefType::get({}, i1))
+                    .getResult();
+    mlir::memref::StoreOp::create(builder, loc, falseVal, breakFlag,
+                                  mlir::ValueRange{});
+  }
 
-  auto afterBuilder = [&](mlir::OpBuilder &b, mlir::Location l,
-                          mlir::ValueRange args) {
-    mlir::scf::YieldOp::create(builder, l, mlir::ValueRange{});
-  };
-
-  auto whileOp = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
-                                            mlir::ValueRange{}, beforeBuilder,
-                                            afterBuilder);
+  auto whileOp = mlir::scf::WhileOp::create(
+      builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+        mlir::scf::ConditionOp::create(b, l, detail::boolConst(b, l, true),
+                                       mlir::ValueRange{});
+      },
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+        mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
+      });
 
   mlir::Block *beforeBlock = &whileOp.getBefore().front();
   beforeBlock->back().erase();
@@ -43,7 +44,7 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
   loopStack.push_back({beforeBlock, &whileOp.getAfter().front(), breakFlag});
 
   auto *body = llvm::dyn_cast_or_null<clang::CompoundStmt>(doStmt->getBody());
-  if (body) {
+  if (hasBreak && body) {
     for (clang::Stmt *s : body->body()) {
       mlir::Value broke =
           mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
@@ -75,12 +76,13 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
       doStmt->getCond()
           ? detail::toBool(builder, loc, generateExpr(doStmt->getCond()))
           : detail::boolConst(builder, loc, true);
-  mlir::Value broke =
-      mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
-  mlir::Value notBroke = detail::noti(builder, loc, broke);
-  mlir::Value proceed =
-      mlir::arith::AndIOp::create(builder, loc, cond, notBroke).getResult();
-  mlir::scf::ConditionOp::create(builder, loc, proceed, mlir::ValueRange{});
+  if (hasBreak) {
+    mlir::Value broke =
+        mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
+    mlir::Value notBroke = detail::noti(builder, loc, broke);
+    cond = detail::andi(builder, loc, cond, notBroke);
+  }
+  mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
 
   builder.setInsertionPointAfter(whileOp);
   return true;
