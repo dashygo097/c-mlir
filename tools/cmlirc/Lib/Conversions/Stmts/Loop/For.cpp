@@ -219,7 +219,8 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   if (!currentFunc)
     return true;
 
-  if (detail::stmtHasBreakInLoop(forStmt)) {
+  if (detail::stmtHasBreakInLoop(forStmt) ||
+      detail::stmtHasContinueInLoop(forStmt)) {
     emitWhileStyleForLoop(forStmt);
     return true;
   }
