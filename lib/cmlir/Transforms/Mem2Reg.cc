@@ -16,12 +16,28 @@ static bool isScalarMemRef(mlir::Type type) {
   return memrefType && memrefType.hasRank() && memrefType.getRank() == 0;
 }
 
+static bool isInConditionalRegion(mlir::Operation *op) {
+  mlir::Operation *parent = op->getParentOp();
+  while (parent) {
+    if (mlir::isa<mlir::scf::IfOp, mlir::scf::IndexSwitchOp>(parent))
+      return true;
+    if (mlir::isa<mlir::scf::ForOp, mlir::scf::WhileOp, mlir::func::FuncOp>(
+            parent))
+      break;
+    parent = parent->getParentOp();
+  }
+  return false;
+}
+
 static bool isPromotable(mlir::memref::AllocaOp alloca) {
   if (!isScalarMemRef(alloca.getType()))
     return false;
-  for (mlir::Operation *user : alloca->getUsers())
+  for (mlir::Operation *user : alloca->getUsers()) {
     if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
       return false;
+    if (mlir::isa<mlir::memref::StoreOp>(user) && isInConditionalRegion(user))
+      return false;
+  }
   return true;
 }
 
