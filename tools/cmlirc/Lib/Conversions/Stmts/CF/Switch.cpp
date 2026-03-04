@@ -35,7 +35,7 @@ void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
       walk(ds->getSubStmt());
       return;
     }
-    if (llvm::isa<clang::BreakStmt>(s)) {
+    if (mlir::isa<clang::BreakStmt>(s)) {
       if (!arms.empty())
         arms.back().hasBreak = true;
       return;

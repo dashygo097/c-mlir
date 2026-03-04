@@ -20,11 +20,8 @@ bool CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) {
     return true;
   }
 
-  if (retValue) {
-    mlir::func::ReturnOp::create(builder, loc, mlir::ValueRange{retValue});
-  } else {
-    mlir::func::ReturnOp::create(builder, builder.getUnknownLoc());
-  }
+  mlir::func::ReturnOp::create(
+      builder, loc, retValue ? mlir::ValueRange{retValue} : mlir::ValueRange{});
 
   return true;
 }
