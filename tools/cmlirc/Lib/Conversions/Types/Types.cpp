@@ -8,7 +8,7 @@ mlir::Type CMLIRConverter::convertType(const clang::QualType type) {
 
 #define REGISTER_TYPE(type)                                                    \
   if (auto *node = mlir::dyn_cast<clang::type>(typePtr)) {                     \
-    return convert##type(llvm::cast<clang::type>(node));                       \
+    return convert##type(mlir::cast<clang::type>(node));                       \
   }
 
   REGISTER_TYPE(BuiltinType)
