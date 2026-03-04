@@ -158,14 +158,72 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   builder.setInsertionPointToEnd(afterBlock);
 
   loopStack.push_back({&whileOp.getBefore().front(), afterBlock, breakFlag});
-  TraverseStmt(forStmt->getBody());
+
+  auto *body = llvm::dyn_cast_or_null<clang::CompoundStmt>(forStmt->getBody());
+  if (body) {
+    for (clang::Stmt *s : body->body()) {
+      mlir::Value broke =
+          mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
+      mlir::Value notBroke =
+          mlir::arith::XOrIOp::create(
+              builder, loc, broke,
+              mlir::arith::ConstantOp::create(builder, loc, i1,
+                                              builder.getBoolAttr(true))
+                  .getResult())
+              .getResult();
+      auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
+                                          notBroke, /*hasElse=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard guard(builder);
+        mlir::Block *thenBlk = &ifOp.getThenRegion().front();
+        thenBlk->back().erase();
+        builder.setInsertionPointToStart(thenBlk);
+        TraverseStmt(s);
+        builder.setInsertionPointToEnd(builder.getInsertionBlock());
+        if (builder.getInsertionBlock()->empty() ||
+            !builder.getInsertionBlock()
+                 ->back()
+                 .hasTrait<mlir::OpTrait::IsTerminator>())
+          mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      }
+      builder.setInsertionPointAfter(ifOp);
+    }
+  } else {
+    TraverseStmt(forStmt->getBody());
+  }
+
   loopStack.pop_back();
 
   if (forStmt->getInc()) {
     mlir::Block *cur = builder.getInsertionBlock();
     builder.setInsertionPointToEnd(cur);
-    if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>())
-      TraverseStmt(forStmt->getInc());
+    if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+      mlir::Value broke =
+          mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
+      mlir::Value notBroke =
+          mlir::arith::XOrIOp::create(
+              builder, loc, broke,
+              mlir::arith::ConstantOp::create(builder, loc, i1,
+                                              builder.getBoolAttr(true))
+                  .getResult())
+              .getResult();
+      auto incIf = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
+                                           notBroke, /*hasElse=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard guard(builder);
+        mlir::Block *thenBlk = &incIf.getThenRegion().front();
+        thenBlk->back().erase();
+        builder.setInsertionPointToStart(thenBlk);
+        TraverseStmt(forStmt->getInc());
+        builder.setInsertionPointToEnd(builder.getInsertionBlock());
+        if (builder.getInsertionBlock()->empty() ||
+            !builder.getInsertionBlock()
+                 ->back()
+                 .hasTrait<mlir::OpTrait::IsTerminator>())
+          mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      }
+      builder.setInsertionPointAfter(incIf);
+    }
   }
 
   detail::ensureYield(builder, loc, builder.getInsertionBlock());

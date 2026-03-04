@@ -12,7 +12,10 @@ bool CMLIRConverter::TraverseStmt(clang::Stmt *stmt) {
       cur->back().hasTrait<mlir::OpTrait::IsTerminator>())
     return true;
 
-  if (auto *expr = mlir::dyn_cast<clang::Expr>(stmt)) {
+  if (llvm::isa<clang::BreakStmt>(stmt))
+    return TraverseBreakStmt(llvm::cast<clang::BreakStmt>(stmt));
+
+  if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
     if (hasSideEffects(expr)) {
       generateExpr(expr);
       return true;
