@@ -19,12 +19,9 @@ static bool isScalarMemRef(mlir::Type type) {
 static bool isPromotable(mlir::memref::AllocaOp alloca) {
   if (!isScalarMemRef(alloca.getType()))
     return false;
-  for (mlir::Operation *user : alloca->getUsers()) {
+  for (mlir::Operation *user : alloca->getUsers())
     if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
       return false;
-    if (user->getParentRegion() != alloca->getParentRegion())
-      return false;
-  }
   return true;
 }
 
