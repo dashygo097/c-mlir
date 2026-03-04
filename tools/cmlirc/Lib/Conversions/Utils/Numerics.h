@@ -8,10 +8,7 @@ namespace cmlirc::detail {
 // Arithmetic
 inline mlir::Value addi(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value value, int64_t amount) {
-  mlir::Value amountValue =
-      mlir::isa<mlir::IndexType>(value.getType())
-          ? indexConst(builder, loc, amount)
-          : intConst(builder, loc, value.getType(), amount);
+  mlir::Value amountValue = intConst(builder, loc, value.getType(), amount);
   return emitIntOp<mlir::arith::AddIOp>(builder, loc, value, amountValue);
 }
 
@@ -23,8 +20,7 @@ inline mlir::Value addf(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline mlir::Value add(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Value lhs, mlir::Value rhs) {
-  if (mlir::isa<mlir::IntegerType>(lhs.getType()) ||
-      mlir::isa<mlir::IndexType>(lhs.getType()))
+  if (mlir::isa<mlir::IntegerType>(lhs.getType()))
     return emitIntOp<mlir::arith::AddIOp>(builder, loc, lhs, rhs);
   if (mlir::isa<mlir::FloatType>(lhs.getType()))
     return emitFloatOp<mlir::arith::AddFOp>(builder, loc, lhs, rhs);
@@ -33,10 +29,7 @@ inline mlir::Value add(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline mlir::Value subi(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value value, int64_t amount) {
-  mlir::Value amountValue =
-      mlir::isa<mlir::IndexType>(value.getType())
-          ? indexConst(builder, loc, amount)
-          : intConst(builder, loc, value.getType(), amount);
+  mlir::Value amountValue = intConst(builder, loc, value.getType(), amount);
   return emitIntOp<mlir::arith::SubIOp>(builder, loc, value, amountValue);
 }
 
@@ -48,8 +41,7 @@ inline mlir::Value subf(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline mlir::Value sub(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Value lhs, mlir::Value rhs) {
-  if (mlir::isa<mlir::IntegerType>(lhs.getType()) ||
-      mlir::isa<mlir::IndexType>(lhs.getType()))
+  if (mlir::isa<mlir::IntegerType>(lhs.getType()))
     return emitIntOp<mlir::arith::SubIOp>(builder, loc, lhs, rhs);
   if (mlir::isa<mlir::FloatType>(lhs.getType()))
     return emitFloatOp<mlir::arith::SubFOp>(builder, loc, lhs, rhs);
@@ -58,9 +50,7 @@ inline mlir::Value sub(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline mlir::Value negi(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value value) {
-  mlir::Value zero = mlir::isa<mlir::IndexType>(value.getType())
-                         ? indexConst(builder, loc, 0)
-                         : intConst(builder, loc, value.getType(), 0);
+  mlir::Value zero = intConst(builder, loc, value.getType(), 0);
   return emitIntOp<mlir::arith::SubIOp>(builder, loc, zero, value);
 }
 
@@ -71,8 +61,7 @@ inline mlir::Value negf(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline mlir::Value neg(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Value value) {
-  if (mlir::isa<mlir::IntegerType>(value.getType()) ||
-      mlir::isa<mlir::IndexType>(value.getType()))
+  if (mlir::isa<mlir::IntegerType>(value.getType()))
     return negi(builder, loc, value);
   if (mlir::isa<mlir::FloatType>(value.getType()))
     return negf(builder, loc, value);
