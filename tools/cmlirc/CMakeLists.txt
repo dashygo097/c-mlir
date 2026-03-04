@@ -32,6 +32,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Stmts/Loop/For.cpp
   Lib/Conversions/Stmts/Loop/While.cpp
   Lib/Conversions/Stmts/Loop/Do.cpp
+  Lib/Conversions/Stmts/Loop/Break.cpp
   Lib/Conversions/Stmts/Return.cpp
   Lib/Conversions/Stmts/Stmts.cpp
 

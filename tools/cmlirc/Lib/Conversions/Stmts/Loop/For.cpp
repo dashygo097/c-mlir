@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
+#include "../../Utils/StmtUtils.h"
 #include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
@@ -119,37 +120,66 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   if (forStmt->getInit())
     TraverseStmt(forStmt->getInit());
 
+  mlir::Type i1 = builder.getI1Type();
+  mlir::Value falseVal = mlir::arith::ConstantOp::create(
+                             builder, loc, i1, builder.getBoolAttr(false))
+                             .getResult();
+  mlir::Value breakFlag = mlir::memref::AllocaOp::create(
+                              builder, loc, mlir::MemRefType::get({}, i1))
+                              .getResult();
+  mlir::memref::StoreOp::create(builder, loc, falseVal, breakFlag,
+                                mlir::ValueRange{});
+
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
         mlir::Value cond =
             forStmt->getCond()
                 ? detail::toBool(builder, loc, generateExpr(forStmt->getCond()))
                 : detail::boolConst(b, l, true);
-        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+        mlir::Value broke =
+            mlir::memref::LoadOp::create(b, l, breakFlag).getResult();
+        mlir::Value notBroke =
+            mlir::arith::XOrIOp::create(
+                b, l, broke,
+                mlir::arith::ConstantOp::create(b, l, i1, b.getBoolAttr(true))
+                    .getResult())
+                .getResult();
+        mlir::Value proceed =
+            mlir::arith::AndIOp::create(b, l, cond, notBroke).getResult();
+        mlir::scf::ConditionOp::create(b, l, proceed, mlir::ValueRange{});
       },
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
         mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
       });
 
   mlir::Block *afterBlock = &whileOp.getAfter().front();
-
   afterBlock->back().erase();
-
   builder.setInsertionPointToEnd(afterBlock);
-  loopStack.push_back({&whileOp.getBefore().front(), afterBlock});
+
+  loopStack.push_back({&whileOp.getBefore().front(), afterBlock, breakFlag});
   TraverseStmt(forStmt->getBody());
-  if (forStmt->getInc())
-    generateExpr(forStmt->getInc());
   loopStack.pop_back();
 
-  detail::ensureYield(builder, loc, afterBlock);
+  if (forStmt->getInc()) {
+    mlir::Block *cur = builder.getInsertionBlock();
+    builder.setInsertionPointToEnd(cur);
+    if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>())
+      TraverseStmt(forStmt->getInc());
+  }
+
+  detail::ensureYield(builder, loc, builder.getInsertionBlock());
   builder.setInsertionPointAfter(whileOp);
 }
 
 bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   if (!currentFunc)
     return true;
+
+  if (detail::stmtHasBreakInLoop(forStmt)) {
+    emitWhileStyleForLoop(forStmt);
+    return true;
+  }
 
   mlir::OpBuilder &builder = context_manager_.Builder();
   mlir::Location loc = builder.getUnknownLoc();

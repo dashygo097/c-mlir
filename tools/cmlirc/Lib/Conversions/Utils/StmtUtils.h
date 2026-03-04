@@ -1,79 +1,51 @@
 #ifndef CMLIRC_STMTUTILS_H
 #define CMLIRC_STMTUTILS_H
 
-#include "mlir/Support/LLVM.h"
 #include "clang/AST/Stmt.h"
 
 namespace cmlirc::detail {
-inline bool stmtHasReturn(const clang::Stmt *stmt) {
-  if (!stmt) {
-    return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::ReturnStmt>(child)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 inline bool stmtHasReturnRecursively(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
-  if (mlir::isa<clang::ReturnStmt>(stmt)) {
+  if (llvm::isa<clang::ReturnStmt>(stmt))
     return true;
-  }
-  for (const auto *child : stmt->children()) {
-    if (stmtHasReturnRecursively(child)) {
+  for (const auto *child : stmt->children())
+    if (stmtHasReturnRecursively(child))
       return true;
-    }
-  }
   return false;
 }
 
 inline bool stmtHasReturnInIf(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
   for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::IfStmt>(child)) {
-      const auto *ifStmt = mlir::cast<clang::IfStmt>(child);
+    if (const auto *ifStmt = llvm::dyn_cast_or_null<clang::IfStmt>(child)) {
       if (stmtHasReturnRecursively(ifStmt->getThen()) ||
-          stmtHasReturnRecursively(ifStmt->getElse())) {
+          stmtHasReturnRecursively(ifStmt->getElse()))
         return true;
-      }
     }
   }
   return false;
 }
 
 inline bool stmtHasReturnInLoop(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::ForStmt>(child) ||
-        mlir::isa<clang::WhileStmt>(child) || mlir::isa<clang::DoStmt>(child)) {
-      if (stmtHasReturnRecursively(child)) {
+  for (const auto *child : stmt->children())
+    if (llvm::isa<clang::ForStmt, clang::WhileStmt, clang::DoStmt>(child))
+      if (stmtHasReturnRecursively(child))
         return true;
-      }
-    }
-  }
   return false;
 }
 
 inline bool stmtHasReturnInSwitch(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::SwitchStmt>(child)) {
-      if (stmtHasReturnRecursively(child)) {
+  for (const auto *child : stmt->children())
+    if (llvm::isa<clang::SwitchStmt>(child))
+      if (stmtHasReturnRecursively(child))
         return true;
-      }
-    }
-  }
   return false;
 }
 
@@ -82,88 +54,61 @@ inline bool stmtHasReturnInAnyControlFlow(const clang::Stmt *stmt) {
          stmtHasReturnInSwitch(stmt);
 }
 
-inline bool stmtHasBreak(const clang::Stmt *stmt) {
-  if (!stmt) {
-    return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::BreakStmt>(child)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 inline bool stmtHasBreakRecursively(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
-  if (mlir::isa<clang::BreakStmt>(stmt)) {
+  if (llvm::isa<clang::BreakStmt>(stmt))
     return true;
-  }
-  for (const auto *child : stmt->children()) {
-    if (stmtHasBreakRecursively(child)) {
+  if (llvm::isa<clang::ForStmt, clang::WhileStmt, clang::DoStmt,
+                clang::SwitchStmt>(stmt))
+    return false;
+  for (const auto *child : stmt->children())
+    if (stmtHasBreakRecursively(child))
       return true;
-    }
-  }
   return false;
 }
 
-inline bool stmtHasBreakInLoop(const clang::Stmt *stmt) {
-  if (!stmt) {
+inline bool stmtHasBreakInLoop(const clang::Stmt *forOrWhileOrDo) {
+  if (!forOrWhileOrDo)
     return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if ((mlir::isa<clang::ForStmt>(child) ||
-         mlir::isa<clang::WhileStmt>(child) ||
-         mlir::isa<clang::DoStmt>(child)) &&
-        stmtHasBreakRecursively(child)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-inline bool stmtHasContinue(const clang::Stmt *stmt) {
-  if (!stmt) {
+  const clang::Stmt *body = nullptr;
+  if (const auto *f = llvm::dyn_cast<clang::ForStmt>(forOrWhileOrDo))
+    body = f->getBody();
+  else if (const auto *w = llvm::dyn_cast<clang::WhileStmt>(forOrWhileOrDo))
+    body = w->getBody();
+  else if (const auto *d = llvm::dyn_cast<clang::DoStmt>(forOrWhileOrDo))
+    body = d->getBody();
+  else
     return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if (mlir::isa<clang::ContinueStmt>(child)) {
-      return true;
-    }
-  }
-  return false;
+  return stmtHasBreakRecursively(body);
 }
 
 inline bool stmtHasContinueRecursively(const clang::Stmt *stmt) {
-  if (!stmt) {
+  if (!stmt)
     return false;
-  }
-  if (mlir::isa<clang::ContinueStmt>(stmt)) {
+  if (llvm::isa<clang::ContinueStmt>(stmt))
     return true;
-  }
-  for (const auto *child : stmt->children()) {
-    if (stmtHasContinueRecursively(child)) {
+  if (llvm::isa<clang::ForStmt, clang::WhileStmt, clang::DoStmt>(stmt))
+    return false;
+  for (const auto *child : stmt->children())
+    if (stmtHasContinueRecursively(child))
       return true;
-    }
-  }
   return false;
 }
 
-inline bool stmtHasContinueInLoop(const clang::Stmt *stmt) {
-  if (!stmt) {
+inline bool stmtHasContinueInLoop(const clang::Stmt *forOrWhileOrDo) {
+  if (!forOrWhileOrDo)
     return false;
-  }
-  for (const auto *child : stmt->children()) {
-    if ((mlir::isa<clang::ForStmt>(child) ||
-         mlir::isa<clang::WhileStmt>(child) ||
-         mlir::isa<clang::DoStmt>(child)) &&
-        stmtHasContinueRecursively(child)) {
-      return true;
-    }
-  }
-  return false;
+  const clang::Stmt *body = nullptr;
+  if (const auto *f = llvm::dyn_cast<clang::ForStmt>(forOrWhileOrDo))
+    body = f->getBody();
+  else if (const auto *w = llvm::dyn_cast<clang::WhileStmt>(forOrWhileOrDo))
+    body = w->getBody();
+  else if (const auto *d = llvm::dyn_cast<clang::DoStmt>(forOrWhileOrDo))
+    body = d->getBody();
+  else
+    return false;
+  return stmtHasContinueRecursively(body);
 }
 
 } // namespace cmlirc::detail
