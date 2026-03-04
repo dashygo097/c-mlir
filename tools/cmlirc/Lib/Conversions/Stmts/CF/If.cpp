@@ -1,6 +1,5 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
-#include "../../Utils/StmtUtils.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/Support/WithColor.h"
