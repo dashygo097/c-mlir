@@ -23,6 +23,7 @@ struct SimpleLoopInfo {
 struct LoopContext {
   mlir::Block *headerBlock{nullptr};
   mlir::Block *exitBlock{nullptr};
+  mlir::Value breakFlag{};
 };
 
 struct SwitchArm {
@@ -62,6 +63,7 @@ public:
   bool TraverseForStmt(clang::ForStmt *forStmt);
   bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
   bool TraverseDoStmt(clang::DoStmt *doStmt);
+  bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
 
   // loop optimizations
   void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,

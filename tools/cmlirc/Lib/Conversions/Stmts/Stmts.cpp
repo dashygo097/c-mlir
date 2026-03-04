@@ -3,9 +3,14 @@
 namespace cmlirc {
 
 bool CMLIRConverter::TraverseStmt(clang::Stmt *stmt) {
-  if (!stmt || !currentFunc) {
+  if (!stmt || !currentFunc)
     return RecursiveASTVisitor::TraverseStmt(stmt);
-  }
+
+  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::Block *cur = builder.getInsertionBlock();
+  if (cur && !cur->empty() &&
+      cur->back().hasTrait<mlir::OpTrait::IsTerminator>())
+    return true;
 
   if (auto *expr = mlir::dyn_cast<clang::Expr>(stmt)) {
     if (hasSideEffects(expr)) {
