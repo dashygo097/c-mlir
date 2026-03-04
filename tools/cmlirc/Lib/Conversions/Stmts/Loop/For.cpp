@@ -61,10 +61,11 @@ void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
                                            outerUB, outerStep);
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToStart(outerFor.getBody());
+
+    outerFor.getBody()->back().erase();
+    builder.setInsertionPointToEnd(outerFor.getBody());
 
     for (int64_t j = 0; j < factor; ++j) {
-      // iv = outerIV + j*st
       mlir::Value ivIndex = outerFor.getInductionVar();
       if (j != 0) {
         mlir::Value off = detail::indexConst(builder, loc, j * st);
@@ -92,7 +93,9 @@ void CMLIRConverter::emitPlainForLoop(const SimpleLoopInfo &info,
 
   auto forOp = mlir::scf::ForOp::create(builder, loc, info.lowerBound,
                                         info.upperBound, info.step);
-  builder.setInsertionPointToStart(forOp.getBody());
+
+  forOp.getBody()->back().erase();
+  builder.setInsertionPointToEnd(forOp.getBody());
 
   mlir::Value iv = forOp.getInductionVar();
 
