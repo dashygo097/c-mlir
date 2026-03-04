@@ -18,15 +18,6 @@ inline mlir::Value addf(mlir::OpBuilder &builder, mlir::Location loc,
   return emitFloatOp<mlir::arith::AddFOp>(builder, loc, value, amountValue);
 }
 
-inline mlir::Value add(mlir::OpBuilder &builder, mlir::Location loc,
-                       mlir::Value lhs, mlir::Value rhs) {
-  if (mlir::isa<mlir::IntegerType>(lhs.getType()))
-    return emitIntOp<mlir::arith::AddIOp>(builder, loc, lhs, rhs);
-  if (mlir::isa<mlir::FloatType>(lhs.getType()))
-    return emitFloatOp<mlir::arith::AddFOp>(builder, loc, lhs, rhs);
-  return nullptr;
-}
-
 inline mlir::Value subi(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value value, int64_t amount) {
   mlir::Value amountValue = intConst(builder, loc, value.getType(), amount);

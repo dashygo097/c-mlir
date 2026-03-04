@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
+#include "../../Utils/Numerics.h"
 #include "../../Utils/StmtUtils.h"
 #include "./LoopUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -124,9 +125,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     TraverseStmt(forStmt->getInit());
 
   mlir::Type i1 = builder.getI1Type();
-  mlir::Value falseVal = mlir::arith::ConstantOp::create(
-                             builder, loc, i1, builder.getBoolAttr(false))
-                             .getResult();
+  mlir::Value falseVal = detail::boolConst(builder, loc, false);
   mlir::Value breakFlag = mlir::memref::AllocaOp::create(
                               builder, loc, mlir::MemRefType::get({}, i1))
                               .getResult();
@@ -142,12 +141,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                 : detail::boolConst(b, l, true);
         mlir::Value broke =
             mlir::memref::LoadOp::create(b, l, breakFlag).getResult();
-        mlir::Value notBroke =
-            mlir::arith::XOrIOp::create(
-                b, l, broke,
-                mlir::arith::ConstantOp::create(b, l, i1, b.getBoolAttr(true))
-                    .getResult())
-                .getResult();
+        mlir::Value notBroke = detail::noti(builder, loc, broke);
         mlir::Value proceed =
             mlir::arith::AndIOp::create(b, l, cond, notBroke).getResult();
         mlir::scf::ConditionOp::create(b, l, proceed, mlir::ValueRange{});
@@ -167,13 +161,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     for (clang::Stmt *s : body->body()) {
       mlir::Value broke =
           mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
-      mlir::Value notBroke =
-          mlir::arith::XOrIOp::create(
-              builder, loc, broke,
-              mlir::arith::ConstantOp::create(builder, loc, i1,
-                                              builder.getBoolAttr(true))
-                  .getResult())
-              .getResult();
+      mlir::Value notBroke = detail::noti(builder, loc, broke);
       auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
                                           notBroke, /*hasElse=*/false);
       {
@@ -203,13 +191,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::Value broke =
           mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult();
-      mlir::Value notBroke =
-          mlir::arith::XOrIOp::create(
-              builder, loc, broke,
-              mlir::arith::ConstantOp::create(builder, loc, i1,
-                                              builder.getBoolAttr(true))
-                  .getResult())
-              .getResult();
+      mlir::Value notBroke = detail::noti(builder, loc, broke);
       auto incIf = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
                                            notBroke, /*hasElse=*/false);
       {
