@@ -1,5 +1,6 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
+#include "../../Utils/StmtUtils.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/Support/WithColor.h"
@@ -41,7 +42,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
                                         condBool, hasElse);
     {
-      mlir::OpBuilder::InsertionGuard g(builder);
+      mlir::OpBuilder::InsertionGuard guard(builder);
       mlir::Block *thenBlock = &ifOp.getThenRegion().front();
       removeAutoYield(thenBlock);
       builder.setInsertionPointToStart(thenBlock);
@@ -52,7 +53,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
         mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
     }
     if (hasElse) {
-      mlir::OpBuilder::InsertionGuard g(builder);
+      mlir::OpBuilder::InsertionGuard guard(builder);
       mlir::Block *elseBlock = &ifOp.getElseRegion().front();
       removeAutoYield(elseBlock);
       builder.setInsertionPointToStart(elseBlock);
