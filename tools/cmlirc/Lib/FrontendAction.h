@@ -5,6 +5,9 @@
 #include "./Consumer.h"
 #include "Pragmas/PragmaHandler.h"
 #include "cmlir/Transforms/Passes.h"
+#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
+#include "mlir/Dialect/LLVMIR/Transforms/InlinerInterfaceImpl.h"
+#include "mlir/InitAllExtensions.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -22,7 +25,12 @@ public:
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI,
                     clang::StringRef file) override {
-    context_manager_ = std::make_unique<ContextManager>(&CI.getASTContext());
+    mlir::DialectRegistry registry;
+    mlir::func::registerInlinerExtension(registry);
+    mlir::LLVM::registerInlinerInterface(registry);
+
+    context_manager_ =
+        std::make_unique<ContextManager>(&CI.getASTContext(), &registry);
 
     auto pragma_handler = std::make_unique<CMLIRPragmaHandler>(loop_hints_);
     CI.getPreprocessor().AddPragmaHandler(pragma_handler.release());
@@ -31,36 +39,47 @@ public:
   }
 
   void EndSourceFileAction() override {
-    if (options::Verbose)
-      llvm::WithColor::remark() << "\nGenerated MLIR: \n";
-
     mlir::PassManager pm(&context_manager_->MLIRContext());
 
     pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCSEPass());
-    pm.addPass(mlir::createSymbolDCEPass());
-    pm.addPass(cmlir::createLoopUnrollPass());
-    pm.addPass(cmlir::createLoopVectorizePass());
-    pm.addPass(cmlir::createConstPropPass());
     pm.addPass(mlir::createSCCPPass());
-    pm.addPass(mlir::createControlFlowSinkPass());
+    pm.addPass(cmlir::createConstPropPass());
+    pm.addPass(mlir::createCSEPass());
+
+    if (options::FuncInline)
+      pm.addPass(mlir::createInlinerPass());
+    pm.addPass(mlir::createRemoveDeadValuesPass());
+    pm.addPass(mlir::createSymbolDCEPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
+
     if (options::Struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
-    pm.addPass(cmlir::createConstPropPass());
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(cmlir::createMem2RegPass());
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
+
     if (options::RaiseSCF2Affine)
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
+
+    pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+    pm.addPass(cmlir::createLoopUnrollPass());
+    pm.addPass(cmlir::createLoopVectorizePass());
     if (options::FMA)
       pm.addPass(cmlir::createFMAPass());
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(cmlir::createMem2RegPass());
+
+    pm.addPass(mlir::createRemoveDeadValuesPass());
+    pm.addPass(mlir::createControlFlowSinkPass());
+    pm.addPass(cmlir::createConstPropPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createSymbolDCEPass());
+    pm.addPass(mlir::createTopologicalSortPass());
 
     if (mlir::failed(pm.run(context_manager_->Module())))
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";

@@ -12,10 +12,14 @@
 
 namespace cmlirc {
 
-ContextManager::ContextManager(clang::ASTContext *clangCtx) {
+ContextManager::ContextManager(clang::ASTContext *clangCtx,
+                               mlir::DialectRegistry *registry) {
   clang_context_ = clangCtx;
   mlir_context_ = std::make_unique<mlir::MLIRContext>();
   builder_ = std::make_unique<mlir::OpBuilder>(mlir_context_.get());
+
+  if (registry)
+    mlir_context_->appendDialectRegistry(*registry);
 
   // Load necessary dialects
   mlir_context_->getOrLoadDialect<mlir::LLVM::LLVMDialect>();
