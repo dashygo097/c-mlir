@@ -30,6 +30,7 @@ mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
   REGISTER_EXPR_CONVERSION(CallExpr)
   REGISTER_EXPR_CONVERSION(CXXConstructExpr)
   REGISTER_EXPR_CONVERSION(MemberExpr)
+  REGISTER_EXPR_CONVERSION(UnaryExprOrTypeTraitExpr)
 
 #undef REGISTER_EXPR_CONVERSION
 

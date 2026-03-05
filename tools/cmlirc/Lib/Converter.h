@@ -158,6 +158,10 @@ private:
   // struct
   mlir::Value generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr);
   mlir::Value generateMemberExpr(clang::MemberExpr *memberExpr);
+
+  // unary or type trait
+  mlir::Value
+  generateUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *traitExpr);
 };
 
 } // namespace cmlirc
