@@ -24,6 +24,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/CXXConstruct.cpp
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/SideEffects.cpp
+  Lib/Conversions/Exprs/UnaryOrTypeTrait.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/CF/If.cpp
