@@ -63,6 +63,8 @@ target_link_libraries(cmlirc PRIVATE
   MLIRMathDialect
   MLIRTransforms
   MLIRTransformUtils
+  MLIRFuncInlinerExtension
+  MLIRLLVMIRTransforms
 
   # Clang Libraries
   clangSupport

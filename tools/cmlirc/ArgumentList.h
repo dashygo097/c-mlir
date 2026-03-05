@@ -11,6 +11,7 @@ extern llvm::cl::opt<std::string> SystemRoot;
 extern llvm::cl::opt<std::string> OutputFile;
 extern llvm::cl::opt<std::string> FunctionName;
 
+extern llvm::cl::opt<bool> FuncInline;
 extern llvm::cl::opt<bool> Struct2Memref;
 extern llvm::cl::opt<bool> RaiseSCF2Affine;
 extern llvm::cl::opt<bool> FMA;

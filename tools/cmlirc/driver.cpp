@@ -32,6 +32,10 @@ llvm::cl::opt<std::string>
                  llvm::cl::cat(toolOptions));
 
 // Passes
+llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
+                               llvm::cl::desc("Enable function inlining"),
+                               llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool>
     Struct2Memref("struct-to-memref", llvm::cl::init(false),
                   llvm::cl::desc("Enable struct to memref promotion"),
