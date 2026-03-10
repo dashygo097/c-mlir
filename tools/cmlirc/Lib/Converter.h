@@ -65,7 +65,7 @@ public:
   bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
   bool TraverseDoStmt(clang::DoStmt *doStmt);
   bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
-  // bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
+  bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
 
   // loop optimizations
   void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
