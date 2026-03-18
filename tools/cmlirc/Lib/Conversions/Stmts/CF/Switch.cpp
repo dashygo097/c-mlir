@@ -1,5 +1,6 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
+#include "../../Utils/StmtUtils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/Stmt.h"
@@ -49,6 +50,15 @@ void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
 
   for (size_t i = 0; i + 1 < arms.size(); ++i) {
     if (!arms[i].hasBreak) {
+      bool armTerminates = false;
+      for (clang::Stmt *s : arms[i].stmts)
+        if (detail::stmtHasReturnRecursively(s)) {
+          armTerminates = true;
+          break;
+        }
+      if (armTerminates)
+        continue;
+
       for (clang::Stmt *s : arms[i + 1].stmts)
         arms[i].stmts.push_back(s);
       arms[i].hasBreak = arms[i + 1].hasBreak;
