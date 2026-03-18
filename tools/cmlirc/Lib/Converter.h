@@ -25,6 +25,8 @@ struct LoopContext {
   mlir::Block *exitBlock{nullptr};
   mlir::Value breakFlag{};
   mlir::Value continueFlag{};
+  mlir::Value returnFlag{};
+  mlir::Value returnValueSlot{};
 };
 
 struct SwitchArm {

@@ -6,6 +6,41 @@
 
 namespace cmlirc::detail {
 
+mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Value breakFlag, mlir::Value continueFlag,
+                       mlir::Value returnFlag) {
+  mlir::Value result;
+  for (mlir::Value flag : {breakFlag, continueFlag, returnFlag}) {
+    if (!flag)
+      continue;
+    mlir::Value notFlag = detail::noti(
+        builder, loc,
+        mlir::memref::LoadOp::create(builder, loc, flag).getResult());
+    result = result ? detail::andi(builder, loc, result, notFlag) : notFlag;
+  }
+  return result;
+}
+
+void emitGuarded(mlir::OpBuilder &builder, mlir::Location loc,
+                 mlir::Value guard, std::function<void()> emitBody) {
+  auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{}, guard,
+                                      /*hasElse=*/false);
+  {
+    mlir::OpBuilder::InsertionGuard g(builder);
+    mlir::Block *thenBlk = &ifOp.getThenRegion().front();
+    thenBlk->back().erase();
+    builder.setInsertionPointToStart(thenBlk);
+    emitBody();
+    builder.setInsertionPointToEnd(builder.getInsertionBlock());
+    if (builder.getInsertionBlock()->empty() ||
+        !builder.getInsertionBlock()
+             ->back()
+             .hasTrait<mlir::OpTrait::IsTerminator>())
+      mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+  }
+  builder.setInsertionPointAfter(ifOp);
+}
+
 void ensureYield(mlir::OpBuilder &builder, mlir::Location loc,
                  mlir::Block *block) {
   if (block->empty() ||

@@ -126,37 +126,161 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
 
   const bool hasBreak = detail::stmtHasBreakInLoop(forStmt);
   const bool hasContinue = detail::stmtHasContinueInLoop(forStmt);
-  const bool needsGuard = hasBreak || hasContinue;
+  const bool hasReturn = detail::stmtHasReturnInLoop(forStmt);
+  const bool needsGuard = hasBreak || hasContinue || hasReturn;
 
-  mlir::Value breakFlag, continueFlag;
+  mlir::Type funcRetType;
+  {
+    auto res = currentFunc.getFunctionType().getResults();
+    if (!res.empty())
+      funcRetType = res[0];
+  }
 
-  auto allocFlag = [&](mlir::Value &flag) {
-    mlir::Value falseVal = detail::boolConst(builder, loc, false);
-    flag = mlir::memref::AllocaOp::create(
-               builder, loc, mlir::MemRefType::get({}, builder.getI1Type()))
-               .getResult();
-    mlir::memref::StoreOp::create(builder, loc, falseVal, flag,
-                                  mlir::ValueRange{});
+  auto allocBool = [&]() -> mlir::Value {
+    auto a = mlir::memref::AllocaOp::create(
+        builder, loc, mlir::MemRefType::get({}, builder.getI1Type()));
+    mlir::memref::StoreOp::create(builder, loc,
+                                  detail::boolConst(builder, loc, false),
+                                  a.getResult(), mlir::ValueRange{});
+    return a.getResult();
   };
 
-  if (hasBreak)
-    allocFlag(breakFlag);
-  if (hasContinue)
-    allocFlag(continueFlag);
+  mlir::Value breakFlag = hasBreak ? allocBool() : mlir::Value{};
+  mlir::Value continueFlag = hasContinue ? allocBool() : mlir::Value{};
+
+  if (hasReturn && funcRetType) {
+    mlir::Value initRetVal =
+        mlir::arith::ConstantOp::create(builder, loc, funcRetType,
+                                        builder.getZeroAttr(funcRetType))
+            .getResult();
+    mlir::Value initKeepGoing = detail::boolConst(builder, loc, true);
+
+    auto whileOp = mlir::scf::WhileOp::create(
+        builder, loc,
+        /*resultTypes=*/mlir::TypeRange{funcRetType},
+        /*operands=*/mlir::ValueRange{initRetVal, initKeepGoing},
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+          mlir::OpBuilder::InsertionGuard g(builder);
+          builder.setInsertionPointToEnd(b.getInsertionBlock());
+
+          mlir::Value cond =
+              forStmt->getCond()
+                  ? detail::toBool(builder, loc,
+                                   generateExpr(forStmt->getCond()))
+                  : detail::boolConst(builder, loc, true);
+
+          mlir::Value finalCond = detail::andi(builder, loc, cond, args[1]);
+
+          if (breakFlag) {
+            mlir::Value notBroke = detail::noti(
+                builder, loc,
+                mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                    .getResult());
+            finalCond = detail::andi(builder, loc, finalCond, notBroke);
+          }
+
+          mlir::scf::ConditionOp::create(builder, loc, finalCond,
+                                         mlir::ValueRange{args[0]});
+        },
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+          mlir::scf::YieldOp::create(
+              b, l, mlir::ValueRange{initRetVal, initKeepGoing});
+        });
+
+    mlir::Block *afterBlock = &whileOp.getAfter().front();
+    afterBlock->back().erase();
+    builder.setInsertionPointToEnd(afterBlock);
+
+    mlir::Value prevRetVal = afterBlock->getArgument(0);
+
+    mlir::Value iterRetFlag =
+        mlir::memref::AllocaOp::create(
+            builder, loc, mlir::MemRefType::get({}, builder.getI1Type()))
+            .getResult();
+    mlir::memref::StoreOp::create(builder, loc,
+                                  detail::boolConst(builder, loc, false),
+                                  iterRetFlag, mlir::ValueRange{});
+
+    mlir::Value iterRetSlot =
+        mlir::memref::AllocaOp::create(builder, loc,
+                                       mlir::MemRefType::get({}, funcRetType))
+            .getResult();
+
+    loopStack.push_back(LoopContext{&whileOp.getBefore().front(), afterBlock,
+                                    breakFlag, continueFlag, iterRetFlag,
+                                    iterRetSlot});
+
+    // Body
+    auto *compound =
+        llvm::dyn_cast_or_null<clang::CompoundStmt>(forStmt->getBody());
+    if (needsGuard && compound) {
+      for (clang::Stmt *s : compound->body()) {
+        mlir::Value guard = detail::buildGuard(builder, loc, breakFlag,
+                                               continueFlag, iterRetFlag);
+        detail::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+      }
+    } else {
+      TraverseStmt(forStmt->getBody());
+    }
+
+    loopStack.pop_back();
+
+    if (forStmt->getInc()) {
+      mlir::Value notRet = detail::noti(
+          builder, loc,
+          mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
+      mlir::Value incGuard = notRet;
+      if (breakFlag) {
+        mlir::Value notBroke = detail::noti(
+            builder, loc,
+            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
+        incGuard = detail::andi(builder, loc, incGuard, notBroke);
+      }
+      detail::emitGuarded(builder, loc, incGuard,
+                          [&] { TraverseStmt(forStmt->getInc()); });
+    }
+
+    if (continueFlag)
+      mlir::memref::StoreOp::create(builder, loc,
+                                    detail::boolConst(builder, loc, false),
+                                    continueFlag, mlir::ValueRange{});
+
+    mlir::Value didReturn =
+        mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
+    mlir::Value loadedRetVal =
+        mlir::memref::LoadOp::create(builder, loc, iterRetSlot).getResult();
+    mlir::Value newRetVal =
+        mlir::arith::SelectOp::create(builder, loc, didReturn, loadedRetVal,
+                                      prevRetVal)
+            .getResult();
+    mlir::Value newKeepGoing = detail::noti(builder, loc, didReturn);
+
+    mlir::scf::YieldOp::create(builder, loc,
+                               mlir::ValueRange{newRetVal, newKeepGoing});
+
+    builder.setInsertionPointAfter(whileOp);
+    mlir::func::ReturnOp::create(builder, loc,
+                                 mlir::ValueRange{whileOp.getResult(0)});
+    return;
+  }
 
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
       [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+        mlir::OpBuilder::InsertionGuard g(builder);
+        builder.setInsertionPointToEnd(b.getInsertionBlock());
         mlir::Value cond =
             forStmt->getCond()
                 ? detail::toBool(builder, loc, generateExpr(forStmt->getCond()))
-                : detail::boolConst(b, l, true);
-        if (hasBreak) {
-          mlir::Value notBroke = detail::noti(
-              b, l, mlir::memref::LoadOp::create(b, l, breakFlag).getResult());
+                : detail::boolConst(builder, loc, true);
+        if (breakFlag) {
+          mlir::Value notBroke =
+              detail::noti(builder, loc,
+                           mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                               .getResult());
           cond = detail::andi(builder, loc, cond, notBroke);
         }
-        mlir::scf::ConditionOp::create(b, l, cond, mlir::ValueRange{});
+        mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },
       [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
         mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
@@ -166,49 +290,20 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   afterBlock->back().erase();
   builder.setInsertionPointToEnd(afterBlock);
 
-  loopStack.push_back(
-      {&whileOp.getBefore().front(), afterBlock, breakFlag, continueFlag});
+  loopStack.push_back(LoopContext{&whileOp.getBefore().front(),
+                                  afterBlock,
+                                  breakFlag,
+                                  continueFlag,
+                                  {},
+                                  {}});
 
-  auto *body = llvm::dyn_cast_or_null<clang::CompoundStmt>(forStmt->getBody());
-  if (needsGuard && body) {
-    for (clang::Stmt *s : body->body()) {
-      mlir::Value shouldRun;
-      if (hasBreak && hasContinue) {
-        mlir::Value notBroke = detail::noti(
-            builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-        mlir::Value notCont = detail::noti(
-            builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, continueFlag)
-                .getResult());
-        shouldRun = detail::andi(builder, loc, notBroke, notCont);
-      } else if (hasBreak) {
-        shouldRun = detail::noti(
-            builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-      } else {
-        shouldRun = detail::noti(
-            builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, continueFlag)
-                .getResult());
-      }
-
-      auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
-                                          shouldRun, /*hasElse=*/false);
-      {
-        mlir::OpBuilder::InsertionGuard guard(builder);
-        mlir::Block *thenBlk = &ifOp.getThenRegion().front();
-        thenBlk->back().erase();
-        builder.setInsertionPointToStart(thenBlk);
-        TraverseStmt(s);
-        builder.setInsertionPointToEnd(builder.getInsertionBlock());
-        if (builder.getInsertionBlock()->empty() ||
-            !builder.getInsertionBlock()
-                 ->back()
-                 .hasTrait<mlir::OpTrait::IsTerminator>())
-          mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-      }
-      builder.setInsertionPointAfter(ifOp);
+  auto *compound =
+      llvm::dyn_cast_or_null<clang::CompoundStmt>(forStmt->getBody());
+  if (needsGuard && compound) {
+    for (clang::Stmt *s : compound->body()) {
+      mlir::Value guard =
+          detail::buildGuard(builder, loc, breakFlag, continueFlag, {});
+      detail::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
     }
   } else {
     TraverseStmt(forStmt->getBody());
@@ -225,31 +320,15 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                                                        builder, loc, breakFlag)
                                                        .getResult())
                                     : detail::boolConst(builder, loc, true);
-
-      auto incIf = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
-                                           runInc, /*hasElse=*/false);
-      {
-        mlir::OpBuilder::InsertionGuard guard(builder);
-        mlir::Block *thenBlk = &incIf.getThenRegion().front();
-        thenBlk->back().erase();
-        builder.setInsertionPointToStart(thenBlk);
-        TraverseStmt(forStmt->getInc());
-        builder.setInsertionPointToEnd(builder.getInsertionBlock());
-        if (builder.getInsertionBlock()->empty() ||
-            !builder.getInsertionBlock()
-                 ->back()
-                 .hasTrait<mlir::OpTrait::IsTerminator>())
-          mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-      }
-      builder.setInsertionPointAfter(incIf);
+      detail::emitGuarded(builder, loc, runInc,
+                          [&] { TraverseStmt(forStmt->getInc()); });
     }
   }
 
-  if (hasContinue) {
+  if (continueFlag)
     mlir::memref::StoreOp::create(builder, loc,
                                   detail::boolConst(builder, loc, false),
                                   continueFlag, mlir::ValueRange{});
-  }
 
   detail::ensureYield(builder, loc, builder.getInsertionBlock());
   builder.setInsertionPointAfter(whileOp);
@@ -260,7 +339,8 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     return true;
 
   if (detail::stmtHasBreakInLoop(forStmt) ||
-      detail::stmtHasContinueInLoop(forStmt)) {
+      detail::stmtHasContinueInLoop(forStmt) ||
+      detail::stmtHasReturnInLoop(forStmt)) {
     emitWhileStyleForLoop(forStmt);
     return true;
   }

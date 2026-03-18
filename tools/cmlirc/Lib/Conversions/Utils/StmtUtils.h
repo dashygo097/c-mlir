@@ -73,6 +73,21 @@ inline bool stmtHasReturnRecursively(const clang::Stmt *stmt) {
   return false;
 }
 
+inline bool stmtHasReturnInLoop(const clang::Stmt *loopStmt) {
+  if (!loopStmt)
+    return false;
+  const clang::Stmt *body = nullptr;
+  if (const auto *f = llvm::dyn_cast<clang::ForStmt>(loopStmt))
+    body = f->getBody();
+  else if (const auto *w = llvm::dyn_cast<clang::WhileStmt>(loopStmt))
+    body = w->getBody();
+  else if (const auto *d = llvm::dyn_cast<clang::DoStmt>(loopStmt))
+    body = d->getBody();
+  else
+    return false;
+  return stmtHasReturnRecursively(body);
+}
+
 } // namespace cmlirc::detail
 
 #endif // CMLIRC_STMTUTILS_H

@@ -7,6 +7,11 @@
 #include "clang/AST/Stmt.h"
 
 namespace cmlirc::detail {
+mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Value breakFlag, mlir::Value continueFlag,
+                       mlir::Value returnFlag);
+void emitGuarded(mlir::OpBuilder &builder, mlir::Location loc,
+                 mlir::Value guard, std::function<void()> emitBody);
 void ensureYield(mlir::OpBuilder &builder, mlir::Location loc,
                  mlir::Block *block);
 bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing);
