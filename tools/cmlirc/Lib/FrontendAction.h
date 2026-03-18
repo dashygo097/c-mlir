@@ -107,6 +107,12 @@ public:
     pm.addPass(mlir::createSymbolDCEPass());
     pm.addPass(mlir::createTopologicalSortPass());
 
+    if (options::DisableOpt) {
+      llvm::WithColor::warning()
+          << "cmlirc: optimization passes are disabled\n";
+      pm.clear();
+    }
+
     if (mlir::failed(pm.run(context_manager_->Module())))
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
     context_manager_->dump(*output_stream_);

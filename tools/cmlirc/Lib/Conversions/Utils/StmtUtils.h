@@ -62,6 +62,17 @@ inline bool stmtHasContinueInLoop(const clang::Stmt *loopStmt) {
   return stmtHasContinueRecursively(body);
 }
 
+inline bool stmtHasReturnRecursively(const clang::Stmt *stmt) {
+  if (!stmt)
+    return false;
+  if (llvm::isa<clang::ReturnStmt>(stmt))
+    return true;
+  for (const auto *child : stmt->children())
+    if (stmtHasReturnRecursively(child))
+      return true;
+  return false;
+}
+
 } // namespace cmlirc::detail
 
 #endif // CMLIRC_STMTUTILS_H
