@@ -13,7 +13,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   if (!currentFunc)
     return true;
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   const bool hasBreak = detail::stmtHasBreakInLoop(whileStmt);
@@ -47,9 +47,8 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
     mlir::Value initKeepGoing = detail::boolConst(builder, loc, true);
 
     auto whileOp = mlir::scf::WhileOp::create(
-        builder, loc,
-        /*resultTypes=*/mlir::TypeRange{funcRetType},
-        /*operands=*/mlir::ValueRange{initRetVal, initKeepGoing},
+        builder, loc, mlir::TypeRange{funcRetType},
+        mlir::ValueRange{initRetVal, initKeepGoing},
         [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
           mlir::OpBuilder::InsertionGuard outerGuard(builder);
           builder.setInsertionPointToEnd(b.getInsertionBlock());

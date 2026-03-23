@@ -23,29 +23,29 @@ namespace cmlirc {
 
 class CMLIRFrontendAction : public clang::ASTFrontendAction {
 public:
-  explicit CMLIRFrontendAction(llvm::raw_ostream *outputStream = &llvm::outs())
-      : output_stream_(outputStream) {}
-  ~CMLIRFrontendAction() = default;
+  explicit CMLIRFrontendAction(llvm::raw_ostream *os = &llvm::outs())
+      : outStream(os) {}
+  ~CMLIRFrontendAction() override = default;
 
   std::unique_ptr<clang::ASTConsumer>
-  CreateASTConsumer(clang::CompilerInstance &CI,
+  CreateASTConsumer(clang::CompilerInstance &ci,
                     clang::StringRef file) override {
     mlir::DialectRegistry registry;
     mlir::LLVM::registerInlinerInterface(registry);
     mlir::func::registerInlinerExtension(registry);
     mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
 
-    context_manager_ =
-        std::make_unique<ContextManager>(&CI.getASTContext(), &registry);
+    contextManager =
+        std::make_unique<ContextManager>(&ci.getASTContext(), &registry);
 
-    auto pragma_handler = std::make_unique<CMLIRPragmaHandler>(loop_hints_);
-    CI.getPreprocessor().AddPragmaHandler(pragma_handler.release());
+    auto pragmaHandler = std::make_unique<CMLIRPragmaHandler>(loopHintMap);
+    ci.getPreprocessor().AddPragmaHandler(pragmaHandler.release());
 
-    return std::make_unique<CMLIRConsumer>(*context_manager_, loop_hints_);
+    return std::make_unique<CMLIRConsumer>(*contextManager, loopHintMap);
   }
 
   void EndSourceFileAction() override {
-    mlir::PassManager pm(&context_manager_->MLIRContext());
+    mlir::PassManager pm(&contextManager->MLIRContext());
     pm.enableVerifier(false);
 
     pm.addPass(mlir::createCanonicalizerPass());
@@ -54,7 +54,7 @@ public:
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCSEPass());
 
-    if (options::FuncInline) {
+    if (options::funcInline) {
       pm.addPass(mlir::createInlinerPass());
       pm.addPass(mlir::createSymbolDCEPass());
       pm.addPass(mlir::createCanonicalizerPass());
@@ -63,7 +63,7 @@ public:
       pm.addPass(mlir::createCSEPass());
     }
 
-    if (options::Struct2Memref)
+    if (options::struct2Memref)
       pm.addPass(cmlir::createStruct2MemrefPass());
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addPass(mlir::memref::createNormalizeMemRefsPass());
@@ -73,7 +73,7 @@ public:
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createRemoveDeadValuesPass());
 
-    if (options::RaiseSCF2Affine) {
+    if (options::raiseSCF2Affine) {
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
       pm.addPass(mlir::affine::createSimplifyAffineStructuresPass());
       pm.addPass(mlir::affine::createAffineScalarReplacementPass());
@@ -88,7 +88,7 @@ public:
     pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(cmlir::createLoopVectorizePass());
-    if (options::FMA)
+    if (options::fma)
       pm.addPass(cmlir::createFMAPass());
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
@@ -107,22 +107,22 @@ public:
     pm.addPass(mlir::createSymbolDCEPass());
     pm.addPass(mlir::createTopologicalSortPass());
 
-    if (options::DisableOpt) {
+    if (options::disableOpt) {
       llvm::WithColor::warning()
           << "cmlirc: optimization passes are disabled\n";
       pm.clear();
     }
 
-    if (mlir::failed(pm.run(context_manager_->Module())))
+    if (mlir::failed(pm.run(contextManager->Module())))
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
-    context_manager_->dump(*output_stream_);
-    output_stream_->flush();
+    contextManager->dump(*outStream);
+    outStream->flush();
   }
 
 private:
-  std::unique_ptr<ContextManager> context_manager_;
-  LoopHintMap loop_hints_;
-  llvm::raw_ostream *output_stream_;
+  std::unique_ptr<ContextManager> contextManager;
+  LoopHintMap loopHintMap;
+  llvm::raw_ostream *outStream;
 };
 
 } // namespace cmlirc

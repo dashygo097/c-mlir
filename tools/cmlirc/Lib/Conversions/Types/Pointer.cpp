@@ -3,7 +3,7 @@
 
 namespace cmlirc {
 mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   clang::QualType pointeeType = type->getPointeeType().getCanonicalType();
 
   if (mlir::isa<clang::RecordType>(pointeeType.getTypePtr())) {

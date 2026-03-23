@@ -44,15 +44,15 @@ mlir::Value emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   }
 }
 
-mlir::Value
-CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+mlir::Value CMLIRConverter::generateAssignmentBinaryOperator(
+    clang::BinaryOperator *assignOp) {
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  detail::LHSKind lhsKind = detail::classifyLHS(binOp->getLHS());
+  detail::LHSKind lhsKind = detail::classifyLHS(assignOp->getLHS());
 
   // Evaluate LHS address
-  mlir::Value lhsAddr = generateExpr(binOp->getLHS());
+  mlir::Value lhsAddr = generateExpr(assignOp->getLHS());
   if (!lhsAddr) {
     llvm::WithColor::error() << "cmlirc: failed to generate LHS address\n";
     return nullptr;
@@ -70,7 +70,7 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
   }
 
   // Evaluate RHS value
-  mlir::Value rhsValue = generateExpr(binOp->getRHS());
+  mlir::Value rhsValue = generateExpr(assignOp->getRHS());
   if (!rhsValue) {
     llvm::WithColor::error() << "cmlirc: failed to generate RHS\n";
     return nullptr;
@@ -79,26 +79,28 @@ CMLIRConverter::generateAssignmentBinaryOperator(clang::BinaryOperator *binOp) {
   mlir::Value resultValue = rhsValue;
 
   // Compound-assignment: read-modify-write
-  if (binOp->getOpcode() != clang::BO_Assign) {
+  if (assignOp->getOpcode() != clang::BO_Assign) {
     mlir::Value oldValue = loadLHS(builder, loc, lhsKind, lhsAddr, arrayAccess);
     mlir::Type lhsType = oldValue.getType();
     mlir::Value computeLHS = oldValue;
 
     // Promote LHS to the computation type if required (e.g. short += int).
-    if (auto *compOp = mlir::dyn_cast<clang::CompoundAssignOperator>(binOp)) {
+    if (auto *compOp =
+            mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       mlir::Type computeType = convertType(compOp->getComputationResultType());
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       computeLHS =
           detail::promoteValue(builder, loc, computeLHS, computeType, isSigned);
     }
 
-    mlir::Value computed = emitCompoundArith(builder, loc, binOp->getOpcode(),
-                                             computeLHS, rhsValue);
+    mlir::Value computed = emitCompoundArith(
+        builder, loc, assignOp->getOpcode(), computeLHS, rhsValue);
     if (!computed)
       return nullptr;
 
     // Truncate back to the LHS storage type if computation widened it.
-    if (auto *compOp = mlir::dyn_cast<clang::CompoundAssignOperator>(binOp)) {
+    if (auto *compOp =
+            mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       resultValue =
           detail::truncateValue(builder, loc, computed, lhsType, isSigned);

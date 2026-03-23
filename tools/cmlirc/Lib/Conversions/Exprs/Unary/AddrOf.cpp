@@ -3,10 +3,10 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *subExpr) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp) {
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
-  clang::Expr *bare = subExpr->IgnoreParenImpCasts();
+  clang::Expr *bare = addrofOp->IgnoreParenImpCasts();
 
   // &(*p)  →  p
   if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
@@ -19,7 +19,7 @@ mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *subExpr) {
 
   // &arr[i]  →  subview of the underlying memref
   if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
-    mlir::Value base = generateExpr(subExpr);
+    mlir::Value base = generateExpr(addrofOp);
     if (!base || !lastArrayAccess) {
       llvm::WithColor::error() << "cmlirc: access info for accessing array "
                                   "subscript not available\n";

@@ -7,7 +7,7 @@ bool CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) {
   if (!currentFunc)
     return true;
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value retValue;

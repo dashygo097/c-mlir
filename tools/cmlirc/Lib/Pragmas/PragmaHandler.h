@@ -23,15 +23,15 @@ using LoopHintMap = llvm::DenseMap<uint32_t, LoopHints>;
 
 class CMLIRPragmaHandler : public clang::PragmaHandler {
 public:
-  explicit CMLIRPragmaHandler(LoopHintMap &hints)
-      : clang::PragmaHandler("cmlir"), hints_(hints) {}
+  explicit CMLIRPragmaHandler(LoopHintMap &loopHintMap)
+      : clang::PragmaHandler("cmlir"), loopHintMap(loopHintMap) {}
 
-  void HandlePragma(clang::Preprocessor &PP, clang::PragmaIntroducer Introducer,
+  void HandlePragma(clang::Preprocessor &pp, clang::PragmaIntroducer introducer,
                     clang::Token &firstTok) override;
 
 private:
   // components
-  LoopHintMap &hints_;
+  LoopHintMap &loopHintMap;
 };
 
 } // namespace cmlirc

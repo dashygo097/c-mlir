@@ -7,7 +7,7 @@ namespace cmlirc {
 
 void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
                                          mlir::Value memref) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   std::function<void(clang::InitListExpr *,
@@ -46,7 +46,7 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
 
 mlir::Value
 CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::QualType clangType = initList->getType();

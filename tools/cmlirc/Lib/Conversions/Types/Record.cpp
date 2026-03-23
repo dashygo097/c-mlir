@@ -5,7 +5,7 @@
 namespace cmlirc {
 
 mlir::Type CMLIRConverter::convertRecordType(const clang::RecordType *type) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   const clang::RecordDecl *recordDecl = type->getDecl();
 
   auto it = recordTypeTable.find(recordDecl);

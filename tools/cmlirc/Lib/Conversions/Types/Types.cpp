@@ -3,7 +3,7 @@
 
 namespace cmlirc {
 
-mlir::Type CMLIRConverter::convertType(const clang::QualType type) {
+mlir::Type CMLIRConverter::convertType(clang::QualType type) {
   const clang::Type *typePtr = type.getCanonicalType().getTypePtr();
 
 #define REGISTER_TYPE(type)                                                    \

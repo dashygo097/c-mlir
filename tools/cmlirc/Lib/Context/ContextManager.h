@@ -10,27 +10,23 @@ namespace cmlirc {
 
 class ContextManager {
 public:
-  explicit ContextManager(clang::ASTContext *clangCtx,
+  explicit ContextManager(clang::ASTContext *clangContext,
                           mlir::DialectRegistry *registry = nullptr);
   ~ContextManager() = default;
 
-  [[nodiscard]] clang::ASTContext &ClangContext() noexcept {
-    return *clang_context_;
-  }
-  [[nodiscard]] mlir::MLIRContext &MLIRContext() noexcept {
-    return *mlir_context_;
-  }
-  [[nodiscard]] mlir::OpBuilder &Builder() noexcept { return *builder_; }
-  [[nodiscard]] mlir::ModuleOp &Module() noexcept { return *module_; }
+  [[nodiscard]] clang::ASTContext &ClangContext() noexcept { return *clangCtx; }
+  [[nodiscard]] mlir::MLIRContext &MLIRContext() noexcept { return *mlirCtx; }
+  [[nodiscard]] mlir::OpBuilder &Builder() noexcept { return *builder; }
+  [[nodiscard]] mlir::ModuleOp &Module() noexcept { return *module; }
 
   void dump();
   void dump(llvm::raw_ostream &os);
 
 private:
-  clang::ASTContext *clang_context_;
-  std::unique_ptr<mlir::MLIRContext> mlir_context_;
-  std::unique_ptr<mlir::OpBuilder> builder_;
-  std::unique_ptr<mlir::ModuleOp> module_;
+  clang::ASTContext *clangCtx;
+  std::unique_ptr<mlir::MLIRContext> mlirCtx;
+  std::unique_ptr<mlir::OpBuilder> builder;
+  std::unique_ptr<mlir::ModuleOp> module;
 };
 
 } // namespace cmlirc

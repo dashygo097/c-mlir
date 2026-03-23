@@ -7,7 +7,7 @@ namespace cmlirc {
 
 mlir::Value CMLIRConverter::generateCXXConstructExpr(
     clang::CXXConstructExpr *constructExpr) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::QualType type = constructExpr->getType();

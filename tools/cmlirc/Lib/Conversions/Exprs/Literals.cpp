@@ -6,7 +6,7 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRConverter::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   bool value = boolLit->getValue();
@@ -16,7 +16,7 @@ CMLIRConverter::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) {
 
 mlir::Value
 CMLIRConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   int64_t value = intLit->getValue().getSExtValue();
@@ -27,7 +27,7 @@ CMLIRConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
 
 mlir::Value
 CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   auto value = floatLit->getValue();
@@ -38,7 +38,7 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
 
 mlir::Value
 CMLIRConverter::generateCharacterLiteral(clang::CharacterLiteral *charLit) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   uint64_t value = charLit->getValue();
@@ -49,7 +49,7 @@ CMLIRConverter::generateCharacterLiteral(clang::CharacterLiteral *charLit) {
 
 mlir::Value
 CMLIRConverter::generateStringLiteral(clang::StringLiteral *strLit) {
-  auto &builder = context_manager_.Builder();
+  auto &builder = contextManager.Builder();
   auto loc = builder.getUnknownLoc();
 
   llvm::StringRef str = strLit->getString();

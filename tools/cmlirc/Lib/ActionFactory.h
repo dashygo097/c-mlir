@@ -7,14 +7,14 @@ namespace cmlirc {
 
 class CMLIRActionFactory : public clang::tooling::FrontendActionFactory {
 public:
-  explicit CMLIRActionFactory(llvm::raw_ostream *out) : output_stream_(out) {}
+  explicit CMLIRActionFactory(llvm::raw_ostream *os) : outStream(os) {}
 
   std::unique_ptr<clang::FrontendAction> create() override {
-    return std::make_unique<CMLIRFrontendAction>(output_stream_);
+    return std::make_unique<CMLIRFrontendAction>(outStream);
   }
 
 private:
-  llvm::raw_ostream *output_stream_;
+  llvm::raw_ostream *outStream;
 };
 
 } // namespace cmlirc

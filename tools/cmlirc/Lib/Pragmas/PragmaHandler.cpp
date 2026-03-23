@@ -6,10 +6,10 @@
 
 namespace cmlirc {
 
-void skipToEOD(clang::Preprocessor &PP) {
+void skipToEOD(clang::Preprocessor &pp) {
   clang::Token tok;
   do {
-    PP.Lex(tok);
+    pp.Lex(tok);
   } while (tok.isNot(clang::tok::eod) && tok.isNot(clang::tok::eof));
 }
 
@@ -17,42 +17,42 @@ bool isEndOfDirective(const clang::Token &tok) {
   return tok.is(clang::tok::eod) || tok.is(clang::tok::eof);
 }
 
-void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
-                                      clang::PragmaIntroducer Introducer,
+void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &pp,
+                                      clang::PragmaIntroducer introducer,
                                       clang::Token &firstTok) {
   clang::Token directiveTok;
-  PP.Lex(directiveTok);
+  pp.Lex(directiveTok);
 
   if (directiveTok.isNot(clang::tok::identifier)) {
-    skipToEOD(PP);
+    skipToEOD(pp);
     return;
   }
 
   llvm::StringRef directive = directiveTok.getIdentifierInfo()->getName();
   uint32_t line =
-      PP.getSourceManager().getSpellingLineNumber(Introducer.Loc) + 1;
-  LoopHints &hints = hints_[line];
+      pp.getSourceManager().getSpellingLineNumber(introducer.Loc) + 1;
+  LoopHints &hints = loopHintMap[line];
 
   clang::Token tok;
 
   auto parseUInt = [&](uint32_t &out) -> bool {
-    PP.Lex(tok);
+    pp.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
       return false;
-    PP.Lex(tok);
+    pp.Lex(tok);
     if (tok.isNot(clang::tok::numeric_constant))
       return false;
-    if (llvm::StringRef(PP.getSpelling(tok)).getAsInteger(10, out))
+    if (llvm::StringRef(pp.getSpelling(tok)).getAsInteger(10, out))
       return false;
-    PP.Lex(tok);
+    pp.Lex(tok);
     return tok.is(clang::tok::r_paren);
   };
 
   auto parseBool = [&](bool &out) -> bool {
-    PP.Lex(tok);
+    pp.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
       return false;
-    PP.Lex(tok);
+    pp.Lex(tok);
     if (tok.isNot(clang::tok::identifier))
       return false;
     llvm::StringRef val = tok.getIdentifierInfo()->getName();
@@ -62,16 +62,16 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
       out = false;
     else
       return false;
-    PP.Lex(tok);
+    pp.Lex(tok);
     return tok.is(clang::tok::r_paren);
   };
 
   auto parseUnroll = [&]() -> bool {
-    PP.Lex(tok);
+    pp.Lex(tok);
     if (tok.isNot(clang::tok::l_paren))
       return false;
 
-    PP.Lex(tok); // value token
+    pp.Lex(tok); // value token
 
     if (tok.is(clang::tok::identifier)) {
       llvm::StringRef val = tok.getIdentifierInfo()->getName();
@@ -84,7 +84,7 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
       }
     } else if (tok.is(clang::tok::numeric_constant)) {
       uint32_t n = 0;
-      if (llvm::StringRef(PP.getSpelling(tok)).getAsInteger(10, n))
+      if (llvm::StringRef(pp.getSpelling(tok)).getAsInteger(10, n))
         return false;
       if (n < 2)
         return false;
@@ -93,7 +93,7 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
       return false;
     }
 
-    PP.Lex(tok);
+    pp.Lex(tok);
     return tok.is(clang::tok::r_paren);
   };
 
@@ -101,7 +101,7 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
 
   if (directive == "loop") {
     while (true) {
-      PP.Lex(tok);
+      pp.Lex(tok);
 
       if (isEndOfDirective(tok)) {
         ok = true;
@@ -140,7 +140,7 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
         break;
       }
 
-      PP.Lex(tok);
+      pp.Lex(tok);
       if (isEndOfDirective(tok)) {
         ok = true;
         break;
@@ -153,10 +153,10 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &PP,
   if (!ok)
     llvm::WithColor::warning()
         << "cmlirc: malformed #pragma cmlir " << directive << " at line "
-        << PP.getSourceManager().getSpellingLineNumber(Introducer.Loc) << "\n";
+        << pp.getSourceManager().getSpellingLineNumber(introducer.Loc) << "\n";
 
   if (!isEndOfDirective(tok))
-    skipToEOD(PP);
+    skipToEOD(pp);
 }
 
 } // namespace cmlirc

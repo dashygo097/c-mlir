@@ -12,80 +12,80 @@ namespace cmlirc::options {
 llvm::cl::OptionCategory toolOptions("CMLIRC Options");
 
 // General options
-llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
+llvm::cl::opt<bool> verbose("v", llvm::cl::init(false),
                             llvm::cl::desc("Enable verbose"),
                             llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<std::string>
-    SystemRoot("sysroot", llvm::cl::init(""),
+    systemRoot("sysroot", llvm::cl::init(""),
                llvm::cl::desc("Set the system root path"),
                llvm::cl::value_desc("path"), llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<std::string> OutputFile("o",
+llvm::cl::opt<std::string> outputFile("o",
                                       llvm::cl::desc("Write output to <file>"),
                                       llvm::cl::value_desc("file"),
                                       llvm::cl::init("-"));
 
 llvm::cl::opt<std::string>
-    FunctionName("function", llvm::cl::init(""),
+    functionName("function", llvm::cl::init(""),
                  llvm::cl::desc("Name of the function to compile"),
                  llvm::cl::cat(toolOptions));
 
 // Passes
-llvm::cl::opt<bool> DisableOpt("disable-opt", llvm::cl::init(false),
+llvm::cl::opt<bool> disableOpt("disable-opt", llvm::cl::init(false),
                                llvm::cl::desc("Disable optimizations"),
                                llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> FuncInline("func-inline", llvm::cl::init(false),
+llvm::cl::opt<bool> funcInline("func-inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
                                llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
-    Struct2Memref("struct-to-memref", llvm::cl::init(false),
+    struct2Memref("struct-to-memref", llvm::cl::init(false),
                   llvm::cl::desc("Enable struct to memref promotion"),
                   llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> RaiseSCF2Affine("raise-scf-to-affine",
+llvm::cl::opt<bool> raiseSCF2Affine("raise-scf-to-affine",
                                     llvm::cl::init(false),
                                     llvm::cl::desc("Raise scf to affine"),
                                     llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> FMA("fma", llvm::cl::init(false),
+llvm::cl::opt<bool> fma("fma", llvm::cl::init(false),
                         llvm::cl::desc("Enable fused multiply-add (FMA)"),
                         llvm::cl::cat(toolOptions));
 
-llvm::cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+llvm::cl::extrahelp commonHelp(CommonOptionsParser::HelpMessage);
 
 } // namespace cmlirc::options
 
 int main(int argc, const char **argv) {
-  auto ExpectedParser =
+  auto expectedParser =
       CommonOptionsParser::create(argc, argv, options::toolOptions);
 
-  if (!ExpectedParser) {
+  if (!expectedParser) {
     llvm::WithColor::error()
-        << "cmlirc: " << toString(ExpectedParser.takeError()) << "\n";
+        << "cmlirc: " << toString(expectedParser.takeError()) << "\n";
     return 1;
   }
 
-  CommonOptionsParser &OptionsParser = ExpectedParser.get();
-  ClangTool Tool(OptionsParser.getCompilations(),
-                 OptionsParser.getSourcePathList());
-  Tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
-      {"-isysroot", options::SystemRoot}, ArgumentInsertPosition::BEGIN));
+  CommonOptionsParser &optionsParser = expectedParser.get();
+  ClangTool tool(optionsParser.getCompilations(),
+                 optionsParser.getSourcePathList());
+  tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
+      {"-isysroot", options::systemRoot}, ArgumentInsertPosition::BEGIN));
 
   llvm::raw_ostream *out;
   std::unique_ptr<llvm::raw_fd_ostream> fileOut;
 
-  if (options::OutputFile == "-") {
+  if (options::outputFile == "-") {
     out = &llvm::outs();
   } else {
     std::error_code ec;
-    fileOut = std::make_unique<llvm::raw_fd_ostream>(options::OutputFile, ec,
+    fileOut = std::make_unique<llvm::raw_fd_ostream>(options::outputFile, ec,
                                                      llvm::sys::fs::OF_None);
 
     if (ec) {
-      llvm::WithColor::error() << "cmlirc: cannot open '" << options::OutputFile
+      llvm::WithColor::error() << "cmlirc: cannot open '" << options::outputFile
                                << "': " << ec.message() << "\n";
       return 1;
     }
@@ -93,5 +93,5 @@ int main(int argc, const char **argv) {
   }
 
   auto factory = std::make_unique<CMLIRActionFactory>(out);
-  return Tool.run(factory.get());
+  return tool.run(factory.get());
 }

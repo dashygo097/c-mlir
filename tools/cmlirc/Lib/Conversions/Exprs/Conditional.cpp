@@ -5,7 +5,7 @@ namespace cmlirc {
 
 mlir::Value CMLIRConverter::generateConditionalOperator(
     clang::ConditionalOperator *condOp) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value condition = generateExpr(condOp->getCond());

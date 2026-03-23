@@ -10,7 +10,7 @@ namespace cmlirc {
 // Handle pure value-producing binary expressions (no side effects on LHS).
 mlir::Value
 CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value lhs = generateExpr(binOp->getLHS());
@@ -84,13 +84,12 @@ CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
 // Short-circuit helpers
 mlir::Value CMLIRConverter::generateLAndBinaryOperator(mlir::Value lhs,
                                                        mlir::Value rhs) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   // if (lhs) { yield rhs } else { yield false }
   auto ifOp = mlir::scf::IfOp::create(builder, loc, builder.getI1Type(),
-                                      detail::toBool(builder, loc, lhs),
-                                      /*withElse=*/true);
+                                      detail::toBool(builder, loc, lhs), true);
   builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
 
   mlir::scf::YieldOp::create(builder, loc, detail::toBool(builder, loc, rhs));
@@ -105,13 +104,12 @@ mlir::Value CMLIRConverter::generateLAndBinaryOperator(mlir::Value lhs,
 
 mlir::Value CMLIRConverter::generateLOrBinaryOperator(mlir::Value lhs,
                                                       mlir::Value rhs) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   // if (lhs) { yield true } else { yield rhs }
   auto ifOp = mlir::scf::IfOp::create(builder, loc, builder.getI1Type(),
-                                      detail::toBool(builder, loc, lhs),
-                                      /*withElse=*/true);
+                                      detail::toBool(builder, loc, lhs), true);
   builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
 
   mlir::scf::YieldOp::create(builder, loc,

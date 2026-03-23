@@ -32,13 +32,13 @@ static bool isInConditionalRegion(mlir::Operation *op) {
 static bool isPromotable(mlir::memref::AllocaOp alloca) {
   if (!isScalarMemRef(alloca.getType()))
     return false;
-  for (mlir::Operation *user : alloca->getUsers()) {
+  return llvm::all_of(alloca->getUsers(), [](mlir::Operation *user) {
     if (!mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp>(user))
       return false;
     if (mlir::isa<mlir::memref::StoreOp>(user) && isInConditionalRegion(user))
       return false;
-  }
-  return true;
+    return true;
+  });
 }
 
 static mlir::Block *getEnclosingBlockInRegion(mlir::Block *block,
@@ -354,8 +354,8 @@ struct PromoteSCFWhileAllocaToIterArgPattern
     llvm::SmallVector<mlir::Value> condArgs;
     for (mlir::Value v : oldCond.getArgs())
       condArgs.push_back(beforeMapping.lookupOrDefault(v));
-    for (size_t i = 0; i < allocasToPromote.size(); ++i)
-      condArgs.push_back(beforeValues[allocasToPromote[i].getResult()]);
+    for (auto alloca : allocasToPromote)
+      condArgs.push_back(beforeValues[alloca.getResult()]);
     mlir::scf::ConditionOp::create(
         rewriter, oldCond.getLoc(),
         beforeMapping.lookupOrDefault(oldCond.getCondition()), condArgs);

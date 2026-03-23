@@ -11,31 +11,31 @@ namespace cmlirc {
 
 class CMLIRConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRConsumer(ContextManager &ctx, LoopHintMap &loopHints)
-      : visitor_(ctx, loopHints) {}
-  ~CMLIRConsumer() = default;
+  explicit CMLIRConsumer(ContextManager &ctx, LoopHintMap &loopHintMap)
+      : visitor(ctx, loopHintMap) {}
+  ~CMLIRConsumer() override = default;
 
-  void HandleTranslationUnit(clang::ASTContext &Context) override {
-    std::string targetFuncName = options::FunctionName;
+  void HandleTranslationUnit(clang::ASTContext &ctx) override {
+    std::string targetFuncName = options::functionName;
 
     if (targetFuncName.empty()) {
-      visitor_.TraverseDecl(Context.getTranslationUnitDecl());
+      visitor.TraverseDecl(ctx.getTranslationUnitDecl());
       return;
     }
 
-    clang::TranslationUnitDecl *TU = Context.getTranslationUnitDecl();
+    clang::TranslationUnitDecl *tuDecl = ctx.getTranslationUnitDecl();
     bool found = false;
 
-    for (auto *Decl : TU->decls()) {
-      if (auto *FD = mlir::dyn_cast<clang::FunctionDecl>(Decl)) {
-        if (FD->getNameAsString() == targetFuncName) {
-          if (!FD->hasBody()) {
+    for (auto *decl : tuDecl->decls()) {
+      if (auto *funcDecl = mlir::dyn_cast<clang::FunctionDecl>(decl)) {
+        if (funcDecl->getNameAsString() == targetFuncName) {
+          if (!funcDecl->hasBody()) {
             llvm::WithColor::error() << "cmlirc: function '" << targetFuncName
                                      << "' found but has no body\n";
             return;
           }
 
-          visitor_.TraverseFunctionDecl(FD);
+          visitor.TraverseFunctionDecl(funcDecl);
           found = true;
           break;
         }
@@ -49,7 +49,7 @@ public:
   }
 
 private:
-  CMLIRConverter visitor_;
+  CMLIRConverter visitor;
 };
 
 } // namespace cmlirc

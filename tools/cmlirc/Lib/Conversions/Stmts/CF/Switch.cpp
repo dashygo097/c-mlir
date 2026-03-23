@@ -70,9 +70,9 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
   if (!currentFunc)
     return true;
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
-  clang::ASTContext &astCtx = context_manager_.ClangContext();
+  clang::ASTContext &astCtx = contextManager.ClangContext();
 
   llvm::SmallVector<SwitchArm> arms;
   collectArms(sw, arms, astCtx);
@@ -116,10 +116,8 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
   size_t numCases = caseValues.size();
 
   auto switchOp = mlir::scf::IndexSwitchOp::create(
-      builder, loc,
-      /*resultTypes=*/mlir::TypeRange{}, switchIdx,
-      llvm::ArrayRef<int64_t>(caseValues),
-      /*numRegions=*/static_cast<unsigned>(numCases));
+      builder, loc, mlir::TypeRange{}, switchIdx,
+      llvm::ArrayRef<int64_t>(caseValues), static_cast<unsigned>(numCases));
 
   for (size_t i = 0; i < numCases; ++i) {
     mlir::Region &region = switchOp.getCaseRegions()[i];

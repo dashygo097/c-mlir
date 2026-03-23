@@ -22,9 +22,9 @@ mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 void emitGuarded(mlir::OpBuilder &builder, mlir::Location loc,
-                 mlir::Value guard, std::function<void()> emitBody) {
-  auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{}, guard,
-                                      /*hasElse=*/false);
+                 mlir::Value guard, const std::function<void()> &emitBody) {
+  auto ifOp =
+      mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{}, guard, false);
   {
     mlir::OpBuilder::InsertionGuard g(builder);
     mlir::Block *thenBlk = &ifOp.getThenRegion().front();
@@ -67,10 +67,10 @@ bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing) {
   }
 }
 
-mlir::Value extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
-                        bool isIncrementing, mlir::OpBuilder &builder,
-                        mlir::Location loc,
-                        std::function<mlir::Value(clang::Expr *)> genExpr) {
+mlir::Value
+extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
+            bool isIncrementing, mlir::OpBuilder &builder, mlir::Location loc,
+            const std::function<mlir::Value(clang::Expr *)> &genExpr) {
 
   if (auto *unary = mlir::dyn_cast_or_null<clang::UnaryOperator>(incExpr)) {
     auto *subj = mlir::dyn_cast<clang::DeclRefExpr>(
@@ -150,7 +150,7 @@ void adjustBounds(mlir::OpBuilder &builder, mlir::Location loc,
 std::optional<SimpleLoopInfo>
 analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
                mlir::Location loc,
-               std::function<mlir::Value(clang::Expr *)> genExpr) {
+               const std::function<mlir::Value(clang::Expr *)> &genExpr) {
 
   auto *initStmt = mlir::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit());
   if (!initStmt || !initStmt->isSingleDecl())

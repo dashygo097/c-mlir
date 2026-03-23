@@ -6,7 +6,7 @@ namespace cmlirc {
 
 mlir::Value
 CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = castExpr->getSubExpr();
 

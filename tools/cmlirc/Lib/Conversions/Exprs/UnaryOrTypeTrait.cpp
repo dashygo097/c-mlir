@@ -7,8 +7,8 @@ namespace cmlirc {
 mlir::Value CMLIRConverter::generateUnaryExprOrTypeTraitExpr(
     clang::UnaryExprOrTypeTraitExpr *expr) {
 
-  clang::ASTContext &astCtx = context_manager_.ClangContext();
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  clang::ASTContext &astCtx = contextManager.ClangContext();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   using CUETT = clang::UnaryExprOrTypeTrait;

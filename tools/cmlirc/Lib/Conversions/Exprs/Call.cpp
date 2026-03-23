@@ -349,8 +349,8 @@ bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
 
 // main entry point
 mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
-  mlir::ModuleOp module = context_manager_.Module();
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::ModuleOp module = contextManager.Module();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   const clang::FunctionDecl *calleeDecl = callExpr->getDirectCallee();

@@ -25,7 +25,7 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
   if (!currentFunc)
     return true;
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value condition = generateExpr(ifStmt->getCond());

@@ -31,7 +31,7 @@ mlir::Value applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
 mlir::Value CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
                                                         bool isIncrement,
                                                         bool isPrefix) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   // Fast path with SSA parameter

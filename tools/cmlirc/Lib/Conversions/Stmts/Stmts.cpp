@@ -6,7 +6,7 @@ bool CMLIRConverter::TraverseStmt(clang::Stmt *stmt) {
   if (!stmt || !currentFunc)
     return RecursiveASTVisitor::TraverseStmt(stmt);
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Block *cur = builder.getInsertionBlock();
   if (cur && !cur->empty() &&
       cur->back().hasTrait<mlir::OpTrait::IsTerminator>())

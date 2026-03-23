@@ -15,13 +15,13 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
   if (!currentFunc)
     return true;
 
-  clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
+  clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
   clang::SourceLocation loc = decl->getLocation();
   auto mlirLoc = mlir::FileLineColLoc::get(
-      &context_manager_.MLIRContext(), SM.getFilename(loc),
-      SM.getSpellingLineNumber(loc), SM.getSpellingColumnNumber(loc));
+      &contextManager.MLIRContext(), sm.getFilename(loc),
+      sm.getSpellingLineNumber(loc), sm.getSpellingColumnNumber(loc));
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   clang::QualType clangType = decl->getType();
 
   if (clangType->isPointerType()) {

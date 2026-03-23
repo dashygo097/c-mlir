@@ -8,13 +8,13 @@ bool CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   }
 
   // skip system headers
-  clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
-  if (SM.isInSystemHeader(decl->getLocation())) {
+  clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
+  if (sm.isInSystemHeader(decl->getLocation())) {
     return true;
   }
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
-  builder.setInsertionPointToEnd(context_manager_.Module().getBody());
+  mlir::OpBuilder &builder = contextManager.Builder();
+  builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
   // Convert parameter types
   llvm::SmallVector<mlir::Type, 4> argTypes;

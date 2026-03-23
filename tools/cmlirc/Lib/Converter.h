@@ -43,13 +43,14 @@ struct ArrayAccessInfo {
 
 class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
-  explicit CMLIRConverter(ContextManager &ctx, LoopHintMap &loopHints)
-      : context_manager_(ctx), loop_hints_(loopHints) {}
+  explicit CMLIRConverter(ContextManager &contextManager,
+                          LoopHintMap &loopHintMap)
+      : contextManager(contextManager), loopHintMap(loopHintMap) {}
   ~CMLIRConverter() = default;
 
   // decl traits
-  bool TraverseFunctionDecl(clang::FunctionDecl *D);
-  bool TraverseVarDecl(clang::VarDecl *decl);
+  bool TraverseFunctionDecl(clang::FunctionDecl *funcDecl);
+  bool TraverseVarDecl(clang::VarDecl *varDecl);
   bool TraverseRecordDecl(clang::RecordDecl *recordDecl);
 
   // stmt traits
@@ -82,8 +83,8 @@ public:
   void emitWhileStyleForLoop(clang::ForStmt *forStmt);
 
 private:
-  ContextManager &context_manager_;
-  LoopHintMap &loop_hints_;
+  ContextManager &contextManager;
+  LoopHintMap &loopHintMap;
 
   // states
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> symbolTable;
@@ -105,7 +106,7 @@ private:
                                         const clang::FieldDecl *fieldDecl);
 
   // type traits
-  [[nodiscard]] mlir::Type convertType(const clang::QualType type);
+  [[nodiscard]] mlir::Type convertType(clang::QualType type);
   [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
   [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
   [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);
@@ -136,7 +137,7 @@ private:
   // array
   void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
   mlir::Value generateInitListExpr(clang::InitListExpr *initList);
-  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
+  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub);
 
   // unary
   mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);

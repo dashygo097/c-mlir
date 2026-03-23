@@ -6,18 +6,18 @@
 namespace cmlirc::options {
 extern llvm::cl::OptionCategory toolOptions;
 
-extern llvm::cl::opt<bool> Verbose;
-extern llvm::cl::opt<std::string> SystemRoot;
-extern llvm::cl::opt<std::string> OutputFile;
-extern llvm::cl::opt<std::string> FunctionName;
+extern llvm::cl::opt<bool> verbose;
+extern llvm::cl::opt<std::string> systemRoot;
+extern llvm::cl::opt<std::string> outputFile;
+extern llvm::cl::opt<std::string> functionName;
 
-extern llvm::cl::opt<bool> DisableOpt;
-extern llvm::cl::opt<bool> FuncInline;
-extern llvm::cl::opt<bool> Struct2Memref;
-extern llvm::cl::opt<bool> RaiseSCF2Affine;
-extern llvm::cl::opt<bool> FMA;
+extern llvm::cl::opt<bool> disableOpt;
+extern llvm::cl::opt<bool> funcInline;
+extern llvm::cl::opt<bool> struct2Memref;
+extern llvm::cl::opt<bool> raiseSCF2Affine;
+extern llvm::cl::opt<bool> fma;
 
-extern llvm::cl::extrahelp CommonHelp;
+extern llvm::cl::extrahelp commonHelp;
 } // namespace cmlirc::options
 
 #endif

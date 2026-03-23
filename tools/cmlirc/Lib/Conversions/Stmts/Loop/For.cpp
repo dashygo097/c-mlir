@@ -12,7 +12,7 @@ void CMLIRConverter::emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
                                         mlir::Value ivIndex,
                                         mlir::Block *continueBlock,
                                         clang::Stmt *body) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Type origType = convertType(inductionVar->getType());
@@ -34,7 +34,7 @@ void CMLIRConverter::emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
 void CMLIRConverter::emitFullyUnrolledLoop(const SimpleLoopInfo &info,
                                            int64_t lb, int64_t ub, int64_t st,
                                            clang::Stmt *body) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   for (int64_t iv = lb; iv < ub; iv += st)
@@ -46,7 +46,7 @@ void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
                                                int64_t lb, int64_t ub,
                                                int64_t st, int64_t factor,
                                                clang::Stmt *body) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   int64_t tripCount = (ub - lb + st - 1) / st;
@@ -89,7 +89,7 @@ void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
 
 void CMLIRConverter::emitPlainForLoop(const SimpleLoopInfo &info,
                                       clang::Stmt *body) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   auto forOp = mlir::scf::ForOp::create(builder, loc, info.lowerBound,
@@ -118,7 +118,7 @@ void CMLIRConverter::emitPlainForLoop(const SimpleLoopInfo &info,
 }
 
 void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   if (forStmt->getInit())
@@ -156,9 +156,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     mlir::Value initKeepGoing = detail::boolConst(builder, loc, true);
 
     auto whileOp = mlir::scf::WhileOp::create(
-        builder, loc,
-        /*resultTypes=*/mlir::TypeRange{funcRetType},
-        /*operands=*/mlir::ValueRange{initRetVal, initKeepGoing},
+        builder, loc, mlir::TypeRange{funcRetType},
+        mlir::ValueRange{initRetVal, initKeepGoing},
         [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
           mlir::OpBuilder::InsertionGuard g(builder);
           builder.setInsertionPointToEnd(b.getInsertionBlock());
@@ -345,7 +344,7 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     return true;
   }
 
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   auto info =
@@ -361,11 +360,11 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
   if (forStmt->getInit())
     TraverseStmt(forStmt->getInit());
 
-  clang::SourceManager &SM = context_manager_.ClangContext().getSourceManager();
-  uint32_t forLine = SM.getSpellingLineNumber(forStmt->getForLoc());
-  auto hintIt = loop_hints_.find(forLine);
+  clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
+  uint32_t forLine = sm.getSpellingLineNumber(forStmt->getForLoc());
+  auto hintIt = loopHintMap.find(forLine);
 
-  if (hintIt != loop_hints_.end()) {
+  if (hintIt != loopHintMap.end()) {
     const LoopHints &h = hintIt->second;
     auto lb = detail::getInt(info->lowerBound);
     auto ub = detail::getInt(info->upperBound);

@@ -3,7 +3,7 @@
 
 namespace cmlirc {
 mlir::Type CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
 
   switch (type->getKind()) {
   case clang::BuiltinType::Void:

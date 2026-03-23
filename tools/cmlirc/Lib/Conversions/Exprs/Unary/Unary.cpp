@@ -6,7 +6,7 @@
 
 namespace cmlirc {
 mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = unOp->getSubExpr();
 
@@ -33,17 +33,13 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
 
   // Increment / decrement
   case CUO::UO_PreInc:
-    return generateIncDecUnaryOperator(subExpr, /*inc=*/true,
-                                       /*pre=*/true);
+    return generateIncDecUnaryOperator(subExpr, true, true);
   case CUO::UO_PostInc:
-    return generateIncDecUnaryOperator(subExpr, /*inc=*/true,
-                                       /*pre=*/false);
+    return generateIncDecUnaryOperator(subExpr, true, false);
   case CUO::UO_PreDec:
-    return generateIncDecUnaryOperator(subExpr, /*inc=*/false,
-                                       /*pre=*/true);
+    return generateIncDecUnaryOperator(subExpr, false, true);
   case CUO::UO_PostDec:
-    return generateIncDecUnaryOperator(subExpr, /*inc=*/false,
-                                       /*pre=*/false);
+    return generateIncDecUnaryOperator(subExpr, false, false);
 
   // Logical NOT: operand == 0
   case CUO::UO_LNot: {

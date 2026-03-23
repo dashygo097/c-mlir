@@ -29,7 +29,7 @@ CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
 }
 
 mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::Expr *base = memberExpr->getBase();

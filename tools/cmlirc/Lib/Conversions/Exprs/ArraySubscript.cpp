@@ -4,13 +4,13 @@
 
 namespace cmlirc {
 
-mlir::Value
-CMLIRConverter::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
-  mlir::OpBuilder &builder = context_manager_.Builder();
+mlir::Value CMLIRConverter::generateArraySubscriptExpr(
+    clang::ArraySubscriptExpr *arraySub) {
+  mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   llvm::SmallVector<mlir::Value, 4> indices;
-  clang::Expr *currentExpr = expr;
+  clang::Expr *currentExpr = arraySub;
 
   while (auto *arraySubscript =
              mlir::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {

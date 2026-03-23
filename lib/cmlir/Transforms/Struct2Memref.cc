@@ -23,14 +23,9 @@ static bool isStructElemSameType(mlir::LLVM::LLVMStructType structType) {
     return false;
   }
 
-  auto firstElemType = structType.getBody()[0];
-  for (auto elemType : structType.getBody()) {
-    if (elemType != firstElemType) {
-      return false;
-    }
-  }
-
-  return true;
+  return llvm::all_of(structType.getBody(), [&](mlir::Type elemType) {
+    return elemType == structType.getBody()[0];
+  });
 }
 
 static mlir::MemRefType structToMemrefType(mlir::LLVM::LLVMStructType st) {
