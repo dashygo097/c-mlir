@@ -49,26 +49,26 @@ public:
   ~CMLIRConverter() = default;
 
   // decl traits
-  bool TraverseFunctionDecl(clang::FunctionDecl *funcDecl);
-  bool TraverseVarDecl(clang::VarDecl *varDecl);
-  bool TraverseRecordDecl(clang::RecordDecl *recordDecl);
+  auto TraverseFunctionDecl(clang::FunctionDecl *funcDecl) -> bool;
+  auto TraverseVarDecl(clang::VarDecl *varDecl) -> bool;
+  auto TraverseRecordDecl(clang::RecordDecl *recordDecl) -> bool;
 
   // stmt traits
-  bool TraverseStmt(clang::Stmt *stmt);
+  auto TraverseStmt(clang::Stmt *stmt) -> bool;
 
   // return
-  bool TraverseReturnStmt(clang::ReturnStmt *retStmt);
+  auto TraverseReturnStmt(clang::ReturnStmt *retStmt) -> bool;
 
   // control flow
-  bool TraverseIfStmt(clang::IfStmt *ifStmt);
-  bool TraverseSwitchStmt(clang::SwitchStmt *switchStmt);
+  auto TraverseIfStmt(clang::IfStmt *ifStmt) -> bool;
+  auto TraverseSwitchStmt(clang::SwitchStmt *switchStmt) -> bool;
 
   // loop
-  bool TraverseForStmt(clang::ForStmt *forStmt);
-  bool TraverseWhileStmt(clang::WhileStmt *whileStmt);
-  bool TraverseDoStmt(clang::DoStmt *doStmt);
-  bool TraverseBreakStmt(clang::BreakStmt *breakStmt);
-  bool TraverseContinueStmt(clang::ContinueStmt *continueStmt);
+  auto TraverseForStmt(clang::ForStmt *forStmt) -> bool;
+  auto TraverseWhileStmt(clang::WhileStmt *whileStmt) -> bool;
+  auto TraverseDoStmt(clang::DoStmt *doStmt) -> bool;
+  auto TraverseBreakStmt(clang::BreakStmt *breakStmt) -> bool;
+  auto TraverseContinueStmt(clang::ContinueStmt *continueStmt) -> bool;
 
   // loop optimizations
   void emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
@@ -102,69 +102,69 @@ private:
   llvm::SmallVector<LoopContext, 4> loopStack;
 
   // helpers
-  std::optional<uint32_t> getFieldIndex(const clang::RecordDecl *recordDecl,
-                                        const clang::FieldDecl *fieldDecl);
+  auto getFieldIndex(const clang::RecordDecl *recordDecl,
+                                        const clang::FieldDecl *fieldDecl) -> std::optional<uint32_t>;
 
   // type traits
-  [[nodiscard]] mlir::Type convertType(clang::QualType type);
-  [[nodiscard]] mlir::Type convertBuiltinType(const clang::BuiltinType *type);
-  [[nodiscard]] mlir::Type convertArrayType(const clang::ArrayType *type);
-  [[nodiscard]] mlir::Type convertPointerType(const clang::PointerType *type);
-  [[nodiscard]] mlir::Type convertTypedefType(const clang::TypedefType *type);
-  [[nodiscard]] mlir::Type convertRecordType(const clang::RecordType *type);
+  [[nodiscard]] auto convertType(clang::QualType type) -> mlir::Type;
+  [[nodiscard]] auto convertBuiltinType(const clang::BuiltinType *type) -> mlir::Type;
+  [[nodiscard]] auto convertArrayType(const clang::ArrayType *type) -> mlir::Type;
+  [[nodiscard]] auto convertPointerType(const clang::PointerType *type) -> mlir::Type;
+  [[nodiscard]] auto convertTypedefType(const clang::TypedefType *type) -> mlir::Type;
+  [[nodiscard]] auto convertRecordType(const clang::RecordType *type) -> mlir::Type;
 
   // expr traits
-  [[nodiscard]] bool hasSideEffects(clang::Expr *expr) const;
-  mlir::Value generateExpr(clang::Expr *expr);
+  [[nodiscard]] auto hasSideEffects(clang::Expr *expr) const -> bool;
+  auto generateExpr(clang::Expr *expr) -> mlir::Value;
 
   // paren
-  mlir::Value generateParenExpr(clang::ParenExpr *parenExpr);
+  auto generateParenExpr(clang::ParenExpr *parenExpr) -> mlir::Value;
 
   // literals
-  mlir::Value generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit);
-  mlir::Value generateIntegerLiteral(clang::IntegerLiteral *intLit);
-  mlir::Value generateFloatingLiteral(clang::FloatingLiteral *floatLit);
-  mlir::Value generateCharacterLiteral(clang::CharacterLiteral *charLit);
-  mlir::Value generateStringLiteral(clang::StringLiteral *strLit);
+  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) -> mlir::Value;
+  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
+  auto generateFloatingLiteral(clang::FloatingLiteral *floatLit) -> mlir::Value;
+  auto generateCharacterLiteral(clang::CharacterLiteral *charLit) -> mlir::Value;
+  auto generateStringLiteral(clang::StringLiteral *strLit) -> mlir::Value;
 
   // decl ref
-  mlir::Value generateDeclRefExpr(clang::DeclRefExpr *declRef);
+  auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
 
   // implicit/cstyle cast
-  mlir::Value generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr);
-  mlir::Value generateCStyleCastExpr(clang::CStyleCastExpr *castExpr);
+  auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr) -> mlir::Value;
+  auto generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) -> mlir::Value;
 
   // array
   void storeInitListValues(clang::InitListExpr *initList, mlir::Value memref);
-  mlir::Value generateInitListExpr(clang::InitListExpr *initList);
-  mlir::Value generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub);
+  auto generateInitListExpr(clang::InitListExpr *initList) -> mlir::Value;
+  auto generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub) -> mlir::Value;
 
   // unary
-  mlir::Value generateUnaryOperator(clang::UnaryOperator *unOp);
-  mlir::Value generateAddrOfUnaryOperator(clang::Expr *addrOfOp);
-  mlir::Value generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
-                                          bool isPrefix);
+  auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
+  auto generateAddrOfUnaryOperator(clang::Expr *addrOfOp) -> mlir::Value;
+  auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
+                                          bool isPrefix) -> mlir::Value;
 
   // binary
-  mlir::Value generateBinaryOperator(clang::BinaryOperator *binOp);
-  mlir::Value generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp);
-  mlir::Value generatePureBinaryOperator(clang::BinaryOperator *pureBinOp);
-  mlir::Value generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs);
-  mlir::Value generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs);
+  auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
+  auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp) -> mlir::Value;
+  auto generatePureBinaryOperator(clang::BinaryOperator *pureBinOp) -> mlir::Value;
+  auto generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs) -> mlir::Value;
+  auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs) -> mlir::Value;
 
   // conditional
-  mlir::Value generateConditionalOperator(clang::ConditionalOperator *condOp);
+  auto generateConditionalOperator(clang::ConditionalOperator *condOp) -> mlir::Value;
 
   // call
-  mlir::Value generateCallExpr(clang::CallExpr *callExpr);
+  auto generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value;
 
   // struct
-  mlir::Value generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr);
-  mlir::Value generateMemberExpr(clang::MemberExpr *memberExpr);
+  auto generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr) -> mlir::Value;
+  auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
 
   // unary or type trait
-  mlir::Value
-  generateUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *traitExpr);
+  auto
+  generateUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *traitExpr) -> mlir::Value;
 };
 
 } // namespace cmlirc

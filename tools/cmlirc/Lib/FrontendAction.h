@@ -27,9 +27,9 @@ public:
       : outStream(os) {}
   ~CMLIRFrontendAction() override = default;
 
-  std::unique_ptr<clang::ASTConsumer>
+  auto
   CreateASTConsumer(clang::CompilerInstance &ci,
-                    clang::StringRef file) override {
+                    clang::StringRef file) -> std::unique_ptr<clang::ASTConsumer> override {
     mlir::DialectRegistry registry;
     mlir::LLVM::registerInlinerInterface(registry);
     mlir::func::registerInlinerExtension(registry);
@@ -63,8 +63,9 @@ public:
       pm.addPass(mlir::createCSEPass());
     }
 
-    if (options::struct2Memref)
+    if (options::struct2Memref) {
       pm.addPass(cmlir::createStruct2MemrefPass());
+}
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addPass(mlir::memref::createNormalizeMemRefsPass());
     pm.addPass(mlir::createMem2Reg());
@@ -88,8 +89,9 @@ public:
     pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(cmlir::createLoopVectorizePass());
-    if (options::fma)
+    if (options::fma) {
       pm.addPass(cmlir::createFMAPass());
+}
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
     pm.addPass(mlir::createMem2Reg());
@@ -113,8 +115,9 @@ public:
       pm.clear();
     }
 
-    if (mlir::failed(pm.run(contextManager->Module())))
+    if (mlir::failed(pm.run(contextManager->Module()))) {
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
+}
     contextManager->dump(*outStream);
     outStream->flush();
   }

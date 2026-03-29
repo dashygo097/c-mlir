@@ -14,10 +14,10 @@ public:
                           mlir::DialectRegistry *registry = nullptr);
   ~ContextManager() = default;
 
-  [[nodiscard]] clang::ASTContext &ClangContext() noexcept { return *clangCtx; }
-  [[nodiscard]] mlir::MLIRContext &MLIRContext() noexcept { return *mlirCtx; }
-  [[nodiscard]] mlir::OpBuilder &Builder() noexcept { return *builder; }
-  [[nodiscard]] mlir::ModuleOp &Module() noexcept { return *module; }
+  [[nodiscard]] auto ClangContext() noexcept -> clang::ASTContext & { return *clangCtx; }
+  [[nodiscard]] auto MLIRContext() noexcept -> mlir::MLIRContext & { return *mlirCtx; }
+  [[nodiscard]] auto Builder() noexcept -> mlir::OpBuilder & { return *builder; }
+  [[nodiscard]] auto Module() noexcept -> mlir::ModuleOp & { return *module; }
 
   void dump();
   void dump(llvm::raw_ostream &os);

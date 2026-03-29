@@ -9,23 +9,27 @@ namespace cmlirc::detail {
 enum class LHSKind { Scalar, Indexed, Member };
 
 // Classify the LHS of an assignment into one of three storage categories.
-inline LHSKind classifyLHS(clang::Expr *lhs) {
+inline auto classifyLHS(clang::Expr *lhs) -> LHSKind {
   clang::Expr *bare = lhs->IgnoreParenImpCasts();
-  if (mlir::isa<clang::ArraySubscriptExpr>(bare))
+  if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
     return LHSKind::Indexed;
-  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare))
-    if (uo->getOpcode() == clang::UO_Deref)
+}
+  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
+    if (uo->getOpcode() == clang::UO_Deref) {
       return LHSKind::Indexed;
-  if (mlir::isa<clang::MemberExpr>(bare))
+}
+}
+  if (mlir::isa<clang::MemberExpr>(bare)) {
     return LHSKind::Member;
+}
   return LHSKind::Scalar;
 }
 
 // Load the current value of an LHS location.
-inline mlir::Value
+inline auto
 loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
         mlir::Value lhsMemref,
-        const std::optional<cmlirc::ArrayAccessInfo> &arrayAccess) {
+        const std::optional<cmlirc::ArrayAccessInfo> &arrayAccess) -> mlir::Value {
   switch (kind) {
   case LHSKind::Indexed:
     return mlir::memref::LoadOp::create(builder, loc, arrayAccess->base,

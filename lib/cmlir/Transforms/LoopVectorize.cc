@@ -20,7 +20,7 @@ struct LoopVectorizePass
       return;
     }
 
-    op->walk([](mlir::Operation *op) {
+    op->walk([](mlir::Operation *op) -> void {
       if (mlir::isOpTriviallyDead(op)) {
         op->erase();
       }
@@ -28,7 +28,7 @@ struct LoopVectorizePass
   }
 };
 
-std::unique_ptr<mlir::Pass> createLoopVectorizePass() {
+auto createLoopVectorizePass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<LoopVectorizePass>();
 }
 

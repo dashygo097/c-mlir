@@ -11,43 +11,50 @@
 
 namespace cmlir {
 
-static mlir::Value resolveIndexCastChain(mlir::Value v) {
+static auto resolveIndexCastChain(mlir::Value v) -> mlir::Value {
   auto outerCast = v.getDefiningOp<mlir::arith::IndexCastOp>();
-  if (!outerCast)
+  if (!outerCast) {
     return v;
+}
 
   mlir::Value mid = outerCast.getIn();
-  if (mid.getType().isIndex())
+  if (mid.getType().isIndex()) {
     return resolveIndexCastChain(mid);
+}
 
   auto innerCast = mid.getDefiningOp<mlir::arith::IndexCastOp>();
-  if (!innerCast)
+  if (!innerCast) {
     return v;
+}
 
   mlir::Value original = innerCast.getIn();
-  if (!original.getType().isIndex())
+  if (!original.getType().isIndex()) {
     return v;
+}
 
   return resolveIndexCastChain(original);
 }
 
-static bool isLegalAffineIndex(mlir::Value v) {
-  if (mlir::affine::isValidDim(v) || mlir::affine::isValidSymbol(v))
+static auto isLegalAffineIndex(mlir::Value v) -> bool {
+  if (mlir::affine::isValidDim(v) || mlir::affine::isValidSymbol(v)) {
     return true;
+}
 
   if (auto blockArg = llvm::dyn_cast<mlir::BlockArgument>(v)) {
     mlir::Operation *parentOp = blockArg.getOwner()->getParentOp();
-    if (auto forOp = llvm::dyn_cast_or_null<mlir::scf::ForOp>(parentOp))
-      if (blockArg == forOp.getInductionVar())
+    if (auto forOp = llvm::dyn_cast_or_null<mlir::scf::ForOp>(parentOp)) {
+      if (blockArg == forOp.getInductionVar()) {
         return true;
+}
+}
   }
 
   return false;
 }
 
-static bool getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
+static auto getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
                          mlir::AffineMap &map,
-                         llvm::SmallVectorImpl<mlir::Value> &operands) {
+                         llvm::SmallVectorImpl<mlir::Value> &operands) -> bool {
   if (auto c = bound.getDefiningOp<mlir::arith::ConstantIndexOp>()) {
     map = mlir::AffineMap::getConstantMap(c.value(), ctx);
     return true;
@@ -78,9 +85,9 @@ struct RaiseSCFFor2AffineForPattern
     : public mlir::OpRewritePattern<mlir::scf::ForOp> {
   using mlir::OpRewritePattern<mlir::scf::ForOp>::OpRewritePattern;
 
-  mlir::LogicalResult
+  auto
   matchAndRewrite(mlir::scf::ForOp forOp,
-                  mlir::PatternRewriter &rewriter) const override {
+                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
 
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Location loc = forOp.getLoc();
@@ -88,34 +95,39 @@ struct RaiseSCFFor2AffineForPattern
     mlir::AffineMap lbMap, ubMap;
     llvm::SmallVector<mlir::Value> lbOperands, ubOperands;
 
-    if (!getBoundInfo(forOp.getLowerBound(), ctx, lbMap, lbOperands))
+    if (!getBoundInfo(forOp.getLowerBound(), ctx, lbMap, lbOperands)) {
       return mlir::failure();
-    if (!getBoundInfo(forOp.getUpperBound(), ctx, ubMap, ubOperands))
+}
+    if (!getBoundInfo(forOp.getUpperBound(), ctx, ubMap, ubOperands)) {
       return mlir::failure();
+}
 
     auto stepConst =
         forOp.getStep().getDefiningOp<mlir::arith::ConstantIndexOp>();
-    if (!stepConst)
+    if (!stepConst) {
       return mlir::failure();
+}
 
     auto affineFor = mlir::affine::AffineForOp::create(
         rewriter, loc, lbOperands, lbMap, ubOperands, ubMap, stepConst.value(),
         forOp.getInitArgs(),
-        [](mlir::OpBuilder &, mlir::Location, mlir::Value, mlir::ValueRange) {
+        [](mlir::OpBuilder &, mlir::Location, mlir::Value, mlir::ValueRange) -> void {
         });
 
     mlir::Block *affineBody = affineFor.getBody();
     mlir::Block *scfBody = forOp.getBody();
 
     if (!affineBody->empty() &&
-        affineBody->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        affineBody->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       rewriter.eraseOp(&affineBody->back());
+}
 
     mlir::IRMapping mapping;
     mapping.map(forOp.getInductionVar(), affineFor.getInductionVar());
     for (auto [scfArg, affineArg] :
-         llvm::zip(forOp.getRegionIterArgs(), affineFor.getRegionIterArgs()))
+         llvm::zip(forOp.getRegionIterArgs(), affineFor.getRegionIterArgs())) {
       mapping.map(scfArg, affineArg);
+}
 
     rewriter.setInsertionPointToEnd(affineBody);
     for (auto &op : scfBody->without_terminator()) {
@@ -161,8 +173,9 @@ struct RaiseSCFFor2AffineForPattern
 
     auto scfYield = mlir::cast<mlir::scf::YieldOp>(scfBody->getTerminator());
     llvm::SmallVector<mlir::Value> yieldOps;
-    for (mlir::Value v : scfYield.getOperands())
+    for (mlir::Value v : scfYield.getOperands()) {
       yieldOps.push_back(mapping.lookupOrDefault(v));
+}
     mlir::affine::AffineYieldOp::create(rewriter, scfYield.getLoc(), yieldOps);
 
     rewriter.replaceOp(forOp, affineFor.getResults());
@@ -184,7 +197,7 @@ struct RaiseSCF2AffinePass
       return;
     }
 
-    op->walk([](mlir::Operation *op) {
+    op->walk([](mlir::Operation *op) -> void {
       if (mlir::isOpTriviallyDead(op)) {
         op->erase();
       }
@@ -192,7 +205,7 @@ struct RaiseSCF2AffinePass
   }
 };
 
-std::unique_ptr<mlir::Pass> createRaiseSCF2AffinePass() {
+auto createRaiseSCF2AffinePass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<RaiseSCF2AffinePass>();
 }
 

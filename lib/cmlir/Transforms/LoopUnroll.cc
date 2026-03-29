@@ -15,12 +15,13 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
     auto op = getOperation();
 
     llvm::SmallVector<mlir::scf::ForOp, 8> loops;
-    op->walk([&](mlir::scf::ForOp forOp) { loops.push_back(forOp); });
+    op->walk([&](mlir::scf::ForOp forOp) -> void { loops.push_back(forOp); });
 
     for (mlir::scf::ForOp forOp : loops) {
       // #pragma cmlir loop unroll(disable)
-      if (forOp->hasAttr("nounroll"))
+      if (forOp->hasAttr("nounroll")) {
         continue;
+}
 
       // #pragma cmlir loop unroll(full)
       if (forOp->hasAttr("unroll")) {
@@ -33,9 +34,10 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
       // #pragma cmlir loop unroll(N)
       if (auto countAttr =
               forOp->getAttrOfType<mlir::IntegerAttr>("unroll_count")) {
-        uint32_t factor = (uint32_t)countAttr.getInt();
-        if (factor < 2)
+        auto factor = static_cast<uint32_t>(countAttr.getInt());
+        if (factor < 2) {
           continue;
+}
 
         if (mlir::failed(mlir::loopUnrollByFactor(forOp, factor))) {
           forOp->emitWarning("cmlir: loop unroll by factor " +
@@ -46,7 +48,7 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
   }
 };
 
-std::unique_ptr<mlir::Pass> createLoopUnrollPass() {
+auto createLoopUnrollPass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<LoopUnrollPass>();
 }
 

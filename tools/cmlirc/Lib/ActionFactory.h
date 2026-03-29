@@ -9,7 +9,7 @@ class CMLIRActionFactory : public clang::tooling::FrontendActionFactory {
 public:
   explicit CMLIRActionFactory(llvm::raw_ostream *os) : outStream(os) {}
 
-  std::unique_ptr<clang::FrontendAction> create() override {
+  auto create() -> std::unique_ptr<clang::FrontendAction> override {
     return std::make_unique<CMLIRFrontendAction>(outStream);
   }
 

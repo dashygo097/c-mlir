@@ -14,14 +14,15 @@ struct FoldConstantCast4AffinePattern
     : public mlir::OpRewritePattern<mlir::affine::AffineStoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
-  mlir::LogicalResult
+  auto
   matchAndRewrite(mlir::affine::AffineStoreOp storeOp,
-                  mlir::PatternRewriter &rewriter) const override {
+                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
     mlir::Value storedValue = storeOp.getValue();
 
     mlir::Operation *defOp = storedValue.getDefiningOp();
-    if (!defOp)
+    if (!defOp) {
       return mlir::failure();
+}
 
     mlir::Value constantValue;
     mlir::Type targetType = storedValue.getType();
@@ -52,8 +53,9 @@ struct FoldConstantCast4AffinePattern
     }
 
     auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
-    if (!constantOp)
+    if (!constantOp) {
       return mlir::failure();
+}
 
     mlir::Attribute constantAttr = constantOp.getValue();
 
@@ -66,7 +68,7 @@ struct FoldConstantCast4AffinePattern
       } else if (auto targetIntType =
                      mlir::dyn_cast<mlir::IntegerType>(targetType)) {
         // float -> int
-        int64_t value = static_cast<int64_t>(floatAttr.getValueAsDouble());
+        auto value = static_cast<int64_t>(floatAttr.getValueAsDouble());
         newConstantAttr = rewriter.getIntegerAttr(targetIntType, value);
       } else {
         return mlir::failure();
@@ -78,7 +80,7 @@ struct FoldConstantCast4AffinePattern
       } else if (auto targetFloatType =
                      mlir::dyn_cast<mlir::FloatType>(targetType)) {
         // int -> float
-        double value = static_cast<double>(intAttr.getInt());
+        auto value = static_cast<double>(intAttr.getInt());
         newConstantAttr = rewriter.getFloatAttr(targetFloatType, value);
       } else {
         return mlir::failure();
@@ -90,8 +92,9 @@ struct FoldConstantCast4AffinePattern
     auto newConstant = mlir::arith::ConstantOp::materialize(
         rewriter, newConstantAttr, targetType, storeOp.getLoc());
 
-    if (!newConstant)
+    if (!newConstant) {
       return mlir::failure();
+}
 
     rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
         storeOp, newConstant.getResult(), storeOp.getMemRef(),
@@ -105,14 +108,15 @@ struct FoldConstantCast4MemrefPattern
     : public mlir::OpRewritePattern<mlir::memref::StoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
-  mlir::LogicalResult
+  auto
   matchAndRewrite(mlir::memref::StoreOp storeOp,
-                  mlir::PatternRewriter &rewriter) const override {
+                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
     mlir::Value storedValue = storeOp.getValue();
 
     mlir::Operation *defOp = storedValue.getDefiningOp();
-    if (!defOp)
+    if (!defOp) {
       return mlir::failure();
+}
 
     mlir::Value constantValue;
     mlir::Type targetType = storedValue.getType();
@@ -132,8 +136,9 @@ struct FoldConstantCast4MemrefPattern
     }
 
     auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
-    if (!constantOp)
+    if (!constantOp) {
       return mlir::failure();
+}
 
     mlir::Attribute constantAttr = constantOp.getValue();
     mlir::Attribute newConstantAttr;
@@ -181,7 +186,7 @@ struct ConstPropPass : public impl::ConstPropPassBase<ConstPropPass> {
       return;
     }
 
-    op->walk([](mlir::Operation *op) {
+    op->walk([](mlir::Operation *op) -> void {
       if (mlir::isOpTriviallyDead(op)) {
         op->erase();
       }
@@ -189,7 +194,7 @@ struct ConstPropPass : public impl::ConstPropPassBase<ConstPropPass> {
   }
 };
 
-std::unique_ptr<mlir::Pass> createConstPropPass() {
+auto createConstPropPass() -> std::unique_ptr<mlir::Pass> {
   return std::make_unique<ConstPropPass>();
 }
 
