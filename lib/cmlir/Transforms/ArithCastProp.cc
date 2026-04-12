@@ -1,4 +1,5 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -48,6 +49,41 @@ static auto tryReplaceBinary(mlir::arith::FPToSIOp fptosiOp,
   return mlir::failure();
 }
 
+template <typename FloatOp, typename IntOp>
+static auto tryReplaceUnary(mlir::arith::FPToSIOp fptosiOp, mlir::Value inFloat,
+                            mlir::Type outIntType,
+                            mlir::PatternRewriter &rewriter)
+    -> mlir::LogicalResult {
+  if (auto unOp = inFloat.getDefiningOp<FloatOp>()) {
+    mlir::Value valInt =
+        getIntVal(unOp.getOperand(), outIntType, rewriter, fptosiOp.getLoc());
+
+    if (valInt) {
+      rewriter.replaceOpWithNewOp<IntOp>(fptosiOp, valInt);
+      return mlir::success();
+    }
+  }
+  return mlir::failure();
+}
+
+template <typename FloatOp>
+static auto tryBypassUnary(mlir::arith::FPToSIOp fptosiOp, mlir::Value inFloat,
+                           mlir::Type outIntType,
+                           mlir::PatternRewriter &rewriter)
+    -> mlir::LogicalResult {
+  if (auto unOp = inFloat.getDefiningOp<FloatOp>()) {
+    mlir::Value valInt =
+        getIntVal(unOp.getOperand(), outIntType, rewriter, fptosiOp.getLoc());
+
+    if (valInt) {
+      rewriter.replaceOp(fptosiOp, valInt);
+      return mlir::success();
+    }
+  }
+  return mlir::failure();
+}
+
+// Rewrite Pattern
 struct OptimizeFPToSIPattern
     : public mlir::OpRewritePattern<mlir::arith::FPToSIOp> {
   using mlir::OpRewritePattern<mlir::arith::FPToSIOp>::OpRewritePattern;
@@ -58,38 +94,79 @@ struct OptimizeFPToSIPattern
     mlir::Value inFloat = fptosiOp.getIn();
     mlir::Type outIntType = fptosiOp.getType();
 
-    // Map MaxNumF -> MaxSI
+    if (mlir::Value directInt =
+            getIntVal(inFloat, outIntType, rewriter, fptosiOp.getLoc())) {
+      rewriter.replaceOp(fptosiOp, directInt);
+      return mlir::success();
+    }
+
     if (mlir::succeeded(
             tryReplaceBinary<mlir::arith::MaxNumFOp, mlir::arith::MaxSIOp>(
                 fptosiOp, inFloat, outIntType, rewriter))) {
       return mlir::success();
     }
-
-    // Map MinNumF -> MinSI
     if (mlir::succeeded(
             tryReplaceBinary<mlir::arith::MinNumFOp, mlir::arith::MinSIOp>(
                 fptosiOp, inFloat, outIntType, rewriter))) {
       return mlir::success();
     }
+    if (mlir::succeeded(
+            tryReplaceBinary<mlir::arith::MaximumFOp, mlir::arith::MaxSIOp>(
+                fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+    if (mlir::succeeded(
+            tryReplaceBinary<mlir::arith::MinimumFOp, mlir::arith::MinSIOp>(
+                fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
 
-    // Map AddF -> AddI
     if (mlir::succeeded(
             tryReplaceBinary<mlir::arith::AddFOp, mlir::arith::AddIOp>(
                 fptosiOp, inFloat, outIntType, rewriter))) {
       return mlir::success();
     }
-
-    // Map SubF -> SubI
     if (mlir::succeeded(
             tryReplaceBinary<mlir::arith::SubFOp, mlir::arith::SubIOp>(
                 fptosiOp, inFloat, outIntType, rewriter))) {
       return mlir::success();
     }
-
-    // Map MulF -> MulI
     if (mlir::succeeded(
             tryReplaceBinary<mlir::arith::MulFOp, mlir::arith::MulIOp>(
                 fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+
+    if (mlir::succeeded(
+            tryReplaceBinary<mlir::arith::DivFOp, mlir::arith::DivSIOp>(
+                fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+    if (mlir::succeeded(
+            tryReplaceBinary<mlir::arith::RemFOp, mlir::arith::RemSIOp>(
+                fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+
+    if (mlir::succeeded(tryReplaceUnary<mlir::math::AbsFOp, mlir::math::AbsIOp>(
+            fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+
+    if (mlir::succeeded(tryBypassUnary<mlir::math::FloorOp>(
+            fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+    if (mlir::succeeded(tryBypassUnary<mlir::math::CeilOp>(
+            fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+    if (mlir::succeeded(tryBypassUnary<mlir::math::RoundOp>(
+            fptosiOp, inFloat, outIntType, rewriter))) {
+      return mlir::success();
+    }
+    if (mlir::succeeded(tryBypassUnary<mlir::math::TruncOp>(
+            fptosiOp, inFloat, outIntType, rewriter))) {
       return mlir::success();
     }
 
