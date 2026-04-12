@@ -14,15 +14,15 @@ struct FoldConstantCast4AffinePattern
     : public mlir::OpRewritePattern<mlir::affine::AffineStoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::affine::AffineStoreOp storeOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::affine::AffineStoreOp storeOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     mlir::Value storedValue = storeOp.getValue();
 
     mlir::Operation *defOp = storedValue.getDefiningOp();
     if (!defOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Value constantValue;
     mlir::Type targetType = storedValue.getType();
@@ -55,7 +55,7 @@ struct FoldConstantCast4AffinePattern
     auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
     if (!constantOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Attribute constantAttr = constantOp.getValue();
 
@@ -94,7 +94,7 @@ struct FoldConstantCast4AffinePattern
 
     if (!newConstant) {
       return mlir::failure();
-}
+    }
 
     rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
         storeOp, newConstant.getResult(), storeOp.getMemRef(),
@@ -108,15 +108,15 @@ struct FoldConstantCast4MemrefPattern
     : public mlir::OpRewritePattern<mlir::memref::StoreOp> {
   using OpRewritePattern::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::memref::StoreOp storeOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::memref::StoreOp storeOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     mlir::Value storedValue = storeOp.getValue();
 
     mlir::Operation *defOp = storedValue.getDefiningOp();
     if (!defOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Value constantValue;
     mlir::Type targetType = storedValue.getType();
@@ -138,7 +138,7 @@ struct FoldConstantCast4MemrefPattern
     auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
     if (!constantOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Attribute constantAttr = constantOp.getValue();
     mlir::Attribute newConstantAttr;

@@ -15,6 +15,7 @@ auto createLoopUnrollPass() -> std::unique_ptr<mlir::Pass>;
 auto createLoopVectorizePass() -> std::unique_ptr<mlir::Pass>;
 
 // Conversion Passes (optional)
+auto createArithCastPropPass() -> std::unique_ptr<mlir::Pass>;
 auto createStruct2MemrefPass() -> std::unique_ptr<mlir::Pass>;
 auto createFMAPass() -> std::unique_ptr<mlir::Pass>;
 auto createRaiseSCF2AffinePass() -> std::unique_ptr<mlir::Pass>;

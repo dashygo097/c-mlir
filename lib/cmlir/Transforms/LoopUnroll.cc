@@ -21,7 +21,7 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
       // #pragma cmlir loop unroll(disable)
       if (forOp->hasAttr("nounroll")) {
         continue;
-}
+      }
 
       // #pragma cmlir loop unroll(full)
       if (forOp->hasAttr("unroll")) {
@@ -37,7 +37,7 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
         auto factor = static_cast<uint32_t>(countAttr.getInt());
         if (factor < 2) {
           continue;
-}
+        }
 
         if (mlir::failed(mlir::loopUnrollByFactor(forOp, factor))) {
           forOp->emitWarning("cmlir: loop unroll by factor " +

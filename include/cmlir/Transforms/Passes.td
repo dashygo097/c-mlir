@@ -28,30 +28,6 @@ def ConstPropPass
   }];
 }
 
-def FMAPass
-    : Pass<"cmlir-fma"> {
-  let summary = "Fuse multiply-add operations.";
-  let constructor = "cmlir::createFMAPass()";
-
-  let description = [{
-    This pass identifies patterns of the form `a * b + c` and fuses them into a single fused multiply-add (FMA) operation,
-    which can improve performance by reducing the number of separate instructions and enabling better use of hardware capabilities.
-    1. arith.add(arith.mul(a, b), c) -> math.fma(a, b, c)
-  }];
-}
-
-def Struct2MemrefPass
-    : Pass<"cmlir-struct2memref"> {
-  let summary = "Convert struct types to memref types.";
-  let constructor = "cmlir::createStruct2MemrefPass()";
-  let description = [{
-    This pass converts struct types to memref types by performing the following steps:
-    1. Identify all struct types in the IR and determine their fields and sizes.
-    2. Replace struct type definitions with equivalent memref type definitions that can hold the same data.
-    3. Update all operations that use the original struct types to use the new memref types, ensuring that data access patterns are preserved.
-  }];
-}
-
 def LoopUnrollPass
     : Pass<"cmlir-loop-unroll"> {
   let summary = "Unroll loops.";
@@ -73,6 +49,39 @@ def LoopVectorizePass
     1. Identify loops that are suitable for vectorization based on their iteration counts, data dependencies, and memory access patterns.
     2. Transform the loop body to operate on vectors of data instead of scalar values, which may involve changing the types of variables and operations to their vector equivalents.
     3. Adjust loop control variables and conditions to reflect the new vectorized structure, ensuring that the semantics of the original loop are preserved while enabling improved performance through SIMD execution.
+  }];
+}
+
+def ArithCastPropPass
+    : Pass<"cmlir-arith-cast-prop"> {
+  let summary = "Perform arith casts propgation";
+  let constructor = "cmlir::createArithCastPropPass()";
+  let description = [{
+    This pass propgates the arith cast from float -> int or int -> float for readability.
+  }];
+}
+
+def Struct2MemrefPass
+    : Pass<"cmlir-struct2memref"> {
+  let summary = "Convert struct types to memref types.";
+  let constructor = "cmlir::createStruct2MemrefPass()";
+  let description = [{
+    This pass converts struct types to memref types by performing the following steps:
+    1. Identify all struct types in the IR and determine their fields and sizes.
+    2. Replace struct type definitions with equivalent memref type definitions that can hold the same data.
+    3. Update all operations that use the original struct types to use the new memref types, ensuring that data access patterns are preserved.
+  }];
+}
+
+def FMAPass
+    : Pass<"cmlir-fma"> {
+  let summary = "Fuse multiply-add operations.";
+  let constructor = "cmlir::createFMAPass()";
+
+  let description = [{
+    This pass identifies patterns of the form `a * b + c` and fuses them into a single fused multiply-add (FMA) operation,
+    which can improve performance by reducing the number of separate instructions and enabling better use of hardware capabilities.
+    1. arith.add(arith.mul(a, b), c) -> math.fma(a, b, c)
   }];
 }
 

@@ -18,7 +18,8 @@ namespace cmlir {
 // =>
 // memref<2xf32>
 
-static auto isStructElemSameType(mlir::LLVM::LLVMStructType structType) -> bool {
+static auto isStructElemSameType(mlir::LLVM::LLVMStructType structType)
+    -> bool {
   if (structType.getBody().empty()) {
     return false;
   }
@@ -28,10 +29,12 @@ static auto isStructElemSameType(mlir::LLVM::LLVMStructType structType) -> bool 
   });
 }
 
-static auto structToMemrefType(mlir::LLVM::LLVMStructType st) -> mlir::MemRefType {
+static auto structToMemrefType(mlir::LLVM::LLVMStructType st)
+    -> mlir::MemRefType {
   auto elemType = st.getBody()[0];
   return mlir::MemRefType::get(
-      {mlir::ShapedType::kDynamic, static_cast<int64_t>(st.getBody().size())}, elemType);
+      {mlir::ShapedType::kDynamic, static_cast<int64_t>(st.getBody().size())},
+      elemType);
 }
 
 // func.func @foo(%arg0: !llvm.struct<(f32, f32)>) -> ...
@@ -41,9 +44,9 @@ struct LLVMStructFuncArgToMemrefPattern
     : public mlir::OpRewritePattern<mlir::func::FuncOp> {
   using mlir::OpRewritePattern<mlir::func::FuncOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::func::FuncOp funcOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::func::FuncOp funcOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     mlir::FunctionType funcType = funcOp.getFunctionType();
     bool anyChanged = false;
 
@@ -60,7 +63,7 @@ struct LLVMStructFuncArgToMemrefPattern
 
     if (!anyChanged) {
       return mlir::failure();
-}
+    }
 
     auto newFuncType =
         rewriter.getFunctionType(newInputTypes, funcType.getResults());
@@ -71,7 +74,7 @@ struct LLVMStructFuncArgToMemrefPattern
       for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
         if (argType != funcType.getInputs()[idx]) {
           entryBlock.getArgument(idx).setType(argType);
-}
+        }
       }
     });
 
@@ -86,18 +89,18 @@ struct LLVMAllocaStruct2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::AllocaOp> {
   using mlir::OpRewritePattern<mlir::LLVM::AllocaOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::LLVM::AllocaOp allocaOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::LLVM::AllocaOp allocaOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto structType =
         mlir::dyn_cast<mlir::LLVM::LLVMStructType>(allocaOp.getElemType());
     if (!structType) {
       return mlir::failure();
-}
+    }
 
     if (!isStructElemSameType(structType)) {
       return mlir::failure();
-}
+    }
 
     uint32_t numFields = structType.getBody().size();
     auto elemType = structType.getBody()[0];
@@ -106,19 +109,21 @@ struct LLVMAllocaStruct2MemrefPattern
     int64_t arraySize = -1;
 
     if (auto constOp = arraySizeVal.getDefiningOp<mlir::LLVM::ConstantOp>()) {
-      if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
+      if (auto intAttr =
+              mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
         arraySize = intAttr.getInt();
-}
+      }
     }
 
     mlir::MemRefType memrefType;
     if (arraySize > 0) {
-      memrefType =
-          mlir::MemRefType::get({arraySize, static_cast<int64_t>(numFields)}, elemType);
+      memrefType = mlir::MemRefType::get(
+          {arraySize, static_cast<int64_t>(numFields)}, elemType);
     } else {
       memrefType = mlir::MemRefType::get(
-          {mlir::ShapedType::kDynamic, static_cast<int64_t>(numFields)}, elemType);
-}
+          {mlir::ShapedType::kDynamic, static_cast<int64_t>(numFields)},
+          elemType);
+    }
 
     for (mlir::Operation *user :
          llvm::make_early_inc_range(allocaOp->getUsers())) {
@@ -134,7 +139,7 @@ struct LLVMAllocaStruct2MemrefPattern
     } else {
       rewriter.replaceOpWithNewOp<mlir::memref::AllocOp>(
           allocaOp, memrefType, mlir::ValueRange{arraySizeVal});
-}
+    }
 
     return mlir::success();
   }
@@ -148,24 +153,24 @@ struct LLVMStoreField2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::StoreOp> {
   using mlir::OpRewritePattern<mlir::LLVM::StoreOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::LLVM::StoreOp storeOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::LLVM::StoreOp storeOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto gepOp = storeOp.getAddr().getDefiningOp<mlir::LLVM::GEPOp>();
     if (!gepOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Value base = gepOp.getBase();
     auto memrefType = mlir::dyn_cast<mlir::MemRefType>(base.getType());
     if (!memrefType) {
       return mlir::failure();
-}
+    }
 
     auto rawIndices = gepOp.getRawConstantIndices();
     if (rawIndices.size() != 2) {
       return mlir::failure();
-}
+    }
 
     mlir::ValueRange dynIndices = gepOp.getDynamicIndices();
 
@@ -176,7 +181,7 @@ struct LLVMStoreField2MemrefPattern
         return mlir::arith::IndexCastOp::create(rw, loc, rw.getIndexType(),
 
                                                 dynIndices[dynIdx++]);
-}
+      }
       return mlir::arith::ConstantIndexOp::create(rw, loc, raw);
     };
 
@@ -198,24 +203,24 @@ struct LLVMLoadField2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::LoadOp> {
   using mlir::OpRewritePattern<mlir::LLVM::LoadOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::LLVM::LoadOp loadOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::LLVM::LoadOp loadOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto gepOp = loadOp.getAddr().getDefiningOp<mlir::LLVM::GEPOp>();
     if (!gepOp) {
       return mlir::failure();
-}
+    }
 
     mlir::Value base = gepOp.getBase();
     auto memrefType = mlir::dyn_cast<mlir::MemRefType>(base.getType());
     if (!memrefType) {
       return mlir::failure();
-}
+    }
 
     auto rawIndices = gepOp.getRawConstantIndices();
     if (rawIndices.size() != 2) {
       return mlir::failure();
-}
+    }
 
     mlir::ValueRange dynIndices = gepOp.getDynamicIndices();
 
@@ -225,7 +230,7 @@ struct LLVMLoadField2MemrefPattern
       if (raw == mlir::LLVM::GEPOp::kDynamicIndex) {
         return mlir::arith::IndexCastOp::create(rw, loc, rw.getIndexType(),
                                                 dynIndices[dynIdx++]);
-}
+      }
       return mlir::arith::ConstantIndexOp::create(rw, loc, raw);
     };
 
@@ -246,18 +251,18 @@ struct LLVMExtractValue2MemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::ExtractValueOp> {
   using mlir::OpRewritePattern<mlir::LLVM::ExtractValueOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::LLVM::ExtractValueOp extractOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::LLVM::ExtractValueOp extractOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto memrefType =
         mlir::dyn_cast<mlir::MemRefType>(extractOp.getContainer().getType());
     if (!memrefType) {
       return mlir::failure();
-}
+    }
 
     if (extractOp.getPosition().size() != 1) {
       return mlir::failure();
-}
+    }
 
     int64_t fieldIdx = extractOp.getPosition()[0];
     mlir::Location loc = extractOp.getLoc();

@@ -13,13 +13,13 @@ struct FuseMultiplyAddPattern
     : public mlir::OpRewritePattern<mlir::arith::AddFOp> {
   using mlir::OpRewritePattern<mlir::arith::AddFOp>::OpRewritePattern;
 
-  auto
-  matchAndRewrite(mlir::arith::AddFOp addOp,
-                  mlir::PatternRewriter &rewriter) const -> mlir::LogicalResult override {
+  auto matchAndRewrite(mlir::arith::AddFOp addOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
     auto mulOp = addOp.getLhs().getDefiningOp<mlir::arith::MulFOp>();
     if (!mulOp) {
       return mlir::failure();
-}
+    }
     rewriter.replaceOpWithNewOp<mlir::math::FmaOp>(
         addOp, mulOp.getLhs(), mulOp.getRhs(), addOp.getRhs());
     return mlir::success();
