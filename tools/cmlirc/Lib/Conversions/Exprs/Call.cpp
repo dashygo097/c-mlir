@@ -364,82 +364,145 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   std::vector<std::string> tokens;
   std::string token;
 
-  // MLIR math dialect ops
-#define REGISTER_MATH_CALL(op, names)                                          \
-  {                                                                            \
-    tokens.clear();                                                            \
-    std::istringstream tokenStream(names);                                     \
-    while (std::getline(tokenStream, token, '|'))                              \
-      tokens.push_back(token);                                                 \
-    for (const auto &tok : tokens) {                                           \
-      if (calleeName == tok) {                                                 \
-        std::vector<mlir::Value> args;                                         \
-        for (uint32_t i = 0; i < num_args; ++i) {                              \
-          mlir::Value arg = generateExpr(callExpr->getArg(i));                 \
-          if (!arg) {                                                          \
-            llvm::WithColor::error()                                           \
-                << "cmlirc: failed to generate argument " << i << "\n";        \
-            return nullptr;                                                    \
-          }                                                                    \
-          /* NOTE: C++ integer overload: Clang matched int overload directly,  \
-             no implicit cast node exists — promote to f64 manually. */      \
-          if (mlir::isa<mlir::IntegerType>(arg.getType()))                     \
-            arg = mlir::arith::SIToFPOp::create(builder, loc,                  \
-                                                builder.getF64Type(), arg);    \
-          args.push_back(arg);                                                 \
-        }                                                                      \
-        return mlir::math::op::create(builder, loc, args);                     \
+  // MLIR dialect ops
+
+  auto matchCall = [&](llvm::StringRef callee, llvm::StringRef pattern) {
+    llvm::SmallVector<llvm::StringRef, 4> tokens;
+    pattern.split(tokens, '|');
+    return llvm::is_contained(tokens, callee);
+  };
+
+  auto alignTypes = [&](std::vector<mlir::Value> &args, bool forceFloat) {
+    if (args.empty())
+      return;
+    mlir::Type targetType = args[0].getType();
+
+    if (forceFloat) {
+      bool hasFloat = false;
+      for (auto v : args) {
+        if (mlir::isa<mlir::FloatType>(v.getType())) {
+          if (!hasFloat || v.getType().getIntOrFloatBitWidth() >
+                               targetType.getIntOrFloatBitWidth())
+            targetType = v.getType();
+          hasFloat = true;
+        }
+      }
+      if (!hasFloat)
+        targetType = builder.getF64Type();
+
+      for (auto &v : args) {
+        mlir::Type t = v.getType();
+        if (mlir::isa<mlir::IntegerType>(t)) {
+          v = mlir::arith::SIToFPOp::create(builder, loc, targetType, v);
+        } else if (t != targetType) {
+          if (t.getIntOrFloatBitWidth() < targetType.getIntOrFloatBitWidth())
+            v = mlir::arith::ExtFOp::create(builder, loc, targetType, v);
+          else
+            v = mlir::arith::TruncFOp::create(builder, loc, targetType, v);
+        }
+      }
+    } else {
+      for (auto v : args) {
+        if (v.getType().getIntOrFloatBitWidth() >
+            targetType.getIntOrFloatBitWidth())
+          targetType = v.getType();
+      }
+      for (auto &v : args) {
+        mlir::Type t = v.getType();
+        if (t != targetType) {
+          if (t.getIntOrFloatBitWidth() < targetType.getIntOrFloatBitWidth())
+            v = mlir::arith::ExtSIOp::create(builder, loc, targetType, v);
+          else
+            v = mlir::arith::TruncIOp::create(builder, loc, targetType, v);
+        }
+      }
+    }
+  };
+
+#define REGISTER_FLOAT_BYPASS(OpClass, names)                                  \
+  if (matchCall(calleeName, names)) {                                          \
+    std::vector<mlir::Value> args;                                             \
+    for (uint32_t i = 0; i < num_args; ++i) {                                  \
+      mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
+      if (!arg) {                                                              \
+        llvm::WithColor::error()                                               \
+            << "cmlirc: failed to generate argument " << i << "\n";            \
+        return nullptr;                                                        \
       }                                                                        \
+      args.push_back(arg);                                                     \
     }                                                                          \
+    alignTypes(args, /*forceFloat=*/true);                                     \
+    return OpClass::create(builder, loc, args).getResult();                    \
   }
 
-  REGISTER_MATH_CALL(AbsFOp, "fabs|fabsf|fabsl")
-  REGISTER_MATH_CALL(AbsIOp, "abs|absf|absl")
-  REGISTER_MATH_CALL(AcosOp, "acos|acosf|acosl")
-  REGISTER_MATH_CALL(AcoshOp, "acosh|acoshf|acoshl")
-  REGISTER_MATH_CALL(AsinOp, "asin|asinf|asinl")
-  REGISTER_MATH_CALL(AsinhOp, "asinh|asinhf|asinhl")
-  REGISTER_MATH_CALL(AtanOp, "atan|atanf|atanl")
-  REGISTER_MATH_CALL(Atan2Op, "atan2|atan2f|atan2l")
-  REGISTER_MATH_CALL(AtanhOp, "atanh|atanhf|atanhl")
-  REGISTER_MATH_CALL(CbrtOp, "cbrt|cbrtf|cbrtl")
-  REGISTER_MATH_CALL(CeilOp, "ceil|ceilf|ceill")
-  REGISTER_MATH_CALL(ClampFOp, "clamp|clampf|clampl")
-  REGISTER_MATH_CALL(CopySignOp, "copysign|copysignf|copysignl")
-  REGISTER_MATH_CALL(CosOp, "cos|cosf|cosl")
-  REGISTER_MATH_CALL(CoshOp, "cosh|coshf|coshl")
-  REGISTER_MATH_CALL(CountLeadingZerosOp, "ctlz|ctlzf|ctlzl")
-  REGISTER_MATH_CALL(CtPopOp, "ctpop|ctpopf|ctpopl")
-  REGISTER_MATH_CALL(CountTrailingZerosOp, "cttz|cttzf|cttzl")
-  REGISTER_MATH_CALL(ErfOp, "erf|erff|erfl")
-  REGISTER_MATH_CALL(ErfcOp, "erfc|erfcf|erfcl")
-  REGISTER_MATH_CALL(ExpOp, "exp|expf|expl")
-  REGISTER_MATH_CALL(Exp2Op, "exp2|exp2f|exp2l")
-  REGISTER_MATH_CALL(ExpM1Op, "expm1|expm1f|expm1l")
-  REGISTER_MATH_CALL(FloorOp, "floor|floorf|floorl")
-  REGISTER_MATH_CALL(FmaOp, "fma|fmaf|fmal")
-  REGISTER_MATH_CALL(FPowIOp, "fpowi|fpowif|fpowil")
-  REGISTER_MATH_CALL(IPowIOp, "ipowi|ipowif|ipowil")
-  REGISTER_MATH_CALL(IsFiniteOp, "isfinite|isfinitef|isfinitel")
-  REGISTER_MATH_CALL(IsInfOp, "isinf|isinff|isinfl")
-  REGISTER_MATH_CALL(IsNaNOp, "isnan|isnanf|isnanl")
-  REGISTER_MATH_CALL(IsNormalOp, "isnormal|isnormalf|isnormall")
-  REGISTER_MATH_CALL(LogOp, "log|logf|logl")
-  REGISTER_MATH_CALL(Log10Op, "log10|log10f|log10l")
-  REGISTER_MATH_CALL(Log1pOp, "log1p|log1pf|log1pl")
-  REGISTER_MATH_CALL(Log2Op, "log2|log2f|log2l")
-  REGISTER_MATH_CALL(PowFOp, "pow|powf|powl")
-  REGISTER_MATH_CALL(RoundOp, "round|roundf|roundl")
-  REGISTER_MATH_CALL(RoundEvenOp, "roundeven|roundevenf|roundevenl")
-  REGISTER_MATH_CALL(RsqrtOp, "rsqrt|rsqrtf|rsqrtl")
-  REGISTER_MATH_CALL(SinOp, "sin|sinf|sinl")
-  REGISTER_MATH_CALL(SinhOp, "sinh|sinhf|sinhl")
-  REGISTER_MATH_CALL(SqrtOp, "sqrt|sqrtf|sqrtl")
-  REGISTER_MATH_CALL(TanOp, "tan|tanf|tanl")
-  REGISTER_MATH_CALL(TanhOp, "tanh|tanhf|tanhl")
-  REGISTER_MATH_CALL(TruncOp, "trunc|truncf|truncl")
+// Macro for Integer operations
+#define REGISTER_INT_BYPASS(OpClass, names)                                    \
+  if (matchCall(calleeName, names)) {                                          \
+    std::vector<mlir::Value> args;                                             \
+    for (uint32_t i = 0; i < num_args; ++i) {                                  \
+      mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
+      if (!arg) {                                                              \
+        llvm::WithColor::error()                                               \
+            << "cmlirc: failed to generate argument " << i << "\n";            \
+        return nullptr;                                                        \
+      }                                                                        \
+      args.push_back(arg);                                                     \
+    }                                                                          \
+    alignTypes(args, /*forceFloat=*/false);                                    \
+    return OpClass::create(builder, loc, args).getResult();                    \
+  }
 
-#undef REGISTER_MATH_CALL
+  REGISTER_INT_BYPASS(mlir::arith::MinSIOp, "min|mini|minl")
+  REGISTER_INT_BYPASS(mlir::arith::MaxSIOp, "max|maxi|maxl")
+  REGISTER_FLOAT_BYPASS(mlir::arith::MinNumFOp, "fmin|fminf|fminl")
+  REGISTER_FLOAT_BYPASS(mlir::arith::MaxNumFOp, "fmax|fmaxf|fmaxl")
+
+  REGISTER_FLOAT_BYPASS(mlir::math::AbsFOp, "fabs|fabsf|fabsl")
+  REGISTER_INT_BYPASS(mlir::math::AbsIOp, "abs|absi|absl") // Integer abs
+  REGISTER_FLOAT_BYPASS(mlir::math::AcosOp, "acos|acosf|acosl")
+  REGISTER_FLOAT_BYPASS(mlir::math::AcoshOp, "acosh|acoshf|acoshl")
+  REGISTER_FLOAT_BYPASS(mlir::math::AsinOp, "asin|asinf|asinl")
+  REGISTER_FLOAT_BYPASS(mlir::math::AsinhOp, "asinh|asinhf|asinhl")
+  REGISTER_FLOAT_BYPASS(mlir::math::AtanOp, "atan|atanf|atanl")
+  REGISTER_FLOAT_BYPASS(mlir::math::Atan2Op, "atan2|atan2f|atan2l")
+  REGISTER_FLOAT_BYPASS(mlir::math::AtanhOp, "atanh|atanhf|atanhl")
+  REGISTER_FLOAT_BYPASS(mlir::math::CbrtOp, "cbrt|cbrtf|cbrtl")
+  REGISTER_FLOAT_BYPASS(mlir::math::CeilOp, "ceil|ceilf|ceill")
+  REGISTER_FLOAT_BYPASS(mlir::math::CopySignOp, "copysign|copysignf|copysignl")
+  REGISTER_FLOAT_BYPASS(mlir::math::CosOp, "cos|cosf|cosl")
+  REGISTER_FLOAT_BYPASS(mlir::math::CoshOp, "cosh|coshf|coshl")
+  REGISTER_INT_BYPASS(mlir::math::CountLeadingZerosOp, "ctlz|ctlzl")
+  REGISTER_INT_BYPASS(mlir::math::CtPopOp, "ctpop|ctpopl")
+  REGISTER_INT_BYPASS(mlir::math::CountTrailingZerosOp, "cttz|cttzl")
+  REGISTER_FLOAT_BYPASS(mlir::math::ErfOp, "erf|erff|erfl")
+  REGISTER_FLOAT_BYPASS(mlir::math::ErfcOp, "erfc|erfcf|erfcl")
+  REGISTER_FLOAT_BYPASS(mlir::math::ExpOp, "exp|expf|expl")
+  REGISTER_FLOAT_BYPASS(mlir::math::Exp2Op, "exp2|exp2f|exp2l")
+  REGISTER_FLOAT_BYPASS(mlir::math::ExpM1Op, "expm1|expm1f|expm1l")
+  REGISTER_FLOAT_BYPASS(mlir::math::FloorOp, "floor|floorf|floorl")
+  REGISTER_FLOAT_BYPASS(mlir::math::FmaOp, "fma|fmaf|fmal")
+  REGISTER_FLOAT_BYPASS(mlir::math::IsFiniteOp, "isfinite|isfinitef|isfinitel")
+  REGISTER_FLOAT_BYPASS(mlir::math::IsInfOp, "isinf|isinff|isinfl")
+  REGISTER_FLOAT_BYPASS(mlir::math::IsNaNOp, "isnan|isnanf|isnanl")
+  REGISTER_FLOAT_BYPASS(mlir::math::IsNormalOp, "isnormal|isnormalf|isnormall")
+  REGISTER_FLOAT_BYPASS(mlir::math::LogOp, "log|logf|logl")
+  REGISTER_FLOAT_BYPASS(mlir::math::Log10Op, "log10|log10f|log10l")
+  REGISTER_FLOAT_BYPASS(mlir::math::Log1pOp, "log1p|log1pf|log1pl")
+  REGISTER_FLOAT_BYPASS(mlir::math::Log2Op, "log2|log2f|log2l")
+  REGISTER_FLOAT_BYPASS(mlir::math::PowFOp, "pow|powf|powl")
+  REGISTER_FLOAT_BYPASS(mlir::math::RoundOp, "round|roundf|roundl")
+  REGISTER_FLOAT_BYPASS(mlir::math::RoundEvenOp,
+                        "roundeven|roundevenf|roundevenl")
+  REGISTER_FLOAT_BYPASS(mlir::math::RsqrtOp, "rsqrt|rsqrtf|rsqrtl")
+  REGISTER_FLOAT_BYPASS(mlir::math::SinOp, "sin|sinf|sinl")
+  REGISTER_FLOAT_BYPASS(mlir::math::SinhOp, "sinh|sinhf|sinhl")
+  REGISTER_FLOAT_BYPASS(mlir::math::SqrtOp, "sqrt|sqrtf|sqrtl")
+  REGISTER_FLOAT_BYPASS(mlir::math::TanOp, "tan|tanf|tanl")
+  REGISTER_FLOAT_BYPASS(mlir::math::TanhOp, "tanh|tanhf|tanhl")
+  REGISTER_FLOAT_BYPASS(mlir::math::TruncOp, "trunc|truncf|truncl")
+
+#undef REGISTER_FLOAT_BYPASS
+#undef REGISTER_INT_BYPASS
 
   // Build argument values
   llvm::SmallVector<mlir::Value, 4> argValues;
