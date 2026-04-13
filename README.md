@@ -62,19 +62,21 @@ Specify the `PATH` in `config.cmake`.
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
 set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/llvm/build) # If you're building this proj from scratch, you should not change it
+set(CIRCT_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/build)
 
 # Compilation options
 set(USE_CCACHE ON)
 
 # Build options
 set(BUILD_EXECUTABLES ON)
-set(ENABLE_TESTING ON) # Set it ON to enable testing
+set(ENABLE_TESTING ON)
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
 set(LLVM_DIR ${LLVM_BUILD_DIR}/lib/cmake/llvm)
 set(MLIR_DIR ${LLVM_BUILD_DIR}/lib/cmake/mlir)
 set(Clang_DIR ${LLVM_BUILD_DIR}/lib/cmake/clang)
+set(CIRCT_DIR ${CIRCT_BUILD_DIR}/lib/cmake/circt)
 ```
 
 **2. Build `cmlirc` and `chwc`:**
