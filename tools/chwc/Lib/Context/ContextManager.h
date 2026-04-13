@@ -1,5 +1,5 @@
-#ifndef CMLIRC_CONTEXT_MANAGER_H
-#define CMLIRC_CONTEXT_MANAGER_H
+#ifndef CHWC_CONTEXT_MANAGER_H
+#define CHWC_CONTEXT_MANAGER_H
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -8,7 +8,7 @@
 #include "clang/AST/ASTContext.h"
 #include <memory>
 
-namespace cmlirc {
+namespace chwc {
 
 class ContextManager {
 public:
@@ -39,6 +39,6 @@ private:
   mlir::OwningOpRef<mlir::ModuleOp> module;
 };
 
-} // namespace cmlirc
+} // namespace chwc
 
-#endif // CMLIRC_CONTEXT_MANAGER_H
+#endif // CHWC_CONTEXT_MANAGER_H

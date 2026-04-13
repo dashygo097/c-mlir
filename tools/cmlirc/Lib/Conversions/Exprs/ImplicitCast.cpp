@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {

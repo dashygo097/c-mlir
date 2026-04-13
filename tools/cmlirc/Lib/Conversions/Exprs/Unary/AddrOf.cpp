@@ -1,9 +1,11 @@
 #include "../../../Converter.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp) {
+auto CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *bare = addrofOp->IgnoreParenImpCasts();
@@ -29,14 +31,15 @@ mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp) {
     lastArrayAccess.reset();
 
     auto srcType = mlir::dyn_cast<mlir::MemRefType>(access.base.getType());
-    if (!srcType)
+    if (!srcType) {
       return nullptr;
+    }
 
     int64_t rank = srcType.getRank();
     llvm::SmallVector<mlir::OpFoldResult> offsets(rank), sizes(rank),
         strides(rank);
     for (int64_t i = 0; i < rank; ++i) {
-      offsets[i] = i < (int64_t)access.indices.size()
+      offsets[i] = i < static_cast<int64_t>(access.indices.size())
                        ? mlir::OpFoldResult(access.indices[i])
                        : mlir::OpFoldResult(builder.getIndexAttr(0));
       sizes[i] = builder.getIndexAttr(1);
@@ -64,8 +67,9 @@ mlir::Value CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp) {
     }
     if (auto *var = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
       auto it = symbolTable.find(var);
-      if (it != symbolTable.end())
+      if (it != symbolTable.end()) {
         return it->second;
+      }
     }
   }
 

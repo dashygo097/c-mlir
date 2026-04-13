@@ -1,9 +1,10 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 namespace cmlirc {
 
-bool CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) {
+auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
   if (!currentFunc)
     return true;
 

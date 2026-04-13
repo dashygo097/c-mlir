@@ -2,6 +2,7 @@
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
 #include "../../Utils/Numerics.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc::detail {

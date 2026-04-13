@@ -1,21 +1,21 @@
 #include "./ContextManager.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "circt/Dialect/Comb/CombDialect.h"
+#include "circt/Dialect/HW/HWDialect.h"
+#include "circt/Dialect/Moore/MooreDialect.h"
+#include "circt/Dialect/SV/SVDialect.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cctype>
 #include <string>
 
-namespace cmlirc {
+namespace chwc {
 
 ContextManager::ContextManager(clang::ASTContext *clangContext,
-                               mlir::DialectRegistry *registry) {
-  clangCtx = clangContext;
+                               mlir::DialectRegistry *registry)
+    : clangCtx(clangContext) {
+
   mlirCtx = std::make_unique<mlir::MLIRContext>();
   builder = std::make_unique<mlir::OpBuilder>(mlirCtx.get());
 
@@ -23,14 +23,12 @@ ContextManager::ContextManager(clang::ASTContext *clangContext,
     mlirCtx->appendDialectRegistry(*registry);
   }
 
-  // Load necessary dialects one by one as requested
-  mlirCtx->getOrLoadDialect<mlir::LLVM::LLVMDialect>();
-  mlirCtx->getOrLoadDialect<mlir::func::FuncDialect>();
-  mlirCtx->getOrLoadDialect<mlir::memref::MemRefDialect>();
-  mlirCtx->getOrLoadDialect<mlir::arith::ArithDialect>();
-  mlirCtx->getOrLoadDialect<mlir::scf::SCFDialect>();
-  mlirCtx->getOrLoadDialect<mlir::affine::AffineDialect>();
-  mlirCtx->getOrLoadDialect<mlir::math::MathDialect>();
+  // Load necessary dialects
+  mlirCtx->getOrLoadDialect<circt::hw::HWDialect>();
+  mlirCtx->getOrLoadDialect<circt::comb::CombDialect>();
+  mlirCtx->getOrLoadDialect<circt::seq::SeqDialect>();
+  mlirCtx->getOrLoadDialect<circt::sv::SVDialect>();
+  mlirCtx->getOrLoadDialect<circt::moore::MooreDialect>();
 
   module = mlir::ModuleOp::create(builder->getUnknownLoc());
 }
@@ -40,11 +38,13 @@ void ContextManager::dump(llvm::raw_ostream &os) {
   llvm::raw_string_ostream ss(buf);
   mlir::OpPrintingFlags flags;
   module->print(ss, flags);
+
   ss.flush();
+
   llvm::StringRef ir(buf);
 
   while (!ir.empty()) {
-    // Comments → gray (#8b949e)
+    // Comments → gray
     if (ir.starts_with("//")) {
       auto end = ir.find('\n');
       size_t len = (end == llvm::StringRef::npos ? ir.size() : end);
@@ -54,7 +54,7 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       continue;
     }
 
-    // Strings → light blue (#a5d6ff)
+    // Strings → light blue
     if (ir[0] == '"') {
       auto end = ir.find('"', 1);
       size_t len = (end == llvm::StringRef::npos ? ir.size() : end + 1);
@@ -64,7 +64,7 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       continue;
     }
 
-    // Numbers → cyan (#79c0ff)
+    // Numbers → cyan
     if (std::isdigit(static_cast<unsigned char>(ir[0]))) {
       size_t len = 0;
       while (len < ir.size() &&
@@ -87,18 +87,18 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       llvm::StringRef word = ir.slice(0, len);
 
       if (word.contains('.')) {
-        // dialect ops → purple (#d2a8ff)
+        // dialect ops → purple
         llvm::WithColor(os, llvm::raw_ostream::MAGENTA, /*bold=*/true) << word;
       } else if (word == "func" || word == "return" || word == "module" ||
                  word == "do" || word == "default" || word == "case" ||
                  word == "to" || word == "step" || word == "iter_args") {
-        // keywords → red (#ff7b72)
+        // keywords → red
         llvm::WithColor(os, llvm::raw_ostream::RED, /*bold=*/true) << word;
       } else if (word == "i1" || word == "i8" || word == "i16" ||
                  word == "i32" || word == "i64" || word == "f32" ||
                  word == "f64" || word == "index" || word == "memref" ||
                  word == "ptr" || word == "none" || word == "vararg") {
-        // types → cyan (#79c0ff)
+        // types → cyan
         llvm::WithColor(os, llvm::raw_ostream::CYAN, /*bold=*/false) << word;
       } else {
         os << word;
@@ -107,7 +107,7 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       continue;
     }
 
-    // SSA values %foo → default text (white bold)
+    // SSA values %foo → white bold
     if (ir[0] == '%') {
       size_t len = 1;
       while (len < ir.size() &&
@@ -120,7 +120,7 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       continue;
     }
 
-    // Symbol refs @foo → yellow/orange (#ffa657)
+    // Symbol refs @foo → yellow
     if (ir[0] == '@') {
       size_t len = 1;
       while (
@@ -153,4 +153,4 @@ void ContextManager::dump(llvm::raw_ostream &os) {
 
 void ContextManager::dump() { dump(llvm::outs()); }
 
-} // namespace cmlirc
+} // namespace chwc

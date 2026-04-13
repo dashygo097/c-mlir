@@ -5,28 +5,28 @@
 
 namespace cmlirc::detail {
 inline auto indexConst(mlir::OpBuilder &builder, mlir::Location loc,
-                              int64_t value) -> mlir::Value {
+                       int64_t value) -> mlir::Value {
   return mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
                                          builder.getIndexAttr(value))
       .getResult();
 }
 
-inline auto boolConst(mlir::OpBuilder &builder, mlir::Location loc,
-                             bool value) -> mlir::Value {
+inline auto boolConst(mlir::OpBuilder &builder, mlir::Location loc, bool value)
+    -> mlir::Value {
   return mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
                                          builder.getBoolAttr(value))
       .getResult();
 }
 
 inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Type type, int64_t value) -> mlir::Value {
+                     mlir::Type type, int64_t value) -> mlir::Value {
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getIntegerAttr(type, value))
       .getResult();
 }
 
 inline auto floatConst(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Type type, double value) -> mlir::Value {
+                       mlir::Type type, double value) -> mlir::Value {
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getFloatAttr(type, value))
       .getResult();

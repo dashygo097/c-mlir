@@ -2,14 +2,15 @@
 #include "../../Utils/Casts.h"
 #include "../../Utils/LHS.h"
 #include "../../Utils/Operators.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 // Emit the arithmetic for a compound-assignment operator (+=, -= …).
-mlir::Value emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
-                              clang::BinaryOperatorKind op, mlir::Value lhs,
-                              mlir::Value rhs) {
+auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
+                       clang::BinaryOperatorKind op, mlir::Value lhs,
+                       mlir::Value rhs) -> mlir::Value {
   using CBO = clang::BinaryOperatorKind;
 
   switch (op) {
@@ -44,8 +45,8 @@ mlir::Value emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   }
 }
 
-mlir::Value CMLIRConverter::generateAssignmentBinaryOperator(
-    clang::BinaryOperator *assignOp) {
+auto CMLIRConverter::generateAssignmentBinaryOperator(
+    clang::BinaryOperator *assignOp) -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -95,8 +96,9 @@ mlir::Value CMLIRConverter::generateAssignmentBinaryOperator(
 
     mlir::Value computed = emitCompoundArith(
         builder, loc, assignOp->getOpcode(), computeLHS, rhsValue);
-    if (!computed)
+    if (!computed) {
       return nullptr;
+    }
 
     // Truncate back to the LHS storage type if computation widened it.
     if (auto *compOp =

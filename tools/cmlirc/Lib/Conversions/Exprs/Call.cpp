@@ -3,14 +3,15 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
-mlir::func::FuncOp getOrCreateFunctionDecl(mlir::OpBuilder &builder,
-                                           mlir::ModuleOp module,
-                                           const std::string &name,
-                                           mlir::FunctionType funcType) {
+auto getOrCreateFunctionDecl(mlir::OpBuilder &builder, mlir::ModuleOp module,
+                             const std::string &name,
+                             mlir::FunctionType funcType)
+    -> mlir::func::FuncOp {
   if (auto existing = module.lookupSymbol<mlir::func::FuncOp>(name)) {
     return existing;
   }
@@ -25,10 +26,10 @@ mlir::func::FuncOp getOrCreateFunctionDecl(mlir::OpBuilder &builder,
   return funcOp;
 }
 
-bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
+auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::ModuleOp module, const std::string &name,
                        llvm::ArrayRef<mlir::Value> callArgs,
-                       mlir::Value &outResult) {
+                       mlir::Value &outResult) -> bool {
   mlir::MLIRContext *ctx = builder.getContext();
 
   auto i32 = mlir::IntegerType::get(ctx, 32);
@@ -78,14 +79,15 @@ bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
           mlir::isa<mlir::IntegerType>(declTy)) {
         auto srcW = mlir::cast<mlir::IntegerType>(argTy).getWidth();
         auto dstW = mlir::cast<mlir::IntegerType>(declTy).getWidth();
-        if (srcW < dstW)
+        if (srcW < dstW) {
           promotedArgs.push_back(
               mlir::arith::ExtSIOp::create(builder, loc, declTy, arg)
                   .getResult());
-        else
+        } else {
           promotedArgs.push_back(
               mlir::arith::TruncIOp::create(builder, loc, declTy, arg)
                   .getResult());
+        }
         continue;
       }
       promotedArgs.push_back(arg); // fallback
@@ -116,8 +118,9 @@ bool tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
     auto llvmFuncTy = llvmFuncOp.getFunctionType();
     bool isVoid = mlir::isa<mlir::LLVM::LLVMVoidType>(retType);
     mlir::SmallVector<mlir::Type, 1> resultTypes;
-    if (!isVoid)
+    if (!isVoid) {
       resultTypes.push_back(retType);
+    }
     auto callOp = mlir::LLVM::CallOp::create(
         builder, loc, resultTypes,
         mlir::FlatSymbolRefAttr::get(builder.getContext(), name), callArgs);

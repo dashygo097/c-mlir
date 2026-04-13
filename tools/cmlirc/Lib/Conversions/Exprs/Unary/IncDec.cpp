@@ -1,36 +1,41 @@
 #include "../../../Converter.h"
 #include "../../Utils/Numerics.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 // True when `expr` is an LHS that resolves to a memref + indices pair
-bool isIndexedLValue(clang::Expr *expr) {
+auto isIndexedLValue(clang::Expr *expr) -> bool {
   clang::Expr *bare = expr->IgnoreParenImpCasts();
-  if (mlir::isa<clang::ArraySubscriptExpr>(bare))
+  if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
     return true;
-  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare))
+  }
+  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
     return uo->getOpcode() == clang::UO_Deref;
+  }
   return false;
 }
 
 // Compute `value ± 1` for integer or float types.
-mlir::Value applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
-                        mlir::Value value, bool isIncrement) {
-  if (mlir::isa<mlir::IntegerType>(value.getType()))
+auto applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
+                 mlir::Value value, bool isIncrement) -> mlir::Value {
+  if (mlir::isa<mlir::IntegerType>(value.getType())) {
     return isIncrement ? detail::addi(builder, loc, value, 1)
                        : detail::subi(builder, loc, value, 1);
-  if (mlir::isa<mlir::FloatType>(value.getType()))
+  }
+  if (mlir::isa<mlir::FloatType>(value.getType())) {
     return isIncrement ? detail::addf(builder, loc, value, 1.0)
                        : detail::subf(builder, loc, value, 1.0);
+  }
   llvm::WithColor::error()
       << "cmlirc: unsupported type for increment/decrement\n";
   return nullptr;
 }
 
-mlir::Value CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
-                                                        bool isIncrement,
-                                                        bool isPrefix) {
+auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
+                                                 bool isIncrement,
+                                                 bool isPrefix) -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -42,8 +47,9 @@ mlir::Value CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
       if (it != paramTable.end()) {
         mlir::Value oldVal = it->second;
         mlir::Value newVal = applyIncDec(builder, loc, oldVal, isIncrement);
-        if (!newVal)
+        if (!newVal) {
           return nullptr;
+        }
         it->second = newVal;
         return isPrefix ? newVal : oldVal;
       }
@@ -78,15 +84,17 @@ mlir::Value CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
              : mlir::memref::LoadOp::create(builder, loc, memref).getResult();
 
   mlir::Value newVal = applyIncDec(builder, loc, oldVal, isIncrement);
-  if (!newVal)
+  if (!newVal) {
     return nullptr;
+  }
 
-  if (access)
+  if (access) {
     mlir::memref::StoreOp::create(builder, loc, newVal, access->base,
                                   access->indices);
-  else
+  } else {
     mlir::memref::StoreOp::create(builder, loc, newVal, memref,
                                   mlir::ValueRange{});
+  }
 
   return isPrefix ? newVal : oldVal;
 }

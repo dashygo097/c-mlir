@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
@@ -44,8 +45,8 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
   storeValues(initList, indices);
 }
 
-mlir::Value
-CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList) {
+auto CMLIRConverter::generateInitListExpr(clang::InitListExpr *initList)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 

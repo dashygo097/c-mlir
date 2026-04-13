@@ -1,4 +1,5 @@
 add_clang_executable(chwc
+  Lib/Context/ContextManager.cpp
   driver.cpp
 )
 
@@ -21,6 +22,7 @@ target_link_libraries(chwc PRIVATE
   CIRCTComb
   CIRCTSeq
   CIRCTSV
+  CIRCTMoore
   CIRCTFirtool
 )
 

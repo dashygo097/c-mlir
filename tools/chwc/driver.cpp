@@ -1,5 +1,5 @@
 #include "./ArgumentList.h"
-#include "clang/Frontend/FrontendActions.h"
+#include "./Lib/ActionFactory.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
@@ -70,5 +70,6 @@ int main(int argc, const char **argv) {
     out = fileOut.get();
   }
 
-  return tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
+  auto factory = std::make_unique<CHWActionFactory>(out);
+  return tool.run(factory.get());
 }

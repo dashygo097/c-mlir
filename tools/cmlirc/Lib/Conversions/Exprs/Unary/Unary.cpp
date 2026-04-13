@@ -5,7 +5,8 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
+auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = unOp->getSubExpr();
@@ -21,12 +22,15 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   // Arithmetic negation
   case CUO::UO_Minus: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v)
+    if (!v) {
       return nullptr;
-    if (mlir::isa<mlir::IntegerType>(v.getType()))
+    }
+    if (mlir::isa<mlir::IntegerType>(v.getType())) {
       return detail::negi(builder, loc, v);
-    if (mlir::isa<mlir::FloatType>(v.getType()))
+    }
+    if (mlir::isa<mlir::FloatType>(v.getType())) {
       return detail::negf(builder, loc, v);
+    }
 
     return nullptr;
   }
@@ -44,40 +48,47 @@ mlir::Value CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp) {
   // Logical NOT: operand == 0
   case CUO::UO_LNot: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v)
+    if (!v) {
       return nullptr;
+    }
     mlir::Type ty = v.getType();
-    if (mlir::isa<mlir::IntegerType>(ty))
+    if (mlir::isa<mlir::IntegerType>(ty)) {
       return mlir::arith::CmpIOp::create(builder, loc,
                                          mlir::arith::CmpIPredicate::eq, v,
                                          detail::intConst(builder, loc, ty, 0))
           .getResult();
-    if (mlir::isa<mlir::FloatType>(ty))
+    }
+    if (mlir::isa<mlir::FloatType>(ty)) {
       return mlir::arith::CmpFOp::create(
                  builder, loc, mlir::arith::CmpFPredicate::OEQ, v,
                  detail::floatConst(builder, loc, ty, 0.0))
           .getResult();
+    }
     return nullptr;
   }
 
   // Bitwise NOT: value ^ ~0
   case CUO::UO_Not: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v)
+    if (!v) {
       return nullptr;
+    }
     return detail::noti(builder, loc, v);
   }
 
   // Dereference
   case CUO::UO_Deref: {
     mlir::Value base = generateExpr(subExpr);
-    if (!base)
+    if (!base) {
       return nullptr;
+    }
     auto memrefTy = mlir::dyn_cast<mlir::MemRefType>(base.getType());
-    if (!memrefTy)
+    if (!memrefTy) {
       return nullptr;
-    if (memrefTy.getRank() == 0)
+    }
+    if (memrefTy.getRank() == 0) {
       return base; // scalar memref
+    }
     lastArrayAccess =
         ArrayAccessInfo{base, {detail::indexConst(builder, loc, 0)}};
     return base;
