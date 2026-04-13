@@ -1,6 +1,6 @@
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
-set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/llvm-project/build) # If you're building this proj from scratch, you should not change it
+set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/llvm/build) # If you're building this proj from scratch, you should not change it
 
 # Compilation options
 set(USE_CCACHE ON)
