@@ -31,9 +31,25 @@ ninja
 ninja check-mlir
 ```
 
-For faster compilation,it is recommended to use -DLLVM_USE_LINKER=lld.
+For faster compilation, it is recommended to use -DLLVM_USE_LINKER=lld.
 
-**3. Build `cmlirc`:**
+**2.1 Build CIRCT:(_optional_)**
+
+```bash
+mkdir circt/build
+cd circt/build
+cmake -G Ninja .. \
+    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=DEBUG \
+    -DLLVM_USE_SPLIT_DWARF=ON
+ninja
+```
+
+For faster compilation, it is recommended to use -DLLVM_USE_LINKER=lld.
+
+**3. Build tools:**
 
 ```bash
 make
@@ -62,7 +78,7 @@ Specify the `PATH` in `config.cmake`.
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
 set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/llvm/build) # If you're building this proj from scratch, you should not change it
-set(CIRCT_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/build)
+set(CIRCT_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/build) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 
 # Compilation options
 set(USE_CCACHE ON)
@@ -71,15 +87,18 @@ set(USE_CCACHE ON)
 set(BUILD_EXECUTABLES ON)
 set(ENABLE_TESTING ON)
 
+set(ENABLE_CMLIRC ON) # Set `OFF` to disable building tool `cmlirc`
+set(ENABLE_CHWC ON) # Set `OFF` to disable building tool `chwc`
+
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
 set(LLVM_DIR ${LLVM_BUILD_DIR}/lib/cmake/llvm)
 set(MLIR_DIR ${LLVM_BUILD_DIR}/lib/cmake/mlir)
 set(Clang_DIR ${LLVM_BUILD_DIR}/lib/cmake/clang)
-set(CIRCT_DIR ${CIRCT_BUILD_DIR}/lib/cmake/circt)
+set(CIRCT_DIR ${CIRCT_BUILD_DIR}/lib/cmake/circt) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 ```
 
-**2. Build `cmlirc` and `chwc`:**
+**2. Build tools**
 
 ```bash
 make
