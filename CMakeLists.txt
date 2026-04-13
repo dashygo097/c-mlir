@@ -24,6 +24,7 @@ endif()
 include(AppendLLVM)
 include(AppendMLIR)
 include(AppendClang)
+include(AppendCIRCT)
 
 # Build the library
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
