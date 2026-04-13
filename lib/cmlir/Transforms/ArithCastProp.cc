@@ -84,7 +84,7 @@ static auto tryBypassUnary(mlir::arith::FPToSIOp fptosiOp, mlir::Value inFloat,
 }
 
 // Rewrite Pattern
-struct OptimizeFPToSIPattern
+struct PropFPToSIPattern
     : public mlir::OpRewritePattern<mlir::arith::FPToSIOp> {
   using mlir::OpRewritePattern<mlir::arith::FPToSIOp>::OpRewritePattern;
 
@@ -174,13 +174,36 @@ struct OptimizeFPToSIPattern
   }
 };
 
+struct FoldArithIndexCastPattern
+    : public mlir::OpRewritePattern<mlir::arith::IndexCastOp> {
+  using mlir::OpRewritePattern<mlir::arith::IndexCastOp>::OpRewritePattern;
+
+  auto matchAndRewrite(mlir::arith::IndexCastOp castOp,
+                       mlir::PatternRewriter &rewriter) const
+      -> mlir::LogicalResult override {
+
+    auto prevCastOp = castOp.getIn().getDefiningOp<mlir::arith::IndexCastOp>();
+    if (!prevCastOp) {
+      return mlir::failure();
+    }
+
+    if (prevCastOp.getIn().getType() == castOp.getType()) {
+      rewriter.replaceOp(castOp, prevCastOp.getIn());
+      return mlir::success();
+    }
+
+    return mlir::failure();
+  }
+};
+
 struct ArithCastPropPass
     : public impl::ArithCastPropPassBase<ArithCastPropPass> {
   void runOnOperation() override {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
-    patterns.add<OptimizeFPToSIPattern>(&getContext());
+    patterns.add<PropFPToSIPattern>(&getContext());
+    patterns.add<FoldArithIndexCastPattern>(&getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();

@@ -57,7 +57,7 @@ def ArithCastPropPass
   let summary = "Perform arith casts propgation";
   let constructor = "cmlir::createArithCastPropPass()";
   let description = [{
-    This pass propgates the arith cast from float -> int or int -> float for readability.
+    This pass propgates the arith cast from float -> int or int -> float and fold arith.index_cast for readability.
   }];
 }
 

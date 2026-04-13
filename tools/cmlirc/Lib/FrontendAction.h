@@ -50,6 +50,7 @@ public:
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createSCCPPass());
     pm.addPass(cmlir::createConstPropPass());
+    pm.addPass(cmlir::createArithCastPropPass());
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCSEPass());
 
@@ -60,10 +61,6 @@ public:
       pm.addPass(mlir::createSCCPPass());
       pm.addPass(cmlir::createConstPropPass());
       pm.addPass(mlir::createCSEPass());
-    }
-
-    if (options::arithCastProp) {
-      pm.addPass(cmlir::createArithCastPropPass());
     }
 
     if (options::struct2Memref) {
@@ -105,6 +102,7 @@ public:
 
     pm.addPass(mlir::createControlFlowSinkPass());
     pm.addPass(cmlir::createConstPropPass());
+    pm.addPass(cmlir::createArithCastPropPass());
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());

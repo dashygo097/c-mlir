@@ -1,7 +1,5 @@
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/Dominance.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -10,187 +8,100 @@
 
 namespace cmlir {
 
-struct FoldConstantCast4AffinePattern
-    : public mlir::OpRewritePattern<mlir::affine::AffineStoreOp> {
-  using OpRewritePattern::OpRewritePattern;
+static auto foldConstantCast(mlir::Attribute attr, mlir::Type targetType,
+                             mlir::Operation *op,
+                             mlir::PatternRewriter &rewriter)
+    -> mlir::Attribute {
+  bool isTargetIntOrIndex =
+      mlir::isa<mlir::IntegerType, mlir::IndexType>(targetType);
+  bool isTargetFloat = mlir::isa<mlir::FloatType>(targetType);
 
-  auto matchAndRewrite(mlir::affine::AffineStoreOp storeOp,
-                       mlir::PatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
-    mlir::Value storedValue = storeOp.getValue();
+  if (auto floatAttr = mlir::dyn_cast<mlir::FloatAttr>(attr)) {
+    double val = floatAttr.getValueAsDouble();
 
-    mlir::Operation *defOp = storedValue.getDefiningOp();
-    if (!defOp) {
-      return mlir::failure();
+    if (isTargetFloat) {
+      return rewriter.getFloatAttr(targetType, val);
     }
-
-    mlir::Value constantValue;
-    mlir::Type targetType = storedValue.getType();
-
-    if (auto truncFOp = mlir::dyn_cast<mlir::arith::TruncFOp>(defOp)) {
-      // arith.truncf : f64 -> f32
-      constantValue = truncFOp.getIn();
-    } else if (auto extFOp = mlir::dyn_cast<mlir::arith::ExtFOp>(defOp)) {
-      // arith.extf : f32 -> f64
-      constantValue = extFOp.getIn();
-    } else if (auto truncIOp = mlir::dyn_cast<mlir::arith::TruncIOp>(defOp)) {
-      // arith.trunci : i64 -> i32
-      constantValue = truncIOp.getIn();
-    } else if (auto extSIOp = mlir::dyn_cast<mlir::arith::ExtSIOp>(defOp)) {
-      // arith.extsi : i32 -> i64
-      constantValue = extSIOp.getIn();
-    } else if (auto extUIOp = mlir::dyn_cast<mlir::arith::ExtUIOp>(defOp)) {
-      // arith.extui : i32 -> i64
-      constantValue = extUIOp.getIn();
-    } else if (auto fpToSIOp = mlir::dyn_cast<mlir::arith::FPToSIOp>(defOp)) {
-      // arith.fptosi : f32 -> i32
-      constantValue = fpToSIOp.getIn();
-    } else if (auto siToFPOp = mlir::dyn_cast<mlir::arith::SIToFPOp>(defOp)) {
-      // arith.sitofp : i32 -> f32
-      constantValue = siToFPOp.getIn();
-    } else {
-      return mlir::failure();
+    if (isTargetIntOrIndex) {
+      return rewriter.getIntegerAttr(targetType, static_cast<int64_t>(val));
     }
+  } else if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(attr)) {
+    int64_t val = intAttr.getInt();
 
-    auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
-    if (!constantOp) {
-      return mlir::failure();
-    }
-
-    mlir::Attribute constantAttr = constantOp.getValue();
-
-    mlir::Attribute newConstantAttr;
-
-    if (auto floatAttr = mlir::dyn_cast<mlir::FloatAttr>(constantAttr)) {
-      if (auto targetFloatType = mlir::dyn_cast<mlir::FloatType>(targetType)) {
-        double value = floatAttr.getValueAsDouble();
-        newConstantAttr = rewriter.getFloatAttr(targetFloatType, value);
-      } else if (auto targetIntType =
-                     mlir::dyn_cast<mlir::IntegerType>(targetType)) {
-        // float -> int
-        auto value = static_cast<int64_t>(floatAttr.getValueAsDouble());
-        newConstantAttr = rewriter.getIntegerAttr(targetIntType, value);
-      } else {
-        return mlir::failure();
+    if (isTargetIntOrIndex) {
+      if (mlir::isa<mlir::arith::ExtUIOp>(op)) {
+        uint64_t uval = intAttr.getValue().getZExtValue();
+        return rewriter.getIntegerAttr(targetType, uval);
       }
-    } else if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constantAttr)) {
-      if (auto targetIntType = mlir::dyn_cast<mlir::IntegerType>(targetType)) {
-        int64_t value = intAttr.getInt();
-        newConstantAttr = rewriter.getIntegerAttr(targetIntType, value);
-      } else if (auto targetFloatType =
-                     mlir::dyn_cast<mlir::FloatType>(targetType)) {
-        // int -> float
-        auto value = static_cast<double>(intAttr.getInt());
-        newConstantAttr = rewriter.getFloatAttr(targetFloatType, value);
-      } else {
-        return mlir::failure();
+      return rewriter.getIntegerAttr(targetType, val);
+    }
+
+    if (isTargetFloat) {
+      if (mlir::isa<mlir::arith::UIToFPOp>(op)) {
+        uint64_t uval = intAttr.getValue().getZExtValue();
+        return rewriter.getFloatAttr(targetType, static_cast<double>(uval));
       }
-    } else {
-      return mlir::failure();
+      return rewriter.getFloatAttr(targetType, static_cast<double>(val));
     }
-
-    auto newConstant = mlir::arith::ConstantOp::materialize(
-        rewriter, newConstantAttr, targetType, storeOp.getLoc());
-
-    if (!newConstant) {
-      return mlir::failure();
-    }
-
-    rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
-        storeOp, newConstant.getResult(), storeOp.getMemRef(),
-        storeOp.getAffineMap(), storeOp.getIndices());
-
-    return mlir::success();
   }
-};
 
-struct FoldConstantCast4MemrefPattern
-    : public mlir::OpRewritePattern<mlir::memref::StoreOp> {
-  using OpRewritePattern::OpRewritePattern;
+  return {}; // Returns a null TypedAttr
+}
 
-  auto matchAndRewrite(mlir::memref::StoreOp storeOp,
-                       mlir::PatternRewriter &rewriter) const
+template <typename CastOp>
+struct FoldConstantCastPattern : public mlir::OpRewritePattern<CastOp> {
+  using mlir::OpRewritePattern<CastOp>::OpRewritePattern;
+
+  auto matchAndRewrite(CastOp castOp, mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
-    mlir::Value storedValue = storeOp.getValue();
-
-    mlir::Operation *defOp = storedValue.getDefiningOp();
-    if (!defOp) {
-      return mlir::failure();
-    }
-
-    mlir::Value constantValue;
-    mlir::Type targetType = storedValue.getType();
-
-    if (auto truncFOp = mlir::dyn_cast<mlir::arith::TruncFOp>(defOp)) {
-      constantValue = truncFOp.getIn();
-    } else if (auto extFOp = mlir::dyn_cast<mlir::arith::ExtFOp>(defOp)) {
-      constantValue = extFOp.getIn();
-    } else if (auto truncIOp = mlir::dyn_cast<mlir::arith::TruncIOp>(defOp)) {
-      constantValue = truncIOp.getIn();
-    } else if (auto extSIOp = mlir::dyn_cast<mlir::arith::ExtSIOp>(defOp)) {
-      constantValue = extSIOp.getIn();
-    } else if (auto extUIOp = mlir::dyn_cast<mlir::arith::ExtUIOp>(defOp)) {
-      constantValue = extUIOp.getIn();
-    } else {
-      return mlir::failure();
-    }
-
-    auto constantOp = constantValue.getDefiningOp<mlir::arith::ConstantOp>();
+    mlir::Value inVal = castOp->getOperand(0);
+    auto constantOp = inVal.getDefiningOp<mlir::arith::ConstantOp>();
     if (!constantOp) {
       return mlir::failure();
     }
 
     mlir::Attribute constantAttr = constantOp.getValue();
-    mlir::Attribute newConstantAttr;
+    mlir::Type targetType = castOp.getType();
 
-    if (auto floatAttr = mlir::dyn_cast<mlir::FloatAttr>(constantAttr)) {
-      if (auto targetFloatType = mlir::dyn_cast<mlir::FloatType>(targetType)) {
-        double value = floatAttr.getValueAsDouble();
-        newConstantAttr = rewriter.getFloatAttr(targetFloatType, value);
-      } else {
-        return mlir::failure();
-      }
-    } else if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constantAttr)) {
-      if (auto targetIntType = mlir::dyn_cast<mlir::IntegerType>(targetType)) {
-        int64_t value = intAttr.getInt();
-        newConstantAttr = rewriter.getIntegerAttr(targetIntType, value);
-      } else {
-        return mlir::failure();
-      }
-    } else {
+    mlir::Attribute newAttr =
+        foldConstantCast(constantAttr, targetType, castOp, rewriter);
+    if (!newAttr) {
       return mlir::failure();
     }
 
-    auto newConstant = mlir::arith::ConstantOp::materialize(
-        rewriter, newConstantAttr, targetType, storeOp.getLoc());
+    auto typedAttr = mlir::dyn_cast<mlir::TypedAttr>(newAttr);
+    if (!typedAttr) {
+      return mlir::failure();
+    }
 
-    rewriter.replaceOpWithNewOp<mlir::memref::StoreOp>(
-        storeOp, newConstant.getResult(), storeOp.getMemRef(),
-        storeOp.getIndices());
+    rewriter.replaceOpWithNewOp<mlir::arith::ConstantOp>(castOp, typedAttr);
 
     return mlir::success();
   }
 };
 
 struct ConstPropPass : public impl::ConstPropPassBase<ConstPropPass> {
-
   void runOnOperation() override {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
-    patterns.add<FoldConstantCast4AffinePattern>(&getContext());
-    patterns.add<FoldConstantCast4MemrefPattern>(&getContext());
+    patterns.add<FoldConstantCastPattern<mlir::arith::TruncFOp>,
+                 FoldConstantCastPattern<mlir::arith::ExtFOp>,
+                 FoldConstantCastPattern<mlir::arith::TruncIOp>,
+                 FoldConstantCastPattern<mlir::arith::ExtSIOp>,
+                 FoldConstantCastPattern<mlir::arith::ExtUIOp>,
+                 FoldConstantCastPattern<mlir::arith::FPToSIOp>,
+                 FoldConstantCastPattern<mlir::arith::FPToUIOp>,
+                 FoldConstantCastPattern<mlir::arith::SIToFPOp>,
+                 FoldConstantCastPattern<mlir::arith::UIToFPOp>,
+                 FoldConstantCastPattern<mlir::arith::IndexCastOp>,
+                 FoldConstantCastPattern<mlir::arith::IndexCastUIOp>>(
+        &getContext());
 
     if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
       signalPassFailure();
       return;
     }
-
-    op->walk([](mlir::Operation *op) -> void {
-      if (mlir::isOpTriviallyDead(op)) {
-        op->erase();
-      }
-    });
   }
 };
 

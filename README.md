@@ -20,8 +20,8 @@ make config # generate configuration file at build/config.cmake
 **2. Build LLVM, MLIR and Clang:**
 
 ```bash
-mkdir llvm-project/build
-cd llvm-project/build
+mkdir circt/llvm/build
+cd circt/llvm/build
 cmake -G Ninja ../llvm \
   -DLLVM_ENABLE_PROJECTS="mlir;clang" \
   -DLLVM_TARGETS_TO_BUILD="host" \
@@ -61,7 +61,7 @@ Specify the `PATH` in `config.cmake`.
 ```cmake
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
-set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/llvm-project/build) # If you're building this proj from scratch, you should not change it
+set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/llvm/build) # If you're building this proj from scratch, you should not change it
 
 # Compilation options
 set(USE_CCACHE ON)
@@ -77,7 +77,7 @@ set(MLIR_DIR ${LLVM_BUILD_DIR}/lib/cmake/mlir)
 set(Clang_DIR ${LLVM_BUILD_DIR}/lib/cmake/clang)
 ```
 
-**2. Build `cmlirc`:**
+**2. Build `cmlirc` and `chwc`:**
 
 ```bash
 make

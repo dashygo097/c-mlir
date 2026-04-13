@@ -12,7 +12,6 @@ extern llvm::cl::opt<std::string> outputFile;
 extern llvm::cl::opt<std::string> functionName;
 
 extern llvm::cl::opt<bool> disableOpt;
-extern llvm::cl::opt<bool> arithCastProp;
 extern llvm::cl::opt<bool> funcInline;
 extern llvm::cl::opt<bool> struct2Memref;
 extern llvm::cl::opt<bool> raiseSCF2Affine;

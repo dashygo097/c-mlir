@@ -41,11 +41,6 @@ llvm::cl::opt<bool> funcInline("func-inline", llvm::cl::init(false),
                                llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
-    arithCastProp("arith-cast-prop", llvm::cl::init(false),
-                  llvm::cl::desc("Enable Arith cast propagations"),
-                  llvm::cl::cat(toolOptions));
-
-llvm::cl::opt<bool>
     struct2Memref("struct-to-memref", llvm::cl::init(false),
                   llvm::cl::desc("Enable struct to memref promotion"),
                   llvm::cl::cat(toolOptions));
