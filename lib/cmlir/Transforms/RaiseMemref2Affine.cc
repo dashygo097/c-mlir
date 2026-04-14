@@ -19,6 +19,19 @@ static auto isAffineIndex(mlir::Value val) -> bool {
   if (val.getDefiningOp<mlir::affine::AffineApplyOp>()) {
     return true;
   }
+
+  if (auto addOp = val.getDefiningOp<mlir::arith::AddIOp>()) {
+    return isAffineIndex(addOp.getLhs()) && isAffineIndex(addOp.getRhs());
+  }
+
+  if (auto subOp = val.getDefiningOp<mlir::arith::SubIOp>()) {
+    return isAffineIndex(subOp.getLhs()) && isAffineIndex(subOp.getRhs());
+  }
+
+  if (auto mulOp = val.getDefiningOp<mlir::arith::MulIOp>()) {
+    return isAffineIndex(mulOp.getLhs()) && isAffineIndex(mulOp.getRhs());
+  }
+
   if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(val)) {
     if (mlir::isa<mlir::affine::AffineForOp>(
             blockArg.getOwner()->getParentOp())) {
@@ -31,32 +44,45 @@ static auto isAffineIndex(mlir::Value val) -> bool {
   return false;
 }
 
-static auto getConstIntValue(mlir::Value val) -> std::optional<int64_t> {
+static auto buildAffineExpr(mlir::Value val,
+                            llvm::SmallVectorImpl<mlir::Value> &operands,
+                            mlir::PatternRewriter &rewriter)
+    -> mlir::AffineExpr {
   if (auto constOp = val.getDefiningOp<mlir::arith::ConstantOp>()) {
     if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
-      return intAttr.getInt();
+      return rewriter.getAffineConstantExpr(intAttr.getInt());
     }
   }
-  return std::nullopt;
+  if (auto addOp = val.getDefiningOp<mlir::arith::AddIOp>()) {
+    return buildAffineExpr(addOp.getLhs(), operands, rewriter) +
+           buildAffineExpr(addOp.getRhs(), operands, rewriter);
+  }
+  if (auto subOp = val.getDefiningOp<mlir::arith::SubIOp>()) {
+    return buildAffineExpr(subOp.getLhs(), operands, rewriter) -
+           buildAffineExpr(subOp.getRhs(), operands, rewriter);
+  }
+  if (auto mulOp = val.getDefiningOp<mlir::arith::MulIOp>()) {
+    return buildAffineExpr(mulOp.getLhs(), operands, rewriter) *
+           buildAffineExpr(mulOp.getRhs(), operands, rewriter);
+  }
+
+  for (size_t i = 0; i < operands.size(); ++i) {
+    if (operands[i] == val) {
+      return rewriter.getAffineDimExpr(i);
+    }
+  }
+  operands.push_back(val);
+  return rewriter.getAffineDimExpr(operands.size() - 1);
 }
 
 static auto buildAffineMapAndOperands(
     mlir::PatternRewriter &rewriter, mlir::OperandRange indices,
     llvm::SmallVectorImpl<mlir::Value> &operands) -> mlir::AffineMap {
-
   llvm::SmallVector<mlir::AffineExpr> exprs;
-  unsigned dimCount = 0;
-
   for (mlir::Value index : indices) {
-    if (auto constVal = getConstIntValue(index)) {
-      exprs.push_back(rewriter.getAffineConstantExpr(*constVal));
-    } else {
-      operands.push_back(index);
-      exprs.push_back(rewriter.getAffineDimExpr(dimCount++));
-    }
+    exprs.push_back(buildAffineExpr(index, operands, rewriter));
   }
-
-  return mlir::AffineMap::get(dimCount, 0, exprs, rewriter.getContext());
+  return mlir::AffineMap::get(operands.size(), 0, exprs, rewriter.getContext());
 }
 
 struct RaiseMemrefLoad2AffineLoadPattern
@@ -66,7 +92,6 @@ struct RaiseMemrefLoad2AffineLoadPattern
   auto matchAndRewrite(mlir::memref::LoadOp loadOp,
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
-
     for (mlir::Value index : loadOp.getIndices()) {
       if (!isAffineIndex(index)) {
         return mlir::failure();
@@ -79,7 +104,6 @@ struct RaiseMemrefLoad2AffineLoadPattern
 
     rewriter.replaceOpWithNewOp<mlir::affine::AffineLoadOp>(
         loadOp, loadOp.getMemRef(), map, mapOperands);
-
     return mlir::success();
   }
 };
@@ -91,7 +115,6 @@ struct RaiseMemrefStore2AffineStorePattern
   auto matchAndRewrite(mlir::memref::StoreOp storeOp,
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
-
     for (mlir::Value index : storeOp.getIndices()) {
       if (!isAffineIndex(index)) {
         return mlir::failure();
@@ -104,7 +127,6 @@ struct RaiseMemrefStore2AffineStorePattern
 
     rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
         storeOp, storeOp.getValue(), storeOp.getMemRef(), map, mapOperands);
-
     return mlir::success();
   }
 };

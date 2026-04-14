@@ -33,63 +33,6 @@ void CMLIRConverter::emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
   loopStack.pop_back();
 }
 
-void CMLIRConverter::emitFullyUnrolledLoop(const SimpleLoopInfo &info,
-                                           int64_t lb, int64_t ub, int64_t st,
-                                           clang::Stmt *body) {
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
-
-  for (int64_t iv = lb; iv < ub; iv += st) {
-    emitLoopBodyWithIV(info.inductionVar, detail::indexConst(builder, loc, iv),
-                       /*continueBlock=*/nullptr, body);
-  }
-}
-
-void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
-                                               int64_t lb, int64_t ub,
-                                               int64_t st, int64_t factor,
-                                               clang::Stmt *body) {
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
-
-  int64_t tripCount = (ub - lb + st - 1) / st;
-  int64_t numChunks = tripCount / factor;
-  int64_t remainder = tripCount % factor;
-  int64_t outerStride = factor * st;
-  int64_t outerUBVal = lb + numChunks * outerStride;
-
-  mlir::Value outerStep = detail::indexConst(builder, loc, outerStride);
-  mlir::Value outerUB = detail::indexConst(builder, loc, outerUBVal);
-
-  auto outerFor = mlir::scf::ForOp::create(builder, loc, info.lowerBound,
-                                           outerUB, outerStep);
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-
-    outerFor.getBody()->back().erase();
-    builder.setInsertionPointToEnd(outerFor.getBody());
-
-    for (int64_t j = 0; j < factor; ++j) {
-      mlir::Value ivIndex = outerFor.getInductionVar();
-      if (j != 0) {
-        mlir::Value off = detail::indexConst(builder, loc, j * st);
-        ivIndex =
-            mlir::arith::AddIOp::create(builder, loc, ivIndex, off).getResult();
-      }
-      emitLoopBodyWithIV(info.inductionVar, ivIndex, outerFor.getBody(), body);
-    }
-    detail::ensureYield(builder, loc, outerFor.getBody());
-  }
-  builder.setInsertionPointAfter(outerFor);
-
-  for (int64_t j = 0; j < remainder; ++j) {
-    int64_t ivConst = lb + (numChunks * factor + j) * st;
-    emitLoopBodyWithIV(info.inductionVar,
-                       detail::indexConst(builder, loc, ivConst),
-                       /*continueBlock=*/nullptr, body);
-  }
-}
-
 void CMLIRConverter::emitPlainForLoop(clang::ForStmt *forStmt,
                                       const SimpleLoopInfo &info,
                                       clang::Stmt *body) {
@@ -101,8 +44,16 @@ void CMLIRConverter::emitPlainForLoop(clang::ForStmt *forStmt,
 
   clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
   uint32_t forLine = sm.getSpellingLineNumber(forStmt->getForLoc());
+
   if (loopHintMap.count(forLine)) {
     const LoopHints &h = loopHintMap[forLine];
+    if (h.unrollDisable) {
+      forOp->setAttr("nounroll", builder.getUnitAttr());
+    } else if (h.unrollFull) {
+      forOp->setAttr("unroll", builder.getUnitAttr());
+    } else if (h.unrollCount) {
+      forOp->setAttr("unroll_count", builder.getI32IntegerAttr(*h.unrollCount));
+    }
     if (h.vectorize) {
       forOp->setAttr("vectorize", builder.getUnitAttr());
       uint32_t width = h.vectorizeWidth ? *h.vectorizeWidth : 4;
@@ -381,35 +332,8 @@ auto CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) -> bool {
     TraverseStmt(forStmt->getInit());
   }
 
-  clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
-  uint32_t forLine = sm.getSpellingLineNumber(forStmt->getForLoc());
-  auto hintIt = loopHintMap.find(forLine);
-
-  if (hintIt != loopHintMap.end()) {
-    const LoopHints &h = hintIt->second;
-    auto lb = detail::getInt(info->lowerBound);
-    auto ub = detail::getInt(info->upperBound);
-    auto st = detail::getInt(info->step);
-
-    if (lb && ub && st && *st > 0) {
-      int64_t tripCount = (*ub - *lb + *st - 1) / *st;
-
-      if (h.unrollFull || (h.unrollCount &&
-                           static_cast<int64_t>(*h.unrollCount) >= tripCount)) {
-        emitFullyUnrolledLoop(*info, *lb, *ub, *st, forStmt->getBody());
-        return true;
-      }
-
-      if (h.unrollCount && static_cast<int64_t>(*h.unrollCount) > 1) {
-        emitPartiallyUnrolledLoop(*info, *lb, *ub, *st,
-                                  static_cast<int64_t>(*h.unrollCount),
-                                  forStmt->getBody());
-        return true;
-      }
-    }
-  }
-
   emitPlainForLoop(forStmt, *info, forStmt->getBody());
+
   return true;
 }
 

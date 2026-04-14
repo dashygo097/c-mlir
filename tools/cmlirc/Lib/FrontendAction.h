@@ -47,6 +47,7 @@ public:
     mlir::PassManager pm(&contextManager->MLIRContext());
     pm.enableVerifier(false);
 
+    // Initial Cleanup and Constant Propagation
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createSCCPPass());
     pm.addPass(cmlir::createConstPropPass());
@@ -54,6 +55,7 @@ public:
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCSEPass());
 
+    // Inlining
     if (options::funcInline) {
       pm.addPass(mlir::createInlinerPass());
       pm.addPass(mlir::createSymbolDCEPass());
@@ -63,6 +65,7 @@ public:
       pm.addPass(mlir::createCSEPass());
     }
 
+    // Memory & Struct Optimizations
     if (options::struct2Memref) {
       pm.addPass(cmlir::createStruct2MemrefPass());
     }
@@ -73,48 +76,40 @@ public:
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createRemoveDeadValuesPass());
 
-    if (options::raiseMemref2Affine || options::raiseSCF2Affine) {
-      pm.addPass(cmlir::createRaiseMemref2AffinePass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createSimplifyAffineStructuresPass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createAffineScalarReplacementPass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createAffineLoopNormalizePass());
-      pm.addPass(mlir::createCanonicalizerPass());
-      pm.addPass(mlir::createCSEPass());
-    }
-
-    if (options::raiseSCF2Affine) {
-      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::bufferization::createBufferHoistingPass());
-      pm.addPass(cmlir::createLoopUnrollPass());
-      pm.addPass(mlir::createCanonicalizerPass());
-      pm.addPass(cmlir::createLoopVectorizePass());
-
-      pm.addPass(cmlir::createRaiseSCF2AffinePass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createSimplifyAffineStructuresPass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createAffineScalarReplacementPass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createAffineLoopNormalizePass());
-      pm.addPass(mlir::createCanonicalizerPass());
-      pm.addPass(mlir::createCSEPass());
-    }
-
+    // SCF-Level Loop Optimizations
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::bufferization::createBufferHoistingPass());
+
     pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(mlir::createCanonicalizerPass());
+
     pm.addPass(cmlir::createLoopVectorizePass());
     if (options::fma) {
       pm.addPass(cmlir::createFMAPass());
     }
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
+    // Raise to Polyhedral / Affine Model
+    if (options::raiseSCF2Affine || options::raiseMemref2Affine) {
+      if (options::raiseSCF2Affine) {
+        pm.addPass(cmlir::createRaiseSCF2AffinePass());
+      }
+      if (options::raiseMemref2Affine) {
+        pm.addPass(cmlir::createRaiseMemref2AffinePass());
+      }
+
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createSimplifyAffineStructuresPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineScalarReplacementPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineLoopNormalizePass());
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
+    }
+
+    // Post-Optimization Cleanups
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addNestedPass<mlir::func::FuncOp>(
@@ -136,9 +131,12 @@ public:
       pm.clear();
     }
 
+    // Run the pipeline
     if (mlir::failed(pm.run(contextManager->Module()))) {
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
     }
+
+    // Output the resulting MLIR
     contextManager->dump(*outStream);
     outStream->flush();
   }

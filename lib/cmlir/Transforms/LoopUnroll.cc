@@ -40,8 +40,7 @@ struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
         }
 
         if (mlir::failed(mlir::loopUnrollByFactor(forOp, factor))) {
-          forOp->emitWarning("cmlir: loop unroll by factor " +
-                             llvm::Twine(factor) + " failed");
+          forOp->emitWarning("cmlir: loop unroll by factor failed");
         }
       }
     }
