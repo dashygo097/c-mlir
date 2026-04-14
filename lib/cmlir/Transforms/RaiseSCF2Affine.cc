@@ -2,9 +2,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/Dominance.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #define GEN_PASS_DEF_RAISESCF2AFFINEPASS
@@ -17,40 +15,19 @@ static auto resolveIndexCastChain(mlir::Value v) -> mlir::Value {
   if (!outerCast) {
     return v;
   }
-
   mlir::Value mid = outerCast.getIn();
   if (mid.getType().isIndex()) {
     return resolveIndexCastChain(mid);
   }
-
   auto innerCast = mid.getDefiningOp<mlir::arith::IndexCastOp>();
   if (!innerCast) {
     return v;
   }
-
   mlir::Value original = innerCast.getIn();
   if (!original.getType().isIndex()) {
     return v;
   }
-
   return resolveIndexCastChain(original);
-}
-
-static auto isLegalAffineIndex(mlir::Value v) -> bool {
-  if (mlir::affine::isValidDim(v) || mlir::affine::isValidSymbol(v)) {
-    return true;
-  }
-
-  if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(v)) {
-    mlir::Operation *parentOp = blockArg.getOwner()->getParentOp();
-    if (auto forOp = mlir::dyn_cast_or_null<mlir::scf::ForOp>(parentOp)) {
-      if (blockArg == forOp.getInductionVar()) {
-        return true;
-      }
-    }
-  }
-
-  return false;
 }
 
 static auto getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
@@ -136,44 +113,8 @@ struct RaiseSCFFor2AffineForPattern
     }
 
     rewriter.setInsertionPointToEnd(affineBody);
+
     for (auto &op : scfBody->without_terminator()) {
-      if (auto loadOp = mlir::dyn_cast<mlir::memref::LoadOp>(op)) {
-        llvm::SmallVector<mlir::Value> idxs;
-        bool ok = true;
-        for (mlir::Value idx : loadOp.getIndices()) {
-          mlir::Value r = resolveIndexCastChain(mapping.lookupOrDefault(idx));
-          if (!isLegalAffineIndex(r)) {
-            ok = false;
-            break;
-          }
-          idxs.push_back(r);
-        }
-        if (ok) {
-          auto nl = mlir::affine::AffineLoadOp::create(
-              rewriter, loadOp.getLoc(), loadOp.getMemRef(), idxs);
-          mapping.map(loadOp.getResult(), nl.getResult());
-          continue;
-        }
-      }
-      if (auto storeOp = mlir::dyn_cast<mlir::memref::StoreOp>(op)) {
-        llvm::SmallVector<mlir::Value> idxs;
-        bool ok = true;
-        for (mlir::Value idx : storeOp.getIndices()) {
-          mlir::Value r = resolveIndexCastChain(mapping.lookupOrDefault(idx));
-          if (!isLegalAffineIndex(r)) {
-            ok = false;
-            break;
-          }
-          idxs.push_back(r);
-        }
-        if (ok) {
-          mlir::affine::AffineStoreOp::create(
-              rewriter, storeOp.getLoc(),
-              mapping.lookupOrDefault(storeOp.getValue()), storeOp.getMemRef(),
-              idxs);
-          continue;
-        }
-      }
       rewriter.clone(op, mapping);
     }
 

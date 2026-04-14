@@ -95,9 +95,7 @@ public:
       if (options::raiseSCF2Affine) {
         pm.addPass(cmlir::createRaiseSCF2AffinePass());
       }
-      if (options::raiseMemref2Affine) {
-        pm.addPass(cmlir::createRaiseMemref2AffinePass());
-      }
+      pm.addPass(cmlir::createRaiseMemref2AffinePass());
 
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createSimplifyAffineStructuresPass());

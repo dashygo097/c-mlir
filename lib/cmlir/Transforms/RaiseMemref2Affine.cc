@@ -2,9 +2,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/Dominance.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #define GEN_PASS_DEF_RAISEMEMREF2AFFINEPASS
@@ -13,36 +11,23 @@
 namespace cmlir {
 
 static auto isAffineIndex(mlir::Value val) -> bool {
-  if (auto constOp = val.getDefiningOp<mlir::arith::ConstantOp>()) {
-    if (mlir::isa<mlir::IntegerAttr>(constOp.getValue())) {
-      return true;
-    }
+  if (val.getDefiningOp<mlir::arith::ConstantOp>()) {
+    return true;
   }
-
   if (val.getDefiningOp<mlir::affine::AffineApplyOp>()) {
     return true;
   }
-
   if (auto addOp = val.getDefiningOp<mlir::arith::AddIOp>()) {
     return isAffineIndex(addOp.getLhs()) && isAffineIndex(addOp.getRhs());
   }
-
   if (auto subOp = val.getDefiningOp<mlir::arith::SubIOp>()) {
     return isAffineIndex(subOp.getLhs()) && isAffineIndex(subOp.getRhs());
   }
-
   if (auto mulOp = val.getDefiningOp<mlir::arith::MulIOp>()) {
     return isAffineIndex(mulOp.getLhs()) && isAffineIndex(mulOp.getRhs());
   }
-
-  if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(val)) {
-    if (mlir::isa<mlir::affine::AffineForOp>(
-            blockArg.getOwner()->getParentOp())) {
-      return true;
-    }
-    if (mlir::isa<mlir::func::FuncOp>(blockArg.getOwner()->getParentOp())) {
-      return true;
-    }
+  if (mlir::isa<mlir::BlockArgument>(val)) {
+    return true;
   }
   return false;
 }
@@ -56,17 +41,14 @@ static auto buildAffineExpr(mlir::Value val,
       return rewriter.getAffineConstantExpr(intAttr.getInt());
     }
   }
-
   if (auto addOp = val.getDefiningOp<mlir::arith::AddIOp>()) {
     return buildAffineExpr(addOp.getLhs(), operands, rewriter) +
            buildAffineExpr(addOp.getRhs(), operands, rewriter);
   }
-
   if (auto subOp = val.getDefiningOp<mlir::arith::SubIOp>()) {
     return buildAffineExpr(subOp.getLhs(), operands, rewriter) -
            buildAffineExpr(subOp.getRhs(), operands, rewriter);
   }
-
   if (auto mulOp = val.getDefiningOp<mlir::arith::MulIOp>()) {
     return buildAffineExpr(mulOp.getLhs(), operands, rewriter) *
            buildAffineExpr(mulOp.getRhs(), operands, rewriter);
@@ -77,7 +59,6 @@ static auto buildAffineExpr(mlir::Value val,
       return rewriter.getAffineDimExpr(i);
     }
   }
-
   operands.push_back(val);
   return rewriter.getAffineDimExpr(operands.size() - 1);
 }
