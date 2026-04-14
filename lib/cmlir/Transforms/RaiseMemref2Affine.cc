@@ -16,14 +16,9 @@ static auto isAffineIndex(mlir::Value val) -> bool {
   if (val.getDefiningOp<mlir::arith::ConstantOp>()) {
     return true;
   }
-  if (val.getDefiningOp<mlir::arith::ConstantIndexOp>()) {
-    return true;
-  }
-
   if (val.getDefiningOp<mlir::affine::AffineApplyOp>()) {
     return true;
   }
-
   if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(val)) {
     if (mlir::isa<mlir::affine::AffineForOp>(
             blockArg.getOwner()->getParentOp())) {
@@ -33,17 +28,35 @@ static auto isAffineIndex(mlir::Value val) -> bool {
       return true;
     }
   }
-
   return false;
 }
 
-static auto allIndicesAffineValid(const mlir::OperandRange &indices) -> bool {
-  for (auto index : indices) {
-    if (!isAffineIndex(index)) {
-      return false;
+static auto getConstIntValue(mlir::Value val) -> std::optional<int64_t> {
+  if (auto constOp = val.getDefiningOp<mlir::arith::ConstantOp>()) {
+    if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
+      return intAttr.getInt();
     }
   }
-  return true;
+  return std::nullopt;
+}
+
+static auto buildAffineMapAndOperands(
+    mlir::PatternRewriter &rewriter, mlir::OperandRange indices,
+    llvm::SmallVectorImpl<mlir::Value> &operands) -> mlir::AffineMap {
+
+  llvm::SmallVector<mlir::AffineExpr> exprs;
+  unsigned dimCount = 0;
+
+  for (mlir::Value index : indices) {
+    if (auto constVal = getConstIntValue(index)) {
+      exprs.push_back(rewriter.getAffineConstantExpr(*constVal));
+    } else {
+      operands.push_back(index);
+      exprs.push_back(rewriter.getAffineDimExpr(dimCount++));
+    }
+  }
+
+  return mlir::AffineMap::get(dimCount, 0, exprs, rewriter.getContext());
 }
 
 struct RaiseMemrefLoad2AffineLoadPattern
@@ -54,12 +67,18 @@ struct RaiseMemrefLoad2AffineLoadPattern
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
 
-    if (!allIndicesAffineValid(loadOp.getIndices())) {
-      return mlir::failure();
+    for (mlir::Value index : loadOp.getIndices()) {
+      if (!isAffineIndex(index)) {
+        return mlir::failure();
+      }
     }
 
+    llvm::SmallVector<mlir::Value> mapOperands;
+    mlir::AffineMap map =
+        buildAffineMapAndOperands(rewriter, loadOp.getIndices(), mapOperands);
+
     rewriter.replaceOpWithNewOp<mlir::affine::AffineLoadOp>(
-        loadOp, loadOp.getMemRef(), loadOp.getIndices());
+        loadOp, loadOp.getMemRef(), map, mapOperands);
 
     return mlir::success();
   }
@@ -73,12 +92,18 @@ struct RaiseMemrefStore2AffineStorePattern
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
 
-    if (!allIndicesAffineValid(storeOp.getIndices())) {
-      return mlir::failure();
+    for (mlir::Value index : storeOp.getIndices()) {
+      if (!isAffineIndex(index)) {
+        return mlir::failure();
+      }
     }
 
+    llvm::SmallVector<mlir::Value> mapOperands;
+    mlir::AffineMap map =
+        buildAffineMapAndOperands(rewriter, storeOp.getIndices(), mapOperands);
+
     rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
-        storeOp, storeOp.getValue(), storeOp.getMemRef(), storeOp.getIndices());
+        storeOp, storeOp.getValue(), storeOp.getMemRef(), map, mapOperands);
 
     return mlir::success();
   }

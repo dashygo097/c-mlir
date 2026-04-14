@@ -76,18 +76,24 @@ public:
 
     if (options::raiseMemref2Affine || options::raiseSCF2Affine) {
       pm.addPass(cmlir::createRaiseMemref2AffinePass());
-      pm.addPass(mlir::affine::createSimplifyAffineStructuresPass());
-      pm.addPass(mlir::affine::createAffineScalarReplacementPass());
-      pm.addPass(mlir::affine::createAffineLoopNormalizePass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createSimplifyAffineStructuresPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineScalarReplacementPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineLoopNormalizePass());
       pm.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createCSEPass());
     }
 
     if (options::raiseSCF2Affine) {
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
-      pm.addPass(mlir::affine::createSimplifyAffineStructuresPass());
-      pm.addPass(mlir::affine::createAffineScalarReplacementPass());
-      pm.addPass(mlir::affine::createAffineLoopNormalizePass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createSimplifyAffineStructuresPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineScalarReplacementPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createAffineLoopNormalizePass());
       pm.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createCSEPass());
     }

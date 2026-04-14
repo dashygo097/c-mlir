@@ -1,6 +1,5 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
@@ -35,8 +34,8 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
             fullIndices.append(currentIndices.begin(), currentIndices.end());
             fullIndices.push_back(indexVal);
 
-            mlir::affine::AffineStoreOp::create(builder, loc, value, memref,
-                                                fullIndices);
+            mlir::memref::StoreOp::create(builder, loc, value, memref,
+                                          fullIndices);
           }
         }
       };

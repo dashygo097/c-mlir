@@ -1,4 +1,4 @@
-// RUN: cmlirc %s -function=mlp | FileCheck %s
+// RUN: cmlirc %s -function=mlp --raise-memref-to-affine | FileCheck %s
 
 void mlp(float output[2], const float input[2]) {
   float weights[2][2] = {{0.1, 0.2}, {0.3, 0.4}};
