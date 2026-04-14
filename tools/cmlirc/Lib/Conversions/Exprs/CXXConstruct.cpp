@@ -23,6 +23,13 @@ auto CMLIRConverter::generateCXXConstructExpr(
       return nullptr;
     }
 
+    clang::CXXConstructorDecl *ctor = constructExpr->getConstructor();
+    if (ctor && ctor->isCopyOrMoveConstructor()) {
+      if (constructExpr->getNumArgs() == 1) {
+        return generateExpr(constructExpr->getArg(0));
+      }
+    }
+
     if (constructExpr->getNumArgs() == 0) {
       auto undefValue =
           mlir::LLVM::UndefOp::create(builder, loc, llvmStructType);

@@ -5,9 +5,9 @@
 
 namespace cmlirc {
 
-std::optional<uint32_t>
-CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
-                              const clang::FieldDecl *fieldDecl) {
+auto CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
+                                   const clang::FieldDecl *fieldDecl)
+    -> std::optional<uint32_t> {
   auto it = recordFieldTable.find(recordDecl);
   if (it == recordFieldTable.end()) {
     std::vector<const clang::FieldDecl *> fields;
@@ -28,7 +28,8 @@ CMLIRConverter::getFieldIndex(const clang::RecordDecl *recordDecl,
   return std::nullopt;
 }
 
-mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
+auto CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -39,7 +40,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
     return nullptr;
   }
 
-  clang::FieldDecl *fieldDecl =
+  auto *fieldDecl =
       mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
   if (!fieldDecl) {
     llvm::WithColor::error() << "cmlirc: Member is not a field\n";
@@ -52,9 +53,9 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
     baseType = baseType->getPointeeType();
   }
 
-  const clang::RecordType *recordType = baseType->getAsStructureType();
+  const auto *recordType = baseType->getAs<clang::RecordType>();
   if (!recordType) {
-    llvm::WithColor::error() << "cmlirc: Base is not a struct type\n";
+    llvm::WithColor::error() << "cmlirc: Base is not a struct or class type\n";
     return nullptr;
   }
 
@@ -62,7 +63,7 @@ mlir::Value CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr) {
 
   std::optional<uint32_t> fieldIndexOpt = getFieldIndex(recordDecl, fieldDecl);
   if (!fieldIndexOpt) {
-    llvm::WithColor::error() << "cmlirc: field not found in struct\n";
+    llvm::WithColor::error() << "cmlirc: field not found in struct/class\n";
     return nullptr;
   }
   uint32_t fieldIndex = *fieldIndexOpt;
