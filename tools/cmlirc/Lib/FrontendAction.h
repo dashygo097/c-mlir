@@ -55,6 +55,10 @@ public:
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCSEPass());
 
+    if (options::fma) {
+      pm.addPass(cmlir::createFMAPass());
+    }
+
     // Inlining
     if (options::funcInline) {
       pm.addPass(mlir::createInlinerPass());
@@ -81,13 +85,9 @@ public:
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::bufferization::createBufferHoistingPass());
 
-    pm.addPass(cmlir::createLoopUnrollPass());
-    pm.addPass(mlir::createCanonicalizerPass());
-
     pm.addPass(cmlir::createLoopVectorizePass());
-    if (options::fma) {
-      pm.addPass(cmlir::createFMAPass());
-    }
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
     // Raise to Polyhedral / Affine Model
