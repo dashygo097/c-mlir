@@ -6,6 +6,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/WithColor.h"
 #include <cctype>
@@ -31,6 +32,7 @@ ContextManager::ContextManager(clang::ASTContext *clangContext,
   mlirCtx->getOrLoadDialect<mlir::scf::SCFDialect>();
   mlirCtx->getOrLoadDialect<mlir::affine::AffineDialect>();
   mlirCtx->getOrLoadDialect<mlir::math::MathDialect>();
+  mlirCtx->getOrLoadDialect<mlir::vector::VectorDialect>();
 
   module = mlir::ModuleOp::create(builder->getUnknownLoc());
 }
