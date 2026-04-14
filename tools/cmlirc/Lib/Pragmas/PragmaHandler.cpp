@@ -100,53 +100,61 @@ void CMLIRPragmaHandler::HandlePragma(clang::Preprocessor &pp,
   bool ok = false;
 
   if (directive == "loop") {
-    while (true) {
-      pp.Lex(tok);
+    ok = true;
+    pp.Lex(tok);
 
-      if (isEndOfDirective(tok)) {
-        ok = true;
-        break;
+    while (!isEndOfDirective(tok)) {
+      if (tok.is(clang::tok::comma)) {
+        pp.Lex(tok);
+        continue;
       }
 
-      if (tok.isNot(clang::tok::identifier))
+      if (tok.isNot(clang::tok::identifier)) {
+        ok = false;
         break;
+      }
 
       llvm::StringRef hint = tok.getIdentifierInfo()->getName();
 
       if (hint == "unroll") {
-        if (!parseUnroll())
+        if (!parseUnroll()) {
+          ok = false;
           break;
+        }
       } else if (hint == "vectorize") {
         bool en = false;
-        if (!parseBool(en))
+        if (!parseBool(en)) {
+          ok = false;
           break;
+        }
         hints.vectorize = en;
       } else if (hint == "vectorize_width") {
         uint32_t n = 0;
-        if (!parseUInt(n))
+        if (!parseUInt(n)) {
+          ok = false;
           break;
+        }
         hints.vectorizeWidth = n;
       } else if (hint == "interleave") {
         bool en = false;
-        if (!parseBool(en))
+        if (!parseBool(en)) {
+          ok = false;
           break;
+        }
         hints.interleave = en;
       } else if (hint == "interleave_count") {
         uint32_t n = 0;
-        if (!parseUInt(n))
+        if (!parseUInt(n)) {
+          ok = false;
           break;
+        }
         hints.interleaveCount = n;
       } else {
+        ok = false;
         break;
       }
 
       pp.Lex(tok);
-      if (isEndOfDirective(tok)) {
-        ok = true;
-        break;
-      }
-      if (!tok.is(clang::tok::comma))
-        break;
     }
   }
 

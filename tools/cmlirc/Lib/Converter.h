@@ -80,7 +80,8 @@ public:
   void emitPartiallyUnrolledLoop(const SimpleLoopInfo &info, int64_t lb,
                                  int64_t ub, int64_t st, int64_t factor,
                                  clang::Stmt *body);
-  void emitPlainForLoop(const SimpleLoopInfo &info, clang::Stmt *body);
+  void emitPlainForLoop(clang::ForStmt *forStmt, const SimpleLoopInfo &info,
+                        clang::Stmt *body);
   void emitWhileStyleForLoop(clang::ForStmt *forStmt);
 
 private:

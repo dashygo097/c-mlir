@@ -86,6 +86,13 @@ public:
     }
 
     if (options::raiseSCF2Affine) {
+      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::bufferization::createBufferHoistingPass());
+      pm.addPass(cmlir::createLoopUnrollPass());
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(cmlir::createLoopVectorizePass());
+
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createSimplifyAffineStructuresPass());

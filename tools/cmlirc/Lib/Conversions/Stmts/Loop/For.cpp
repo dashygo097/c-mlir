@@ -23,9 +23,10 @@ void CMLIRConverter::emitLoopBodyWithIV(const clang::VarDecl *inductionVar,
           : mlir::arith::IndexCastOp::create(builder, loc, origType, ivIndex)
                 .getResult();
 
-  if (symbolTable.count(inductionVar))
+  if (symbolTable.count(inductionVar)) {
     mlir::memref::StoreOp::create(builder, loc, iv, symbolTable[inductionVar],
                                   mlir::ValueRange{});
+  }
 
   loopStack.push_back({continueBlock, nullptr});
   TraverseStmt(body);
@@ -38,9 +39,10 @@ void CMLIRConverter::emitFullyUnrolledLoop(const SimpleLoopInfo &info,
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  for (int64_t iv = lb; iv < ub; iv += st)
+  for (int64_t iv = lb; iv < ub; iv += st) {
     emitLoopBodyWithIV(info.inductionVar, detail::indexConst(builder, loc, iv),
                        /*continueBlock=*/nullptr, body);
+  }
 }
 
 void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
@@ -88,13 +90,25 @@ void CMLIRConverter::emitPartiallyUnrolledLoop(const SimpleLoopInfo &info,
   }
 }
 
-void CMLIRConverter::emitPlainForLoop(const SimpleLoopInfo &info,
+void CMLIRConverter::emitPlainForLoop(clang::ForStmt *forStmt,
+                                      const SimpleLoopInfo &info,
                                       clang::Stmt *body) {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   auto forOp = mlir::scf::ForOp::create(builder, loc, info.lowerBound,
                                         info.upperBound, info.step);
+
+  clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
+  uint32_t forLine = sm.getSpellingLineNumber(forStmt->getForLoc());
+  if (loopHintMap.count(forLine)) {
+    const LoopHints &h = loopHintMap[forLine];
+    if (h.vectorize) {
+      forOp->setAttr("vectorize", builder.getUnitAttr());
+      uint32_t width = h.vectorizeWidth ? *h.vectorizeWidth : 4;
+      forOp->setAttr("vectorize_width", builder.getI32IntegerAttr(width));
+    }
+  }
 
   forOp.getBody()->back().erase();
   builder.setInsertionPointToEnd(forOp.getBody());
@@ -122,8 +136,9 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  if (forStmt->getInit())
+  if (forStmt->getInit()) {
     TraverseStmt(forStmt->getInit());
+  }
 
   const bool hasBreak = detail::stmtHasBreakInLoop(forStmt);
   const bool hasContinue = detail::stmtHasContinueInLoop(forStmt);
@@ -133,8 +148,9 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
   mlir::Type funcRetType;
   {
     auto res = currentFunc.getFunctionType().getResults();
-    if (!res.empty())
+    if (!res.empty()) {
       funcRetType = res[0];
+    }
   }
 
   auto allocBool = [&]() -> mlir::Value {
@@ -240,10 +256,11 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                           [&] { TraverseStmt(forStmt->getInc()); });
     }
 
-    if (continueFlag)
+    if (continueFlag) {
       mlir::memref::StoreOp::create(builder, loc,
                                     detail::boolConst(builder, loc, false),
                                     continueFlag, mlir::ValueRange{});
+    }
 
     mlir::Value didReturn =
         mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
@@ -325,18 +342,20 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     }
   }
 
-  if (continueFlag)
+  if (continueFlag) {
     mlir::memref::StoreOp::create(builder, loc,
                                   detail::boolConst(builder, loc, false),
                                   continueFlag, mlir::ValueRange{});
+  }
 
   detail::ensureYield(builder, loc, builder.getInsertionBlock());
   builder.setInsertionPointAfter(whileOp);
 }
 
-bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
-  if (!currentFunc)
+auto CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) -> bool {
+  if (!currentFunc) {
     return true;
+  }
 
   if (detail::stmtHasBreakInLoop(forStmt) ||
       detail::stmtHasContinueInLoop(forStmt) ||
@@ -358,8 +377,9 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     return true;
   }
 
-  if (forStmt->getInit())
+  if (forStmt->getInit()) {
     TraverseStmt(forStmt->getInit());
+  }
 
   clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
   uint32_t forLine = sm.getSpellingLineNumber(forStmt->getForLoc());
@@ -374,21 +394,22 @@ bool CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) {
     if (lb && ub && st && *st > 0) {
       int64_t tripCount = (*ub - *lb + *st - 1) / *st;
 
-      if (h.unrollFull ||
-          (h.unrollCount && (int64_t)*h.unrollCount >= tripCount)) {
+      if (h.unrollFull || (h.unrollCount &&
+                           static_cast<int64_t>(*h.unrollCount) >= tripCount)) {
         emitFullyUnrolledLoop(*info, *lb, *ub, *st, forStmt->getBody());
         return true;
       }
 
-      if (h.unrollCount && (int64_t)*h.unrollCount > 1) {
-        emitPartiallyUnrolledLoop(*info, *lb, *ub, *st, (int64_t)*h.unrollCount,
+      if (h.unrollCount && static_cast<int64_t>(*h.unrollCount) > 1) {
+        emitPartiallyUnrolledLoop(*info, *lb, *ub, *st,
+                                  static_cast<int64_t>(*h.unrollCount),
                                   forStmt->getBody());
         return true;
       }
     }
   }
 
-  emitPlainForLoop(*info, forStmt->getBody());
+  emitPlainForLoop(forStmt, *info, forStmt->getBody());
   return true;
 }
 
