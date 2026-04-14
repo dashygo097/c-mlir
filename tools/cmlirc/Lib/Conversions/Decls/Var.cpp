@@ -7,13 +7,16 @@
 
 namespace cmlirc {
 
-bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
-  if (decl->isImplicit())
+auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
+  if (decl->isImplicit()) {
     return true;
-  if (mlir::isa<clang::ParmVarDecl>(decl))
+  }
+  if (mlir::isa<clang::ParmVarDecl>(decl)) {
     return true;
-  if (!currentFunc)
+  }
+  if (!currentFunc) {
     return true;
+  }
 
   clang::SourceManager &sm = contextManager.ClangContext().getSourceManager();
   clang::SourceLocation loc = decl->getLocation();
@@ -28,8 +31,9 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
     if (decl->hasInit()) {
       mlir::Value initValue = generateExpr(decl->getInit());
       lastArrayAccess.reset();
-      if (initValue)
+      if (initValue) {
         symbolTable[decl] = initValue;
+      }
     }
     return true;
   }
@@ -56,8 +60,9 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
             clangType->getAsStructureType()->getDecl();
         uint32_t fieldIndex = 0;
         for (auto *_ : recordDecl->fields()) {
-          if (fieldIndex >= initList->getNumInits())
+          if (fieldIndex >= initList->getNumInits()) {
             break;
+          }
           mlir::Value initValue = generateExpr(initList->getInit(fieldIndex));
           if (initValue) {
             auto zero = mlir::LLVM::ConstantOp::create(
@@ -75,8 +80,9 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
         }
       } else {
         mlir::Value initValue = generateExpr(init);
-        if (initValue)
+        if (initValue) {
           mlir::LLVM::StoreOp::create(builder, mlirLoc, initValue, allocaOp);
+        }
       }
     }
     return true;
@@ -129,10 +135,11 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
 
       if (decl->hasInit()) {
         mlir::Value initValue = generateExpr(decl->getInit());
-        if (initValue)
+        if (initValue) {
           mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
                                         allocaOp.getResult(),
                                         mlir::ValueRange{});
+        }
       }
       return true;
     }
@@ -146,10 +153,11 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
   }
 
   mlir::Type allocaType;
-  if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType))
+  if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType)) {
     allocaType = memrefType;
-  else
+  } else {
     allocaType = mlir::MemRefType::get({}, mlirType);
+  }
 
   auto allocaOp = mlir::memref::AllocaOp::create(
       builder, mlirLoc, mlir::cast<mlir::MemRefType>(allocaType));
@@ -161,9 +169,10 @@ bool CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) {
       storeInitListValues(initList, allocaOp.getResult());
     } else {
       mlir::Value initValue = generateExpr(init);
-      if (initValue)
+      if (initValue) {
         mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
                                       allocaOp.getResult(), mlir::ValueRange{});
+      }
     }
   }
 

@@ -1,7 +1,10 @@
 #include "../../Converter.h"
 
 namespace cmlirc {
-mlir::Type CMLIRConverter::convertTypedefType(const clang::TypedefType *type) {
+
+auto CMLIRConverter::convertTypedefType(const clang::TypedefType *type)
+    -> mlir::Type {
   return convertType(type->desugar());
 }
+
 } // namespace cmlirc

@@ -2,7 +2,9 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-mlir::Type CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type) {
+
+auto CMLIRConverter::convertBuiltinType(const clang::BuiltinType *type)
+    -> mlir::Type {
   mlir::OpBuilder &builder = contextManager.Builder();
 
   switch (type->getKind()) {

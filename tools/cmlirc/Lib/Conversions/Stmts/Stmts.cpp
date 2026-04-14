@@ -2,18 +2,21 @@
 
 namespace cmlirc {
 
-bool CMLIRConverter::TraverseStmt(clang::Stmt *stmt) {
-  if (!stmt || !currentFunc)
+auto CMLIRConverter::TraverseStmt(clang::Stmt *stmt) -> bool {
+  if (!stmt || !currentFunc) {
     return RecursiveASTVisitor::TraverseStmt(stmt);
+  }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Block *cur = builder.getInsertionBlock();
   if (cur && !cur->empty() &&
-      cur->back().hasTrait<mlir::OpTrait::IsTerminator>())
+      cur->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
     return true;
+  }
 
-  if (llvm::isa<clang::BreakStmt>(stmt))
+  if (llvm::isa<clang::BreakStmt>(stmt)) {
     return TraverseBreakStmt(llvm::cast<clang::BreakStmt>(stmt));
+  }
 
   if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
     if (hasSideEffects(expr)) {

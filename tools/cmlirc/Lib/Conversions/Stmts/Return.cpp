@@ -5,15 +5,17 @@
 namespace cmlirc {
 
 auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
-  if (!currentFunc)
+  if (!currentFunc) {
     return true;
+  }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value retValue;
-  if (auto *retExpr = stmt->getRetValue())
+  if (auto *retExpr = stmt->getRetValue()) {
     retValue = generateExpr(retExpr);
+  }
 
   if (returnValueCapture) {
     *returnValueCapture = retValue;
@@ -21,12 +23,14 @@ auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
   }
 
   for (auto it = loopStack.rbegin(); it != loopStack.rend(); ++it) {
-    if (!it->returnFlag)
+    if (!it->returnFlag) {
       continue;
+    }
 
-    if (retValue && it->returnValueSlot)
+    if (retValue && it->returnValueSlot) {
       mlir::memref::StoreOp::create(builder, loc, retValue, it->returnValueSlot,
                                     mlir::ValueRange{});
+    }
 
     mlir::memref::StoreOp::create(builder, loc,
                                   detail::boolConst(builder, loc, true),

@@ -2,7 +2,8 @@
 #include "clang/Basic/SourceManager.h"
 
 namespace cmlirc {
-bool CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) {
+
+auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
   if (decl->isImplicit() || !decl->hasBody()) {
     return true;
   }

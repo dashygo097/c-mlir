@@ -4,7 +4,8 @@
 
 namespace cmlirc {
 
-mlir::Type CMLIRConverter::convertRecordType(const clang::RecordType *type) {
+auto CMLIRConverter::convertRecordType(const clang::RecordType *type)
+    -> mlir::Type {
   mlir::OpBuilder &builder = contextManager.Builder();
   const clang::RecordDecl *recordDecl = type->getDecl();
 

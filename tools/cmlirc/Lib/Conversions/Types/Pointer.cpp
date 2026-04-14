@@ -2,7 +2,9 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlirc {
-mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
+
+auto CMLIRConverter::convertPointerType(const clang::PointerType *type)
+    -> mlir::Type {
   mlir::OpBuilder &builder = contextManager.Builder();
   clang::QualType pointeeType = type->getPointeeType().getCanonicalType();
 
@@ -33,8 +35,9 @@ mlir::Type CMLIRConverter::convertPointerType(const clang::PointerType *type) {
   }
 
   mlir::Type elementType = convertType(pointeeType);
-  if (!elementType)
+  if (!elementType) {
     return nullptr;
+  }
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
 } // namespace cmlirc

@@ -1,7 +1,9 @@
 #include "../../Converter.h"
 
 namespace cmlirc {
-mlir::Type CMLIRConverter::convertArrayType(const clang::ArrayType *type) {
+
+auto CMLIRConverter::convertArrayType(const clang::ArrayType *type)
+    -> mlir::Type {
   llvm::SmallVector<int64_t, 4> dimensions;
   clang::QualType currentType = clang::QualType(type, 0);
 

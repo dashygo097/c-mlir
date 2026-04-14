@@ -5,25 +5,29 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-bool isInsideStructuredRegion(mlir::OpBuilder &builder,
-                              mlir::func::FuncOp funcOp) {
+auto isInsideStructuredRegion(mlir::OpBuilder &builder,
+                              mlir::func::FuncOp funcOp) -> bool {
   mlir::Block *block = builder.getInsertionBlock();
-  if (!block)
+  if (!block) {
     return false;
+  }
   mlir::Region *blockRegion = block->getParent();
-  if (!blockRegion)
+  if (!blockRegion) {
     return false;
+  }
   return blockRegion != &funcOp.getBody();
 }
 
 void removeAutoYield(mlir::Block *block) {
-  if (!block->empty() && mlir::isa<mlir::scf::YieldOp>(block->back()))
+  if (!block->empty() && mlir::isa<mlir::scf::YieldOp>(block->back())) {
     block->back().erase();
+  }
 }
 
-bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
-  if (!currentFunc)
+auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
+  if (!currentFunc) {
     return true;
+  }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -48,8 +52,9 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
       TraverseStmt(ifStmt->getThen());
       builder.setInsertionPointToEnd(thenBlock);
       if (thenBlock->empty() ||
-          !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+          !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
         mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      }
     }
     if (hasElse) {
       mlir::OpBuilder::InsertionGuard guard(builder);
@@ -59,8 +64,9 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
       TraverseStmt(ifStmt->getElse());
       builder.setInsertionPointToEnd(elseBlock);
       if (elseBlock->empty() ||
-          !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+          !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
         mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+      }
     }
     builder.setInsertionPointAfter(ifOp);
     return true;
@@ -83,8 +89,9 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     TraverseStmt(ifStmt->getThen());
     builder.setInsertionPointToEnd(thenBlock);
     if (thenBlock->empty() ||
-        !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
+    }
   }
   if (hasElse) {
     mlir::OpBuilder::InsertionGuard guard(builder);
@@ -92,8 +99,9 @@ bool CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) {
     TraverseStmt(ifStmt->getElse());
     builder.setInsertionPointToEnd(elseBlock);
     if (elseBlock->empty() ||
-        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>())
+        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
+    }
   }
 
   builder.setInsertionPointToStart(mergeBlock);

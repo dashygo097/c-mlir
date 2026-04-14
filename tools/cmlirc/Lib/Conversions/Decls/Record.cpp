@@ -2,7 +2,7 @@
 
 namespace cmlirc {
 
-bool CMLIRConverter::TraverseRecordDecl(clang::RecordDecl *decl) {
+auto CMLIRConverter::TraverseRecordDecl(clang::RecordDecl *decl) -> bool {
   if (!decl->isCompleteDefinition()) {
     return true;
   }
