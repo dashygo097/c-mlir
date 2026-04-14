@@ -69,7 +69,6 @@ public:
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addPass(mlir::memref::createNormalizeMemRefsPass());
     pm.addPass(mlir::createMem2Reg());
-    pm.addPass(cmlir::createMem2RegPass());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createRemoveDeadValuesPass());
@@ -110,7 +109,6 @@ public:
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
     pm.addPass(mlir::createMem2Reg());
-    pm.addPass(cmlir::createMem2RegPass());
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::bufferization::createBufferLoopHoistingPass());

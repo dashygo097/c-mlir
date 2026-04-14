@@ -7,7 +7,6 @@
 namespace cmlir {
 
 // Common Optimization Passes
-auto createMem2RegPass() -> std::unique_ptr<mlir::Pass>;
 auto createConstPropPass() -> std::unique_ptr<mlir::Pass>;
 
 // Loop Optimization Passes

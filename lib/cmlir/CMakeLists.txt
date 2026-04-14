@@ -1,5 +1,4 @@
 add_mlir_dialect_library(cmlir 
-  Transforms/Mem2Reg.cc
   Transforms/ConstProp.cc
 
   Transforms/LoopUnroll.cc
