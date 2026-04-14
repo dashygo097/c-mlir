@@ -1,4 +1,5 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
@@ -40,9 +41,9 @@ static auto isLegalAffineIndex(mlir::Value v) -> bool {
     return true;
   }
 
-  if (auto blockArg = llvm::dyn_cast<mlir::BlockArgument>(v)) {
+  if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(v)) {
     mlir::Operation *parentOp = blockArg.getOwner()->getParentOp();
-    if (auto forOp = llvm::dyn_cast_or_null<mlir::scf::ForOp>(parentOp)) {
+    if (auto forOp = mlir::dyn_cast_or_null<mlir::scf::ForOp>(parentOp)) {
       if (blockArg == forOp.getInductionVar()) {
         return true;
       }
@@ -55,25 +56,23 @@ static auto isLegalAffineIndex(mlir::Value v) -> bool {
 static auto getBoundInfo(mlir::Value bound, mlir::MLIRContext *ctx,
                          mlir::AffineMap &map,
                          llvm::SmallVectorImpl<mlir::Value> &operands) -> bool {
-  if (auto c = bound.getDefiningOp<mlir::arith::ConstantIndexOp>()) {
-    map = mlir::AffineMap::getConstantMap(c.value(), ctx);
-    return true;
+  if (auto constOp = bound.getDefiningOp<mlir::arith::ConstantOp>()) {
+    if (auto intAttr = mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
+      map = mlir::AffineMap::getConstantMap(intAttr.getInt(), ctx);
+      return true;
+    }
   }
 
   mlir::Value resolved = resolveIndexCastChain(bound);
 
   if (mlir::affine::isValidSymbol(resolved)) {
-    // affine_map<()[s0] -> (s0)>
-    map = mlir::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/1,
-                               mlir::getAffineSymbolExpr(0, ctx));
+    map = mlir::AffineMap::get(0, 1, mlir::getAffineSymbolExpr(0, ctx));
     operands.push_back(resolved);
     return true;
   }
 
   if (mlir::affine::isValidDim(resolved)) {
-    // affine_map<(d0) -> (d0)>
-    map = mlir::AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
-                               mlir::getAffineDimExpr(0, ctx));
+    map = mlir::AffineMap::get(1, 0, mlir::getAffineDimExpr(0, ctx));
     operands.push_back(resolved);
     return true;
   }
@@ -102,14 +101,21 @@ struct RaiseSCFFor2AffineForPattern
       return mlir::failure();
     }
 
-    auto stepConst =
-        forOp.getStep().getDefiningOp<mlir::arith::ConstantIndexOp>();
-    if (!stepConst) {
+    int64_t stepVal = 0;
+    if (auto stepConst =
+            forOp.getStep().getDefiningOp<mlir::arith::ConstantOp>()) {
+      if (auto intAttr =
+              mlir::dyn_cast<mlir::IntegerAttr>(stepConst.getValue())) {
+        stepVal = intAttr.getInt();
+      } else {
+        return mlir::failure();
+      }
+    } else {
       return mlir::failure();
     }
 
     auto affineFor = mlir::affine::AffineForOp::create(
-        rewriter, loc, lbOperands, lbMap, ubOperands, ubMap, stepConst.value(),
+        rewriter, loc, lbOperands, lbMap, ubOperands, ubMap, stepVal,
         forOp.getInitArgs(),
         [](mlir::OpBuilder &, mlir::Location, mlir::Value,
            mlir::ValueRange) -> void {});

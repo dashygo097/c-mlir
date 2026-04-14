@@ -3,8 +3,8 @@
 
 namespace cmlirc {
 
-mlir::Value CMLIRConverter::generateConditionalOperator(
-    clang::ConditionalOperator *condOp) {
+auto CMLIRConverter::generateConditionalOperator(
+    clang::ConditionalOperator *condOp) -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 

@@ -8,8 +8,8 @@
 
 namespace cmlirc {
 // Handle pure value-producing binary expressions (no side effects on LHS).
-mlir::Value
-CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
+auto CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -82,8 +82,9 @@ CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp) {
 }
 
 // Short-circuit helpers
-mlir::Value CMLIRConverter::generateLAndBinaryOperator(mlir::Value lhs,
-                                                       mlir::Value rhs) {
+auto CMLIRConverter::generateLAndBinaryOperator(mlir::Value lhs,
+                                                mlir::Value rhs)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -102,8 +103,8 @@ mlir::Value CMLIRConverter::generateLAndBinaryOperator(mlir::Value lhs,
   return ifOp.getResult(0);
 }
 
-mlir::Value CMLIRConverter::generateLOrBinaryOperator(mlir::Value lhs,
-                                                      mlir::Value rhs) {
+auto CMLIRConverter::generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
+    -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 

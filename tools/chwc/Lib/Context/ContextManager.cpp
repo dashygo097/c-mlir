@@ -69,8 +69,9 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       size_t len = 0;
       while (len < ir.size() &&
              (std::isdigit(static_cast<unsigned char>(ir[len])) ||
-              ir[len] == '.' || ir[len] == '_'))
+              ir[len] == '.' || ir[len] == '_')) {
         ++len;
+      }
       llvm::WithColor(os, llvm::raw_ostream::CYAN, /*bold=*/false)
           << ir.slice(0, len);
       ir = ir.drop_front(len);
@@ -82,8 +83,9 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       size_t len = 0;
       while (len < ir.size() &&
              (std::isalnum(static_cast<unsigned char>(ir[len])) ||
-              ir[len] == '_' || ir[len] == '.'))
+              ir[len] == '_' || ir[len] == '.')) {
         ++len;
+      }
       llvm::StringRef word = ir.slice(0, len);
 
       if (word.contains('.')) {
@@ -112,8 +114,9 @@ void ContextManager::dump(llvm::raw_ostream &os) {
       size_t len = 1;
       while (len < ir.size() &&
              (std::isalnum(static_cast<unsigned char>(ir[len])) ||
-              ir[len] == '_' || ir[len] == '#'))
+              ir[len] == '_' || ir[len] == '#')) {
         ++len;
+      }
       llvm::WithColor(os, llvm::raw_ostream::WHITE, /*bold=*/true)
           << ir.slice(0, len);
       ir = ir.drop_front(len);
@@ -123,10 +126,11 @@ void ContextManager::dump(llvm::raw_ostream &os) {
     // Symbol refs @foo → yellow
     if (ir[0] == '@') {
       size_t len = 1;
-      while (
-          len < ir.size() &&
-          (std::isalnum(static_cast<unsigned char>(ir[len])) || ir[len] == '_'))
+      while (len < ir.size() &&
+             (std::isalnum(static_cast<unsigned char>(ir[len])) ||
+              ir[len] == '_')) {
         ++len;
+      }
       llvm::WithColor(os, llvm::raw_ostream::YELLOW, /*bold=*/true)
           << ir.slice(0, len);
       ir = ir.drop_front(len);
@@ -136,10 +140,11 @@ void ContextManager::dump(llvm::raw_ostream &os) {
     // Block labels ^bb0 → red
     if (ir[0] == '^') {
       size_t len = 1;
-      while (
-          len < ir.size() &&
-          (std::isalnum(static_cast<unsigned char>(ir[len])) || ir[len] == '_'))
+      while (len < ir.size() &&
+             (std::isalnum(static_cast<unsigned char>(ir[len])) ||
+              ir[len] == '_')) {
         ++len;
+      }
       llvm::WithColor(os, llvm::raw_ostream::RED, /*bold=*/false)
           << ir.slice(0, len);
       ir = ir.drop_front(len);

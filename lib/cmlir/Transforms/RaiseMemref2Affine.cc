@@ -13,9 +13,12 @@
 namespace cmlir {
 
 static auto isAffineIndex(mlir::Value val) -> bool {
-  if (val.getDefiningOp<mlir::arith::ConstantOp>()) {
-    return true;
+  if (auto constOp = val.getDefiningOp<mlir::arith::ConstantOp>()) {
+    if (mlir::isa<mlir::IntegerAttr>(constOp.getValue())) {
+      return true;
+    }
   }
+
   if (val.getDefiningOp<mlir::affine::AffineApplyOp>()) {
     return true;
   }
@@ -53,14 +56,17 @@ static auto buildAffineExpr(mlir::Value val,
       return rewriter.getAffineConstantExpr(intAttr.getInt());
     }
   }
+
   if (auto addOp = val.getDefiningOp<mlir::arith::AddIOp>()) {
     return buildAffineExpr(addOp.getLhs(), operands, rewriter) +
            buildAffineExpr(addOp.getRhs(), operands, rewriter);
   }
+
   if (auto subOp = val.getDefiningOp<mlir::arith::SubIOp>()) {
     return buildAffineExpr(subOp.getLhs(), operands, rewriter) -
            buildAffineExpr(subOp.getRhs(), operands, rewriter);
   }
+
   if (auto mulOp = val.getDefiningOp<mlir::arith::MulIOp>()) {
     return buildAffineExpr(mulOp.getLhs(), operands, rewriter) *
            buildAffineExpr(mulOp.getRhs(), operands, rewriter);
@@ -71,6 +77,7 @@ static auto buildAffineExpr(mlir::Value val,
       return rewriter.getAffineDimExpr(i);
     }
   }
+
   operands.push_back(val);
   return rewriter.getAffineDimExpr(operands.size() - 1);
 }
@@ -102,6 +109,8 @@ struct RaiseMemrefLoad2AffineLoadPattern
     mlir::AffineMap map =
         buildAffineMapAndOperands(rewriter, loadOp.getIndices(), mapOperands);
 
+    mlir::affine::fullyComposeAffineMapAndOperands(&map, &mapOperands);
+
     rewriter.replaceOpWithNewOp<mlir::affine::AffineLoadOp>(
         loadOp, loadOp.getMemRef(), map, mapOperands);
     return mlir::success();
@@ -124,6 +133,8 @@ struct RaiseMemrefStore2AffineStorePattern
     llvm::SmallVector<mlir::Value> mapOperands;
     mlir::AffineMap map =
         buildAffineMapAndOperands(rewriter, storeOp.getIndices(), mapOperands);
+
+    mlir::affine::fullyComposeAffineMapAndOperands(&map, &mapOperands);
 
     rewriter.replaceOpWithNewOp<mlir::affine::AffineStoreOp>(
         storeOp, storeOp.getValue(), storeOp.getMemRef(), map, mapOperands);

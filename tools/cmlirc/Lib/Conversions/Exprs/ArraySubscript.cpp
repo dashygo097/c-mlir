@@ -4,8 +4,8 @@
 
 namespace cmlirc {
 
-mlir::Value CMLIRConverter::generateArraySubscriptExpr(
-    clang::ArraySubscriptExpr *arraySub) {
+auto CMLIRConverter::generateArraySubscriptExpr(
+    clang::ArraySubscriptExpr *arraySub) -> mlir::Value {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -24,8 +24,9 @@ mlir::Value CMLIRConverter::generateArraySubscriptExpr(
 
     clang::Expr *base = arraySubscript->getBase();
     if (auto *implCast = mlir::dyn_cast<clang::ImplicitCastExpr>(base)) {
-      if (implCast->getCastKind() == clang::CK_ArrayToPointerDecay)
+      if (implCast->getCastKind() == clang::CK_ArrayToPointerDecay) {
         base = implCast->getSubExpr();
+      }
     }
     currentExpr = base;
   }
