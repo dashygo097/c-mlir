@@ -8,6 +8,7 @@ add_mlir_dialect_library(cmlir
   Transforms/ArithCastProp.cc
   Transforms/Struct2Memref.cc
   Transforms/FMA.cc
+  Transforms/RaiseMemref2Affine.cc
   Transforms/RaiseSCF2Affine.cc
   Dialect.cc
 

@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Constants.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -544,6 +545,21 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
               << "cmlirc: failed to generate 'this' argument\n";
           return nullptr;
         }
+
+        if (!mlir::isa<mlir::LLVM::LLVMPointerType>(thisVal.getType())) {
+          mlir::Type structType = thisVal.getType();
+          mlir::Value one =
+              detail::intConst(builder, loc, builder.getI32Type(), 1);
+          auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+
+          mlir::Value tempPtr = mlir::LLVM::AllocaOp::create(
+              builder, loc, ptrType, structType, one);
+
+          mlir::LLVM::StoreOp::create(builder, loc, thisVal, tempPtr);
+
+          thisVal = tempPtr;
+        }
+
         argValues.push_back(thisVal);
       }
     }

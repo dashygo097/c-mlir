@@ -45,6 +45,11 @@ llvm::cl::opt<bool>
                   llvm::cl::desc("Enable struct to memref promotion"),
                   llvm::cl::cat(toolOptions));
 
+llvm::cl::opt<bool> raiseMemref2Affine("raise-memref-to-affine",
+                                       llvm::cl::init(false),
+                                       llvm::cl::desc("Raise memref to affine"),
+                                       llvm::cl::cat(toolOptions));
+
 llvm::cl::opt<bool> raiseSCF2Affine("raise-scf-to-affine",
                                     llvm::cl::init(false),
                                     llvm::cl::desc("Raise scf to affine"),

@@ -74,6 +74,15 @@ public:
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createRemoveDeadValuesPass());
 
+    if (options::raiseMemref2Affine || options::raiseSCF2Affine) {
+      pm.addPass(cmlir::createRaiseMemref2AffinePass());
+      pm.addPass(mlir::affine::createSimplifyAffineStructuresPass());
+      pm.addPass(mlir::affine::createAffineScalarReplacementPass());
+      pm.addPass(mlir::affine::createAffineLoopNormalizePass());
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
+    }
+
     if (options::raiseSCF2Affine) {
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
       pm.addPass(mlir::affine::createSimplifyAffineStructuresPass());

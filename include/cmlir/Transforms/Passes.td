@@ -85,6 +85,18 @@ def FMAPass
   }];
 }
 
+ def RaiseMemref2AffinePass
+    : Pass<"cmlir-raise-memref2affine"> {
+  let summary = "Raise standard memref memory accesses to affine operations.";
+  let constructor = "cmlir::createRaiseMemref2AffinePass()";
+  let description = [{
+    This pass raises standard memref accesses to affine operations by performing the following steps:
+    1. Identify standard `memref.load` and `memref.store` operations that use index expressions to access memory.
+    2. Analyze the access indices to determine if they can be safely represented as valid affine maps (i.e., linear combinations of surrounding loop induction variables and symbols).
+    3. Replace the identified memref operations with equivalent `affine.load` and `affine.store` operations, preserving the original memory semantics while unlocking advanced polyhedral loop transformations and optimizations (such as tiling, fusion, and unrolling) specific to the Affine dialect.
+  }];
+}
+
 def RaiseSCF2AffinePass
     : Pass<"cmlir-raise-scf2affine"> {
   let summary = "Raise scf operations to affine operations.";

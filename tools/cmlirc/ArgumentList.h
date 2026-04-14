@@ -14,6 +14,7 @@ extern llvm::cl::opt<std::string> functionName;
 extern llvm::cl::opt<bool> disableOpt;
 extern llvm::cl::opt<bool> funcInline;
 extern llvm::cl::opt<bool> struct2Memref;
+extern llvm::cl::opt<bool> raiseMemref2Affine;
 extern llvm::cl::opt<bool> raiseSCF2Affine;
 extern llvm::cl::opt<bool> fma;
 

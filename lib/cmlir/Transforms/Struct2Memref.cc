@@ -37,6 +37,19 @@ static auto structToMemrefType(mlir::LLVM::LLVMStructType st)
       elemType);
 }
 
+static auto inferStructTypeFromPtr(mlir::BlockArgument arg)
+    -> mlir::LLVM::LLVMStructType {
+  for (mlir::Operation *user : arg.getUsers()) {
+    if (auto gep = mlir::dyn_cast<mlir::LLVM::GEPOp>(user)) {
+      if (auto structType =
+              mlir::dyn_cast<mlir::LLVM::LLVMStructType>(gep.getElemType())) {
+        return structType;
+      }
+    }
+  }
+  return nullptr;
+}
+
 // func.func @foo(%arg0: !llvm.struct<(f32, f32)>) -> ...
 // =>
 // func.func @foo(%arg0: memref<?x2xf32>) -> ...
@@ -51,8 +64,18 @@ struct LLVMStructFuncArgToMemrefPattern
     bool anyChanged = false;
 
     llvm::SmallVector<mlir::Type> newInputTypes;
-    for (auto argType : funcType.getInputs()) {
-      auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType);
+
+    bool hasBody = !funcOp.getBody().empty();
+
+    for (auto [idx, argType] : llvm::enumerate(funcType.getInputs())) {
+      mlir::LLVM::LLVMStructType structType = nullptr;
+
+      if (auto st = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType)) {
+        structType = st;
+      } else if (hasBody && mlir::isa<mlir::LLVM::LLVMPointerType>(argType)) {
+        structType = inferStructTypeFromPtr(funcOp.front().getArgument(idx));
+      }
+
       if (structType && isStructElemSameType(structType)) {
         newInputTypes.push_back(structToMemrefType(structType));
         anyChanged = true;
@@ -70,10 +93,12 @@ struct LLVMStructFuncArgToMemrefPattern
 
     rewriter.modifyOpInPlace(funcOp, [&]() -> void {
       funcOp.setType(newFuncType);
-      mlir::Block &entryBlock = funcOp.front();
-      for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
-        if (argType != funcType.getInputs()[idx]) {
-          entryBlock.getArgument(idx).setType(argType);
+      if (hasBody) {
+        mlir::Block &entryBlock = funcOp.front();
+        for (auto [idx, argType] : llvm::enumerate(newInputTypes)) {
+          if (argType != funcType.getInputs()[idx]) {
+            entryBlock.getArgument(idx).setType(argType);
+          }
         }
       }
     });
