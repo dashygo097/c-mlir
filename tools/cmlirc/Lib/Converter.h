@@ -52,6 +52,7 @@ public:
   auto TraverseFunctionDecl(clang::FunctionDecl *funcDecl) -> bool;
   auto TraverseVarDecl(clang::VarDecl *varDecl) -> bool;
   auto TraverseRecordDecl(clang::RecordDecl *recordDecl) -> bool;
+  auto TraverseCXXMethodDecl(clang::CXXMethodDecl *decl) -> bool;
 
   // stmt traits
   auto TraverseStmt(clang::Stmt *stmt) -> bool;
@@ -185,6 +186,9 @@ private:
   auto
   generateUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *traitExpr)
       -> mlir::Value;
+
+  // this
+  auto generateCXXThisExpr(clang::CXXThisExpr *thisExpr) -> mlir::Value;
 };
 
 } // namespace cmlirc

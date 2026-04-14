@@ -455,13 +455,36 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     return OpClass::create(builder, loc, args).getResult();                    \
   }
 
-  REGISTER_INT_BYPASS(mlir::arith::MinSIOp, "min|mini|minl")
-  REGISTER_INT_BYPASS(mlir::arith::MaxSIOp, "max|maxi|maxl")
-  REGISTER_FLOAT_BYPASS(mlir::arith::MinNumFOp, "fmin|fminf|fminl")
-  REGISTER_FLOAT_BYPASS(mlir::arith::MaxNumFOp, "fmax|fmaxf|fmaxl")
+#define REGISTER_OVERLOAD_BYPASS(IntOpClass, FloatOpClass, names)              \
+  if (matchCall(calleeName, names)) {                                          \
+    std::vector<mlir::Value> args;                                             \
+    bool hasFloat = false;                                                     \
+    for (uint32_t i = 0; i < num_args; ++i) {                                  \
+      mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
+      if (!arg) {                                                              \
+        llvm::WithColor::error()                                               \
+            << "cmlirc: failed to generate argument " << i << "\n";            \
+        return nullptr;                                                        \
+      }                                                                        \
+      if (mlir::isa<mlir::FloatType>(arg.getType()))                           \
+        hasFloat = true;                                                       \
+      args.push_back(arg);                                                     \
+    }                                                                          \
+    if (hasFloat) {                                                            \
+      alignTypes(args, /*forceFloat=*/true);                                   \
+      return FloatOpClass::create(builder, loc, args).getResult();             \
+    } else {                                                                   \
+      alignTypes(args, /*forceFloat=*/false);                                  \
+      return IntOpClass::create(builder, loc, args).getResult();               \
+    }                                                                          \
+  }
 
-  REGISTER_FLOAT_BYPASS(mlir::math::AbsFOp, "fabs|fabsf|fabsl")
-  REGISTER_INT_BYPASS(mlir::math::AbsIOp, "abs|absi|absl") // Integer abs
+  REGISTER_OVERLOAD_BYPASS(mlir::arith::MinSIOp, mlir::arith::MinNumFOp,
+                           "min|mini|minl|fmin|fminf|fminl")
+  REGISTER_OVERLOAD_BYPASS(mlir::arith::MaxSIOp, mlir::arith::MaxNumFOp,
+                           "max|maxi|maxl|fmax|fmaxf|fmaxl")
+  REGISTER_OVERLOAD_BYPASS(mlir::math::AbsIOp, mlir::math::AbsFOp,
+                           "abs|absi|absl|fabs|fabsf|fabsl")
   REGISTER_FLOAT_BYPASS(mlir::math::AcosOp, "acos|acosf|acosl")
   REGISTER_FLOAT_BYPASS(mlir::math::AcoshOp, "acosh|acoshf|acoshl")
   REGISTER_FLOAT_BYPASS(mlir::math::AsinOp, "asin|asinf|asinl")
@@ -509,6 +532,23 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 
   // Build argument values
   llvm::SmallVector<mlir::Value, 4> argValues;
+
+  // Check CXXMemberCallExpr
+  if (auto *memberCall = mlir::dyn_cast<clang::CXXMemberCallExpr>(callExpr)) {
+    if (auto *methodDecl = mlir::dyn_cast<clang::CXXMethodDecl>(calleeDecl)) {
+      if (!methodDecl->isStatic()) {
+        clang::Expr *implicitObj = memberCall->getImplicitObjectArgument();
+        mlir::Value thisVal = generateExpr(implicitObj);
+        if (!thisVal) {
+          llvm::WithColor::error()
+              << "cmlirc: failed to generate 'this' argument\n";
+          return nullptr;
+        }
+        argValues.push_back(thisVal);
+      }
+    }
+  }
+
   for (uint32_t i = 0; i < num_args; ++i) {
     mlir::Value v = generateExpr(callExpr->getArg(i));
     if (!v) {

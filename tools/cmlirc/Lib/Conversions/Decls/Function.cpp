@@ -19,6 +19,17 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
 
   // Convert parameter types
   llvm::SmallVector<mlir::Type, 4> argTypes;
+
+  // Check MethodDecl
+  bool isInstanceMethod = false;
+  if (auto *methodDecl = mlir::dyn_cast<clang::CXXMethodDecl>(decl)) {
+    if (!methodDecl->isStatic()) {
+      isInstanceMethod = true;
+      mlir::Type thisType = convertType(methodDecl->getThisType());
+      argTypes.push_back(thisType);
+    }
+  }
+
   for (auto *param : decl->parameters()) {
     mlir::Type paramType = convertType(param->getType());
     argTypes.push_back(paramType);
@@ -44,10 +55,17 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
 
   currentFunc = funcOp;
 
+  uint32_t argIdx = 0;
+  if (isInstanceMethod) {
+    currentThisValue = entryBlock->getArgument(argIdx++);
+  } else {
+    currentThisValue = nullptr;
+  }
+
   // Map parameters to block arguments
   for (uint32_t i = 0; i < decl->getNumParams(); ++i) {
     auto *param = decl->getParamDecl(i);
-    paramTable[param] = entryBlock->getArgument(i);
+    paramTable[param] = entryBlock->getArgument(argIdx++);
   }
 
   // Traverse function body manually

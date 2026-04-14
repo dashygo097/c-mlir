@@ -26,6 +26,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/SideEffects.cpp
   Lib/Conversions/Exprs/UnaryOrTypeTrait.cpp
+  Lib/Conversions/Exprs/CXXThis.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/CF/If.cpp
@@ -42,6 +43,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Decls/Var.cpp
   Lib/Conversions/Decls/Function.cpp
   Lib/Conversions/Decls/Record.cpp
+  Lib/Conversions/Decls/CXXMethod.cpp
 
   Lib/Pragmas/PragmaHandler.cpp
   Lib/Context/ContextManager.cpp

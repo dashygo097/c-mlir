@@ -32,6 +32,7 @@ auto CMLIRConverter::generateExpr(clang::Expr *expr) -> mlir::Value {
   REGISTER_EXPR_CONVERSION(CXXConstructExpr)
   REGISTER_EXPR_CONVERSION(MemberExpr)
   REGISTER_EXPR_CONVERSION(UnaryExprOrTypeTraitExpr)
+  REGISTER_EXPR_CONVERSION(CXXThisExpr)
 
 #undef REGISTER_EXPR_CONVERSION
 
