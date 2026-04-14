@@ -4,6 +4,7 @@ add_clang_executable(cmlirc
   Lib/Conversions/Types/Array.cpp
   Lib/Conversions/Types/Typedef.cpp
   Lib/Conversions/Types/Record.cpp
+  Lib/Conversions/Types/Reference.cpp
   Lib/Conversions/Types/Types.cpp
 
   Lib/Conversions/Exprs/Binary/Assign.cpp

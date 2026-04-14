@@ -16,6 +16,7 @@ auto CMLIRConverter::convertType(clang::QualType type) -> mlir::Type {
   REGISTER_TYPE(PointerType)
   REGISTER_TYPE(TypedefType)
   REGISTER_TYPE(RecordType)
+  REGISTER_TYPE(ReferenceType)
 
 #undef REGISTER_TYPE
 

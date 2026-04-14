@@ -56,7 +56,6 @@ auto CMLIRConverter::generateAddrOfUnaryOperator(clang::Expr *addrofOp)
     if (auto *parm = mlir::dyn_cast<clang::ParmVarDecl>(declRef->getDecl())) {
       auto it = paramTable.find(parm);
       if (it != paramTable.end()) {
-        // Parameter is an SSA value; spill it to a stack slot.
         auto slotType = mlir::MemRefType::get({}, it->second.getType());
         mlir::Value slot =
             mlir::memref::AllocaOp::create(builder, loc, slotType).getResult();

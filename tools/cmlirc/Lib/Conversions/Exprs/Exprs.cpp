@@ -4,9 +4,10 @@
 
 namespace cmlirc {
 
-mlir::Value CMLIRConverter::generateExpr(clang::Expr *expr) {
-  if (!expr)
+auto CMLIRConverter::generateExpr(clang::Expr *expr) -> mlir::Value {
+  if (!expr) {
     return nullptr;
+  }
 
 #define REGISTER_EXPR_CONVERSION(ExprType)                                     \
   if (auto *node = mlir::dyn_cast<clang::ExprType>(expr)) {                    \

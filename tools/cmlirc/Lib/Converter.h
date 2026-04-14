@@ -96,6 +96,7 @@ private:
       recordFieldTable;
 
   mlir::func::FuncOp currentFunc;
+  mlir::Value currentThisValue;
   mlir::Value *returnValueCapture;
   std::optional<ArrayAccessInfo> lastArrayAccess;
 
@@ -117,6 +118,8 @@ private:
   [[nodiscard]] auto convertTypedefType(const clang::TypedefType *type)
       -> mlir::Type;
   [[nodiscard]] auto convertRecordType(const clang::RecordType *type)
+      -> mlir::Type;
+  [[nodiscard]] auto convertReferenceType(const clang::ReferenceType *type)
       -> mlir::Type;
 
   // expr traits
