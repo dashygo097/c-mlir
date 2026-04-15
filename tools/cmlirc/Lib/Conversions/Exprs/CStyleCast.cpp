@@ -105,7 +105,7 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
       return nullptr;
     }
 
-    mlir::Value zero = detail::intConst(builder, loc, subValue.getType(), 0);
+    mlir::Value zero = utils::intConst(builder, loc, subValue.getType(), 0);
     return mlir::arith::CmpIOp::create(
                builder, loc, mlir::arith::CmpIPredicate::ne, subValue, zero)
         .getResult();
@@ -117,8 +117,7 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
       return nullptr;
     }
 
-    mlir::Value zero =
-        detail::floatConst(builder, loc, subValue.getType(), 0.0);
+    mlir::Value zero = utils::floatConst(builder, loc, subValue.getType(), 0.0);
     return mlir::arith::CmpFOp::create(
                builder, loc, mlir::arith::CmpFPredicate::UNE, subValue, zero)
         .getResult();

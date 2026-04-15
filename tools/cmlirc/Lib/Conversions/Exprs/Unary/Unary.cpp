@@ -26,10 +26,10 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
       return nullptr;
     }
     if (mlir::isa<mlir::IntegerType>(v.getType())) {
-      return detail::negi(builder, loc, v);
+      return utils::negi(builder, loc, v);
     }
     if (mlir::isa<mlir::FloatType>(v.getType())) {
-      return detail::negf(builder, loc, v);
+      return utils::negf(builder, loc, v);
     }
 
     return nullptr;
@@ -55,13 +55,13 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
     if (mlir::isa<mlir::IntegerType>(ty)) {
       return mlir::arith::CmpIOp::create(builder, loc,
                                          mlir::arith::CmpIPredicate::eq, v,
-                                         detail::intConst(builder, loc, ty, 0))
+                                         utils::intConst(builder, loc, ty, 0))
           .getResult();
     }
     if (mlir::isa<mlir::FloatType>(ty)) {
       return mlir::arith::CmpFOp::create(
                  builder, loc, mlir::arith::CmpFPredicate::OEQ, v,
-                 detail::floatConst(builder, loc, ty, 0.0))
+                 utils::floatConst(builder, loc, ty, 0.0))
           .getResult();
     }
     return nullptr;
@@ -73,7 +73,7 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
     if (!v) {
       return nullptr;
     }
-    return detail::noti(builder, loc, v);
+    return utils::noti(builder, loc, v);
   }
 
   // Dereference
@@ -90,7 +90,7 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
       return base; // scalar memref
     }
     lastArrayAccess =
-        ArrayAccessInfo{base, {detail::indexConst(builder, loc, 0)}};
+        ArrayAccessInfo{base, {utils::indexConst(builder, loc, 0)}};
     return base;
   }
 

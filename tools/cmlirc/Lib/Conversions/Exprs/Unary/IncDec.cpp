@@ -21,12 +21,12 @@ auto isIndexedLValue(clang::Expr *expr) -> bool {
 auto applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
                  mlir::Value value, bool isIncrement) -> mlir::Value {
   if (mlir::isa<mlir::IntegerType>(value.getType())) {
-    return isIncrement ? detail::addi(builder, loc, value, 1)
-                       : detail::subi(builder, loc, value, 1);
+    return isIncrement ? utils::addi(builder, loc, value, 1)
+                       : utils::subi(builder, loc, value, 1);
   }
   if (mlir::isa<mlir::FloatType>(value.getType())) {
-    return isIncrement ? detail::addf(builder, loc, value, 1.0)
-                       : detail::subf(builder, loc, value, 1.0);
+    return isIncrement ? utils::addf(builder, loc, value, 1.0)
+                       : utils::subf(builder, loc, value, 1.0);
   }
   llvm::WithColor::error()
       << "cmlirc: unsupported type for increment/decrement\n";

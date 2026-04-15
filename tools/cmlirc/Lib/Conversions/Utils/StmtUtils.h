@@ -3,7 +3,7 @@
 
 #include "clang/AST/Stmt.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 
 inline auto stmtHasBreakRecursively(const clang::Stmt *stmt) -> bool {
   if (!stmt) {
@@ -108,6 +108,6 @@ inline auto stmtHasReturnInLoop(const clang::Stmt *loopStmt) -> bool {
   return stmtHasReturnRecursively(body);
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_STMTUTILS_H

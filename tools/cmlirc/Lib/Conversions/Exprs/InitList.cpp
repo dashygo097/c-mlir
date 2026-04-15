@@ -16,7 +16,7 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
                         llvm::SmallVector<mlir::Value, 4> &currentIndices) {
         for (uint32_t i = 0; i < list->getNumInits(); ++i) {
           clang::Expr *init = list->getInit(i);
-          mlir::Value indexVal = detail::indexConst(builder, loc, i);
+          mlir::Value indexVal = utils::indexConst(builder, loc, i);
 
           if (auto *nestedList = mlir::dyn_cast<clang::InitListExpr>(init)) {
             currentIndices.push_back(indexVal);

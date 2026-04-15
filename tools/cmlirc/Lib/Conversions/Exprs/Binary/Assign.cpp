@@ -15,29 +15,29 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
 
   switch (op) {
   case CBO::BO_AddAssign:
-    return detail::emitOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(
-        builder, loc, lhs, rhs);
+    return utils::emitOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(builder, loc,
+                                                                   lhs, rhs);
   case CBO::BO_SubAssign:
-    return detail::emitOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(
-        builder, loc, lhs, rhs);
+    return utils::emitOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(builder, loc,
+                                                                   lhs, rhs);
   case CBO::BO_MulAssign:
-    return detail::emitOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(
-        builder, loc, lhs, rhs);
+    return utils::emitOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(builder, loc,
+                                                                   lhs, rhs);
   case CBO::BO_DivAssign:
-    return detail::emitOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(
+    return utils::emitOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(
         builder, loc, lhs, rhs);
   case CBO::BO_RemAssign:
-    return detail::emitIntOp<mlir::arith::RemSIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::RemSIOp>(builder, loc, lhs, rhs);
   case CBO::BO_AndAssign:
-    return detail::emitIntOp<mlir::arith::AndIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::AndIOp>(builder, loc, lhs, rhs);
   case CBO::BO_OrAssign:
-    return detail::emitIntOp<mlir::arith::OrIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::OrIOp>(builder, loc, lhs, rhs);
   case CBO::BO_XorAssign:
-    return detail::emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
   case CBO::BO_ShlAssign:
-    return detail::emitIntOp<mlir::arith::ShLIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::ShLIOp>(builder, loc, lhs, rhs);
   case CBO::BO_ShrAssign:
-    return detail::emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
+    return utils::emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
   default:
     llvm::WithColor::error() << "cmlirc: unsupported compound assignment: "
                              << clang::BinaryOperator::getOpcodeStr(op) << "\n";
@@ -50,7 +50,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  detail::LHSKind lhsKind = detail::classifyLHS(assignOp->getLHS());
+  utils::LHSKind lhsKind = utils::classifyLHS(assignOp->getLHS());
 
   // Evaluate LHS address
   mlir::Value lhsAddr = generateExpr(assignOp->getLHS());
@@ -61,7 +61,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
 
   // For indexed access, consume the side-channel ArrayAccessInfo immediately.
   std::optional<ArrayAccessInfo> arrayAccess;
-  if (lhsKind == detail::LHSKind::Indexed) {
+  if (lhsKind == utils::LHSKind::Indexed) {
     if (!lastArrayAccess) {
       llvm::WithColor::error() << "cmlirc: missing array access info for LHS\n";
       return nullptr;
@@ -91,7 +91,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
       mlir::Type computeType = convertType(compOp->getComputationResultType());
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       computeLHS =
-          detail::promoteValue(builder, loc, computeLHS, computeType, isSigned);
+          utils::promoteValue(builder, loc, computeLHS, computeType, isSigned);
     }
 
     mlir::Value computed = emitCompoundArith(
@@ -105,7 +105,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       resultValue =
-          detail::truncateValue(builder, loc, computed, lhsType, isSigned);
+          utils::truncateValue(builder, loc, computed, lhsType, isSigned);
     }
   }
 

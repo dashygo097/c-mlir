@@ -549,7 +549,7 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
         if (!mlir::isa<mlir::LLVM::LLVMPointerType>(thisVal.getType())) {
           mlir::Type structType = thisVal.getType();
           mlir::Value one =
-              detail::intConst(builder, loc, builder.getI32Type(), 1);
+              utils::intConst(builder, loc, builder.getI32Type(), 1);
           auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
 
           mlir::Value tempPtr = mlir::LLVM::AllocaOp::create(

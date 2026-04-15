@@ -6,7 +6,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 enum class LHSKind { Scalar, Indexed, Member };
 
 // Classify the LHS of an assignment into one of three storage categories.
@@ -64,6 +64,6 @@ storeLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
   }
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_LHS_H

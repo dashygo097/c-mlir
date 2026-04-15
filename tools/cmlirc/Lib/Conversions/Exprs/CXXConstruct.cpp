@@ -42,10 +42,10 @@ auto CMLIRConverter::generateCXXConstructExpr(
         mlir::Value zeroValue;
 
         if (auto intType = mlir::dyn_cast<mlir::IntegerType>(fieldType)) {
-          zeroValue = detail::intConst(builder, loc, intType, 0);
+          zeroValue = utils::intConst(builder, loc, intType, 0);
         } else if (auto floatType =
                        mlir::dyn_cast<mlir::FloatType>(fieldType)) {
-          zeroValue = detail::floatConst(builder, loc, floatType, 0.0);
+          zeroValue = utils::floatConst(builder, loc, floatType, 0.0);
         } else {
           continue;
         }
@@ -87,9 +87,9 @@ auto CMLIRConverter::generateCXXConstructExpr(
     mlir::Type mlirType = convertType(type);
 
     if (auto intType = mlir::dyn_cast<mlir::IntegerType>(mlirType)) {
-      return detail::intConst(builder, loc, intType, 0);
+      return utils::intConst(builder, loc, intType, 0);
     } else if (auto floatType = mlir::dyn_cast<mlir::FloatType>(mlirType)) {
-      return detail::floatConst(builder, loc, floatType, 0.0);
+      return utils::floatConst(builder, loc, floatType, 0.0);
     }
   }
 

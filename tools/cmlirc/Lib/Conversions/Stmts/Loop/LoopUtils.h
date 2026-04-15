@@ -6,7 +6,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 auto buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
                 mlir::Value breakFlag, mlir::Value continueFlag,
                 mlir::Value returnFlag) -> mlir::Value;
@@ -29,6 +29,6 @@ auto analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
                     const std::function<mlir::Value(clang::Expr *)> &genExpr)
     -> std::optional<SimpleLoopInfo>;
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_LOOPUTILS_H

@@ -4,7 +4,7 @@
 #include "./Constants.h"
 #include "./Operators.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 // Arithmetic
 inline auto addi(mlir::OpBuilder &builder, mlir::Location loc,
                  mlir::Value value, int64_t amount) -> mlir::Value {
@@ -85,6 +85,6 @@ inline auto xori(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
   return emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_NUMERICS_H

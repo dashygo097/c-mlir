@@ -115,7 +115,7 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
                  mlir::dyn_cast_or_null<clang::ArrayType>(cur.getTypePtr())) {
         if (auto *v = mlir::dyn_cast<clang::VariableArrayType>(av)) {
           mlir::Value dimSize = generateExpr(v->getSizeExpr());
-          dimSize = detail::toIndex(builder, mlirLoc, dimSize);
+          dimSize = utils::toIndex(builder, mlirLoc, dimSize);
           dynamicSizes.push_back(dimSize);
           shape.push_back(mlir::ShapedType::kDynamic);
           cur = v->getElementType().getCanonicalType();

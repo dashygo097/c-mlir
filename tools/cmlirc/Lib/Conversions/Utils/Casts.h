@@ -3,7 +3,7 @@
 
 #include "./Constants.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 inline auto toIndex(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value value) -> mlir::Value {
   if (value.getType().isIndex()) {
@@ -30,14 +30,14 @@ inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
   if (auto intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
     return mlir::arith::CmpIOp::create(builder, loc,
                                        mlir::arith::CmpIPredicate::ne, value,
-                                       detail::intConst(builder, loc, type, 0))
+                                       utils::intConst(builder, loc, type, 0))
         .getResult();
   }
   if (auto floatType = mlir::dyn_cast<mlir::FloatType>(type)) {
     return mlir::arith::CmpFOp::create(
                builder, loc,
                mlir::arith::CmpFPredicate::ONE, // ONE = Ordered Not Equal
-               value, detail::floatConst(builder, loc, type, 0.0))
+               value, utils::floatConst(builder, loc, type, 0.0))
         .getResult();
   }
   return nullptr;
@@ -169,6 +169,6 @@ inline auto castValue(mlir::OpBuilder &builder, mlir::Location loc,
   return truncateValue(builder, loc, promoted, targetType, isSigned);
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_CASTS_H

@@ -79,9 +79,9 @@ auto CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
     auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
 
     llvm::SmallVector<mlir::Value, 2> indices;
-    indices.push_back(detail::intConst(builder, loc, builder.getI32Type(), 0));
+    indices.push_back(utils::intConst(builder, loc, builder.getI32Type(), 0));
     indices.push_back(
-        detail::intConst(builder, loc, builder.getI32Type(), fieldIndex));
+        utils::intConst(builder, loc, builder.getI32Type(), fieldIndex));
 
     auto fieldPtr = mlir::LLVM::GEPOp::create(
         builder, loc, ptrType, llvmStructType, baseValue, indices);

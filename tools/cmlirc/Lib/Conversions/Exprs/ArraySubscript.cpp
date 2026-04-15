@@ -39,7 +39,7 @@ auto CMLIRConverter::generateArraySubscriptExpr(
 
   llvm::SmallVector<mlir::Value, 4> indexValues;
   for (mlir::Value idx : indices) {
-    auto indexValue = detail::toIndex(builder, loc, idx);
+    auto indexValue = utils::toIndex(builder, loc, idx);
     indexValues.push_back(indexValue);
   }
 

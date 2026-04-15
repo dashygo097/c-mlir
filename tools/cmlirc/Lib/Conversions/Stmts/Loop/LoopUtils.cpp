@@ -5,7 +5,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 
 mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Value breakFlag, mlir::Value continueFlag,
@@ -14,10 +14,10 @@ mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
   for (mlir::Value flag : {breakFlag, continueFlag, returnFlag}) {
     if (!flag)
       continue;
-    mlir::Value notFlag = detail::noti(
+    mlir::Value notFlag = utils::noti(
         builder, loc,
         mlir::memref::LoadOp::create(builder, loc, flag).getResult());
-    result = result ? detail::andi(builder, loc, result, notFlag) : notFlag;
+    result = result ? utils::andi(builder, loc, result, notFlag) : notFlag;
   }
   return result;
 }
@@ -190,4 +190,4 @@ analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
   return SimpleLoopInfo{varDecl, lb, ub, step, isIncrementing};
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils

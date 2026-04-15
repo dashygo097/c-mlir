@@ -15,7 +15,7 @@ auto CMLIRConverter::generateConditionalOperator(
 
   falseValue = condOp->getFalseExpr()
                    ? generateExpr(condOp->getFalseExpr())
-                   : detail::intConst(builder, loc, resultType, 0);
+                   : utils::intConst(builder, loc, resultType, 0);
 
   mlir::Value result = mlir::arith::SelectOp::create(builder, loc, condition,
                                                      trueValue, falseValue);

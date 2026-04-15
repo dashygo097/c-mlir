@@ -33,7 +33,7 @@ auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
     }
 
     mlir::memref::StoreOp::create(builder, loc,
-                                  detail::boolConst(builder, loc, true),
+                                  utils::boolConst(builder, loc, true),
                                   it->returnFlag, mlir::ValueRange{});
 
     return true;

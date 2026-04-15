@@ -37,7 +37,7 @@ auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
     llvm::WithColor::error() << "cmlirc: failed to generate if condition\n";
     return false;
   }
-  mlir::Value condBool = detail::toBool(builder, loc, condition);
+  mlir::Value condBool = utils::toBool(builder, loc, condition);
 
   bool hasElse = ifStmt->getElse() != nullptr;
 

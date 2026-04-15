@@ -3,7 +3,7 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 inline auto indexConst(mlir::OpBuilder &builder, mlir::Location loc,
                        int64_t value) -> mlir::Value {
   return mlir::arith::ConstantOp::create(builder, loc, builder.getIndexType(),
@@ -31,6 +31,6 @@ inline auto floatConst(mlir::OpBuilder &builder, mlir::Location loc,
                                          builder.getFloatAttr(type, value))
       .getResult();
 }
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_CONSTANTS_H

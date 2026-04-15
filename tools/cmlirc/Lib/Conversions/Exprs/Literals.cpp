@@ -11,7 +11,7 @@ CMLIRConverter::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit) {
 
   bool value = boolLit->getValue();
 
-  return detail::boolConst(builder, loc, value);
+  return utils::boolConst(builder, loc, value);
 }
 
 mlir::Value
@@ -22,7 +22,7 @@ CMLIRConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit) {
   int64_t value = intLit->getValue().getSExtValue();
   mlir::Type type = convertType(intLit->getType());
 
-  return detail::intConst(builder, loc, type, value);
+  return utils::intConst(builder, loc, type, value);
 }
 
 mlir::Value
@@ -33,7 +33,7 @@ CMLIRConverter::generateFloatingLiteral(clang::FloatingLiteral *floatLit) {
   auto value = floatLit->getValue();
   mlir::Type type = convertType(floatLit->getType());
 
-  return detail::floatConst(builder, loc, type, value.convertToDouble());
+  return utils::floatConst(builder, loc, type, value.convertToDouble());
 }
 
 mlir::Value
@@ -44,7 +44,7 @@ CMLIRConverter::generateCharacterLiteral(clang::CharacterLiteral *charLit) {
   uint64_t value = charLit->getValue();
   mlir::Type type = convertType(charLit->getType());
 
-  return detail::intConst(builder, loc, type, value);
+  return utils::intConst(builder, loc, type, value);
 }
 
 mlir::Value

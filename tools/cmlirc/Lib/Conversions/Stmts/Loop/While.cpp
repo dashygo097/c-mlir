@@ -17,9 +17,9 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  const bool hasBreak = detail::stmtHasBreakInLoop(whileStmt);
-  const bool hasContinue = detail::stmtHasContinueInLoop(whileStmt);
-  const bool hasReturn = detail::stmtHasReturnInLoop(whileStmt);
+  const bool hasBreak = utils::stmtHasBreakInLoop(whileStmt);
+  const bool hasContinue = utils::stmtHasContinueInLoop(whileStmt);
+  const bool hasReturn = utils::stmtHasReturnInLoop(whileStmt);
   const bool needsGuard = hasBreak || hasContinue || hasReturn;
 
   mlir::Type funcRetType;
@@ -33,7 +33,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
     auto a = mlir::memref::AllocaOp::create(
         builder, loc, mlir::MemRefType::get({}, builder.getI1Type()));
     mlir::memref::StoreOp::create(builder, loc,
-                                  detail::boolConst(builder, loc, false),
+                                  utils::boolConst(builder, loc, false),
                                   a.getResult(), mlir::ValueRange{});
     return a.getResult();
   };
@@ -45,7 +45,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
         mlir::arith::ConstantOp::create(builder, loc, funcRetType,
                                         builder.getZeroAttr(funcRetType))
             .getResult();
-    mlir::Value initKeepGoing = detail::boolConst(builder, loc, true);
+    mlir::Value initKeepGoing = utils::boolConst(builder, loc, true);
 
     auto whileOp = mlir::scf::WhileOp::create(
         builder, loc, mlir::TypeRange{funcRetType},
@@ -55,17 +55,16 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
           builder.setInsertionPointToEnd(b.getInsertionBlock());
 
           mlir::Value whileCond =
-              detail::toBool(builder, loc, generateExpr(whileStmt->getCond()));
+              utils::toBool(builder, loc, generateExpr(whileStmt->getCond()));
 
-          mlir::Value finalCond =
-              detail::andi(builder, loc, whileCond, args[1]);
+          mlir::Value finalCond = utils::andi(builder, loc, whileCond, args[1]);
 
           if (breakFlag) {
-            mlir::Value notBroke = detail::noti(
+            mlir::Value notBroke = utils::noti(
                 builder, loc,
                 mlir::memref::LoadOp::create(builder, loc, breakFlag)
                     .getResult());
-            finalCond = detail::andi(builder, loc, finalCond, notBroke);
+            finalCond = utils::andi(builder, loc, finalCond, notBroke);
           }
 
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
@@ -89,7 +88,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
             builder, loc, mlir::MemRefType::get({}, builder.getI1Type()))
             .getResult();
     mlir::memref::StoreOp::create(builder, loc,
-                                  detail::boolConst(builder, loc, false),
+                                  utils::boolConst(builder, loc, false),
                                   iterRetFlag, mlir::ValueRange{});
 
     mlir::Value iterRetSlot =
@@ -105,9 +104,9 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
         llvm::dyn_cast_or_null<clang::CompoundStmt>(whileStmt->getBody());
     if (needsGuard && compound) {
       for (clang::Stmt *s : compound->body()) {
-        mlir::Value guard = detail::buildGuard(builder, loc, breakFlag,
-                                               continueFlag, iterRetFlag);
-        detail::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+        mlir::Value guard = utils::buildGuard(builder, loc, breakFlag,
+                                              continueFlag, iterRetFlag);
+        utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
       }
     } else {
       TraverseStmt(whileStmt->getBody());
@@ -117,7 +116,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
     if (continueFlag)
       mlir::memref::StoreOp::create(builder, loc,
-                                    detail::boolConst(builder, loc, false),
+                                    utils::boolConst(builder, loc, false),
                                     continueFlag, mlir::ValueRange{});
 
     mlir::Value didReturn =
@@ -131,7 +130,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
                                       prevRetVal)
             .getResult();
 
-    mlir::Value newKeepGoing = detail::noti(builder, loc, didReturn);
+    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc,
                                mlir::ValueRange{newRetVal, newKeepGoing});
@@ -148,13 +147,13 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
         mlir::OpBuilder::InsertionGuard g(builder);
         builder.setInsertionPointToEnd(b.getInsertionBlock());
         mlir::Value cond =
-            detail::toBool(builder, loc, generateExpr(whileStmt->getCond()));
+            utils::toBool(builder, loc, generateExpr(whileStmt->getCond()));
         if (breakFlag) {
           mlir::Value notBroke =
-              detail::noti(builder, loc,
-                           mlir::memref::LoadOp::create(builder, loc, breakFlag)
-                               .getResult());
-          cond = detail::andi(builder, loc, cond, notBroke);
+              utils::noti(builder, loc,
+                          mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                              .getResult());
+          cond = utils::andi(builder, loc, cond, notBroke);
         }
         mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },
@@ -178,8 +177,8 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
   if (needsGuard && compound) {
     for (clang::Stmt *s : compound->body()) {
       mlir::Value guard =
-          detail::buildGuard(builder, loc, breakFlag, continueFlag, {});
-      detail::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+          utils::buildGuard(builder, loc, breakFlag, continueFlag, {});
+      utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
     }
   } else {
     TraverseStmt(whileStmt->getBody());
@@ -189,10 +188,10 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
   if (continueFlag)
     mlir::memref::StoreOp::create(builder, loc,
-                                  detail::boolConst(builder, loc, false),
+                                  utils::boolConst(builder, loc, false),
                                   continueFlag, mlir::ValueRange{});
 
-  detail::ensureYield(builder, loc, afterBlock);
+  utils::ensureYield(builder, loc, afterBlock);
   builder.setInsertionPointAfter(whileOp);
   return true;
 }

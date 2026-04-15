@@ -6,7 +6,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 
-namespace cmlirc::detail {
+namespace cmlirc::utils {
 
 template <typename IntOp, typename FloatOp>
 auto emitOp(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
@@ -64,6 +64,6 @@ inline auto emitCmpOp(mlir::OpBuilder &builder, mlir::Location loc,
   return nullptr;
 }
 
-} // namespace cmlirc::detail
+} // namespace cmlirc::utils
 
 #endif // CMLIRC_OPERATORS_H

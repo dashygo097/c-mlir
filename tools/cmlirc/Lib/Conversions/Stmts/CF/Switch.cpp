@@ -52,7 +52,7 @@ void collectArms(clang::SwitchStmt *sw, llvm::SmallVector<SwitchArm> &arms,
     if (!arms[i].hasBreak) {
       bool armTerminates = false;
       for (clang::Stmt *s : arms[i].stmts)
-        if (detail::stmtHasReturnRecursively(s)) {
+        if (utils::stmtHasReturnRecursively(s)) {
           armTerminates = true;
           break;
         }
@@ -84,7 +84,7 @@ bool CMLIRConverter::TraverseSwitchStmt(clang::SwitchStmt *sw) {
     llvm::WithColor::error() << "cmlirc: failed to generate switch condition\n";
     return false;
   }
-  mlir::Value switchIdx = detail::toIndex(builder, loc, switchVal);
+  mlir::Value switchIdx = utils::toIndex(builder, loc, switchVal);
 
   clang::Expr *condBase = sw->getCond()->IgnoreImpCasts();
   if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(condBase))
