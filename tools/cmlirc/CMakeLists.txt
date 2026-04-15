@@ -66,6 +66,8 @@ target_link_libraries(cmlirc PRIVATE
   MLIRMemRefTransforms
   MLIRSCFDialect 
   MLIRSCFTransforms
+  MLIRAffineDialect 
+  MLIRAffineTransforms 
   MLIRMathDialect
   MLIRVectorDialect
   MLIRTransforms
