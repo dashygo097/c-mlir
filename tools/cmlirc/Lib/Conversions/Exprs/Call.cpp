@@ -34,13 +34,12 @@ auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Value &outResult) -> bool {
   mlir::MLIRContext *ctx = builder.getContext();
 
-  auto i32 = mlir::IntegerType::get(ctx, 32);
-  auto i64 = mlir::IntegerType::get(ctx, 64);
-  // auto f32 = mlir::Float32Type::get(ctx);
-  auto f64 = mlir::Float64Type::get(ctx);
+  auto i32 = builder.getI32Type();
+  auto i64 = builder.getI64Type();
+  auto f64 = builder.getF64Type();
   auto addr = mlir::LLVM::LLVMPointerType::get(ctx);
 
-  // emit: fixed-arity functions — func.func private + func.call.
+  // func.func private + func.call.
   auto emit = [&](llvm::ArrayRef<mlir::Type> declArgTypes,
                   llvm::ArrayRef<mlir::Type> retTypes) -> bool {
     auto funcType = builder.getFunctionType(declArgTypes, retTypes);
@@ -48,51 +47,7 @@ auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
 
     llvm::SmallVector<mlir::Value> promotedArgs;
     for (auto [arg, declTy] : llvm::zip(callArgs, declArgTypes)) {
-      mlir::Type argTy = arg.getType();
-      if (argTy == declTy) {
-        promotedArgs.push_back(arg);
-        continue;
-      }
-      // int → float
-      if (mlir::isa<mlir::IntegerType>(argTy) &&
-          mlir::isa<mlir::FloatType>(declTy)) {
-        promotedArgs.push_back(
-            mlir::arith::SIToFPOp::create(builder, loc, declTy, arg)
-                .getResult());
-        continue;
-      }
-      // float → float
-      if (mlir::isa<mlir::FloatType>(argTy) &&
-          mlir::isa<mlir::FloatType>(declTy)) {
-        auto srcW = mlir::cast<mlir::FloatType>(argTy).getWidth();
-        auto dstW = mlir::cast<mlir::FloatType>(declTy).getWidth();
-        if (srcW < dstW)
-          promotedArgs.push_back(
-              mlir::arith::ExtFOp::create(builder, loc, declTy, arg)
-                  .getResult());
-        else
-          promotedArgs.push_back(
-              mlir::arith::TruncFOp::create(builder, loc, declTy, arg)
-                  .getResult());
-        continue;
-      }
-      // int → int
-      if (mlir::isa<mlir::IntegerType>(argTy) &&
-          mlir::isa<mlir::IntegerType>(declTy)) {
-        auto srcW = mlir::cast<mlir::IntegerType>(argTy).getWidth();
-        auto dstW = mlir::cast<mlir::IntegerType>(declTy).getWidth();
-        if (srcW < dstW) {
-          promotedArgs.push_back(
-              mlir::arith::ExtSIOp::create(builder, loc, declTy, arg)
-                  .getResult());
-        } else {
-          promotedArgs.push_back(
-              mlir::arith::TruncIOp::create(builder, loc, declTy, arg)
-                  .getResult());
-        }
-        continue;
-      }
-      promotedArgs.push_back(arg); // fallback
+      promotedArgs.push_back(utils::castValue(builder, loc, arg, declTy, true));
     }
 
     llvm::SmallVector<mlir::Type, 1> retTys(retTypes.begin(), retTypes.end());
@@ -105,7 +60,6 @@ auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
   // variadic functions (printf, scanf, ...).
   auto emitVariadic = [&](llvm::ArrayRef<mlir::Type> fixedArgTypes,
                           mlir::Type retType) -> bool {
-    // Declare llvm.func @name(fixedArgs..., ...) -> retType  (idempotent)
     if (!module.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name)) {
       mlir::OpBuilder::InsertionGuard guard(builder);
       builder.setInsertionPointToStart(module.getBody());
@@ -115,7 +69,7 @@ auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
       mlir::LLVM::LLVMFuncOp::create(builder, builder.getUnknownLoc(), name,
                                      llvmFuncTy, mlir::LLVM::Linkage::External);
     }
-    // Emit llvm.call ... vararg(...)
+
     auto llvmFuncOp = module.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name);
     auto llvmFuncTy = llvmFuncOp.getFunctionType();
     bool isVoid = mlir::isa<mlir::LLVM::LLVMVoidType>(retType);
@@ -123,6 +77,7 @@ auto tryEmitStdlibCall(mlir::OpBuilder &builder, mlir::Location loc,
     if (!isVoid) {
       resultTypes.push_back(retType);
     }
+
     auto callOp = mlir::LLVM::CallOp::create(
         builder, loc, resultTypes,
         mlir::FlatSymbolRefAttr::get(builder.getContext(), name), callArgs);
@@ -366,10 +321,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 
   std::string calleeName = calleeDecl->getNameAsString();
   uint32_t num_args = callExpr->getNumArgs();
-  std::vector<std::string> tokens;
-  std::string token;
-
-  // MLIR dialect ops
 
   auto matchCall = [&](llvm::StringRef callee, llvm::StringRef pattern) {
     llvm::SmallVector<llvm::StringRef, 4> tokens;
@@ -394,33 +345,16 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
       }
       if (!hasFloat)
         targetType = builder.getF64Type();
-
-      for (auto &v : args) {
-        mlir::Type t = v.getType();
-        if (mlir::isa<mlir::IntegerType>(t)) {
-          v = mlir::arith::SIToFPOp::create(builder, loc, targetType, v);
-        } else if (t != targetType) {
-          if (t.getIntOrFloatBitWidth() < targetType.getIntOrFloatBitWidth())
-            v = mlir::arith::ExtFOp::create(builder, loc, targetType, v);
-          else
-            v = mlir::arith::TruncFOp::create(builder, loc, targetType, v);
-        }
-      }
     } else {
       for (auto v : args) {
         if (v.getType().getIntOrFloatBitWidth() >
             targetType.getIntOrFloatBitWidth())
           targetType = v.getType();
       }
-      for (auto &v : args) {
-        mlir::Type t = v.getType();
-        if (t != targetType) {
-          if (t.getIntOrFloatBitWidth() < targetType.getIntOrFloatBitWidth())
-            v = mlir::arith::ExtSIOp::create(builder, loc, targetType, v);
-          else
-            v = mlir::arith::TruncIOp::create(builder, loc, targetType, v);
-        }
-      }
+    }
+
+    for (auto &v : args) {
+      v = utils::castValue(builder, loc, v, targetType, true);
     }
   };
 
@@ -429,11 +363,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     std::vector<mlir::Value> args;                                             \
     for (uint32_t i = 0; i < num_args; ++i) {                                  \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        llvm::WithColor::error()                                               \
-            << "cmlirc: failed to generate argument " << i << "\n";            \
+      if (!arg)                                                                \
         return nullptr;                                                        \
-      }                                                                        \
       args.push_back(arg);                                                     \
     }                                                                          \
     alignTypes(args, /*forceFloat=*/true);                                     \
@@ -445,11 +376,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     std::vector<mlir::Value> args;                                             \
     for (uint32_t i = 0; i < num_args; ++i) {                                  \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        llvm::WithColor::error()                                               \
-            << "cmlirc: failed to generate argument " << i << "\n";            \
+      if (!arg)                                                                \
         return nullptr;                                                        \
-      }                                                                        \
       args.push_back(arg);                                                     \
     }                                                                          \
     alignTypes(args, /*forceFloat=*/false);                                    \
@@ -462,11 +390,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     bool hasFloat = false;                                                     \
     for (uint32_t i = 0; i < num_args; ++i) {                                  \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        llvm::WithColor::error()                                               \
-            << "cmlirc: failed to generate argument " << i << "\n";            \
+      if (!arg)                                                                \
         return nullptr;                                                        \
-      }                                                                        \
       if (mlir::isa<mlir::FloatType>(arg.getType()))                           \
         hasFloat = true;                                                       \
       args.push_back(arg);                                                     \
@@ -530,6 +455,7 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
 
 #undef REGISTER_FLOAT_BYPASS
 #undef REGISTER_INT_BYPASS
+#undef REGISTER_OVERLOAD_BYPASS
 
   // Build argument values
   llvm::SmallVector<mlir::Value, 4> argValues;
@@ -606,6 +532,8 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
       castArgs.push_back(argVal);
       continue;
     }
+
+    // Check MemRef casting explicitly
     auto actualMemref = mlir::dyn_cast<mlir::MemRefType>(actualType);
     auto declaredMemref = mlir::dyn_cast<mlir::MemRefType>(declaredType);
     if (actualMemref && declaredMemref &&
@@ -616,7 +544,9 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
       castArgs.push_back(cast.getResult());
       continue;
     }
-    castArgs.push_back(argVal);
+
+    castArgs.push_back(
+        utils::castValue(builder, loc, argVal, declaredType, true));
   }
 
   auto callOp = mlir::func::CallOp::create(builder, loc, calleeName,

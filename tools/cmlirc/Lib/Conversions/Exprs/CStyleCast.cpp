@@ -1,5 +1,5 @@
 #include "../../Converter.h"
-#include "../Utils/Constants.h"
+#include "../Utils/Casts.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
@@ -10,154 +10,47 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = castExpr->getSubExpr();
 
+  mlir::Value subValue = generateExpr(subExpr);
+  if (!subValue) {
+    return nullptr;
+  }
+
   mlir::Type targetType = convertType(castExpr->getType());
 
-  using CK = clang::CastKind;
-
   switch (castExpr->getCastKind()) {
-  case clang::CK_IntegralToFloating: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
+
+  // Source-dependent Sign Casts (Int -> Float, Int -> Wider Int)
+  case clang::CK_IntegralToFloating:
+  case clang::CK_IntegralCast:
+  case clang::CK_FloatingCast:
+  case clang::CK_BooleanToSignedIntegral: {
     bool isSigned = subExpr->getType()->isSignedIntegerType();
-    if (isSigned) {
-      return mlir::arith::SIToFPOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    } else {
-      return mlir::arith::UIToFPOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
+    return utils::castValue(builder, loc, subValue, targetType, isSigned);
   }
 
-  case CK::CK_FloatingToIntegral: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
+  // Target-dependent Sign Casts (Float -> Int)
+  case clang::CK_FloatingToIntegral: {
     bool isSigned = castExpr->getType()->isSignedIntegerType();
-    if (isSigned) {
-      return mlir::arith::FPToSIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    } else {
-      return mlir::arith::FPToUIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
+    return utils::castValue(builder, loc, subValue, targetType, isSigned);
   }
 
-  case CK::CK_IntegralCast: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-    auto srcIntType = mlir::dyn_cast<mlir::IntegerType>(subValue.getType());
-    auto dstIntType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-    if (!srcIntType || !dstIntType) {
-      return subValue;
-    }
-
-    uint32_t srcWidth = srcIntType.getWidth();
-    uint32_t dstWidth = dstIntType.getWidth();
-
-    if (srcWidth < dstWidth) {
-      bool isSigned = subExpr->getType()->isSignedIntegerType();
-      if (isSigned) {
-        return mlir::arith::ExtSIOp::create(builder, loc, targetType, subValue)
-            .getResult();
-      } else {
-        return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
-            .getResult();
-      }
-    } else if (srcWidth > dstWidth) {
-      return mlir::arith::TruncIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-    return subValue;
+  // Boolean Casts (Evaluates against 0 / 0.0)
+  case clang::CK_IntegralToBoolean:
+  case clang::CK_FloatingToBoolean: {
+    return utils::toBool(builder, loc, subValue);
   }
 
-  case CK::CK_FloatingCast: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
-    auto srcFloatType = mlir::dyn_cast<mlir::FloatType>(subValue.getType());
-    auto dstFloatType = mlir::dyn_cast<mlir::FloatType>(targetType);
-
-    if (!srcFloatType || !dstFloatType) {
-      return subValue;
-    }
-
-    if (srcFloatType.getWidth() < dstFloatType.getWidth()) {
-      return mlir::arith::ExtFOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    } else if (srcFloatType.getWidth() > dstFloatType.getWidth()) {
-      return mlir::arith::TruncFOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-    return subValue;
-  }
-
-  case CK::CK_IntegralToBoolean: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
-    mlir::Value zero = utils::intConst(builder, loc, subValue.getType(), 0);
-    return mlir::arith::CmpIOp::create(
-               builder, loc, mlir::arith::CmpIPredicate::ne, subValue, zero)
-        .getResult();
-  }
-
-  case CK::CK_FloatingToBoolean: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
-    mlir::Value zero = utils::floatConst(builder, loc, subValue.getType(), 0.0);
-    return mlir::arith::CmpFOp::create(
-               builder, loc, mlir::arith::CmpFPredicate::UNE, subValue, zero)
-        .getResult();
-  }
-
-  case CK::CK_BooleanToSignedIntegral: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
-    return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
-        .getResult();
-  }
-
-  case CK::CK_BitCast: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
+  // Memory/Bitwise Casts
+  case clang::CK_BitCast: {
     return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
         .getResult();
   }
 
-  case CK::CK_NoOp: {
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
+  case clang::CK_NoOp: {
     return subValue;
   }
 
   default:
-    mlir::Value subValue = generateExpr(subExpr);
-    if (!subValue) {
-      return nullptr;
-    }
-
     llvm::WithColor::error()
         << "cmlirc: unsupported C-style cast kind: "
         << clang::CStyleCastExpr::getCastKindName(castExpr->getCastKind())
