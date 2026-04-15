@@ -29,19 +29,19 @@ inline auto classifyLHS(clang::Expr *lhs) -> LHSKind {
 // Load the current value of an LHS location.
 inline auto loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
                     mlir::Value lhsMemref,
-                    const std::optional<cmlirc::ArrayAccessInfo> &arrayAccess)
-    -> mlir::Value {
+                    const std::optional<cmlirc::ArrayAccessInfo> &arrayAccess,
+                    mlir::Type elementType) -> mlir::Value {
   switch (kind) {
   case LHSKind::Indexed:
     return mlir::memref::LoadOp::create(builder, loc, arrayAccess->base,
                                         arrayAccess->indices)
         .getResult();
   case LHSKind::Member:
-    return mlir::LLVM::LoadOp::create(builder, loc, lhsMemref.getType(),
-                                      lhsMemref);
+    return mlir::LLVM::LoadOp::create(builder, loc, elementType, lhsMemref);
   case LHSKind::Scalar:
     return mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
   }
+
   llvm::WithColor::error() << "cmlirc: unhandled LHSKind";
 }
 

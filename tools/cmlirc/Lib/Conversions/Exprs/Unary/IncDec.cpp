@@ -1,21 +1,10 @@
 #include "../../../Converter.h"
+#include "../../Utils/LHS.h"
 #include "../../Utils/Numerics.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-// True when `expr` is an LHS that resolves to a memref + indices pair
-auto isIndexedLValue(clang::Expr *expr) -> bool {
-  clang::Expr *bare = expr->IgnoreParenImpCasts();
-  if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
-    return true;
-  }
-  if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
-    return uo->getOpcode() == clang::UO_Deref;
-  }
-  return false;
-}
 
 // Compute `value ± 1` for integer or float types.
 auto applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
@@ -56,45 +45,42 @@ auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
     }
   }
 
-  // General path with lvalue backed by a memref
-  bool needsArrayAccess = isIndexedLValue(expr);
+  // General path with lvalue (Scalar, Indexed, or Member)
+  utils::LHSKind lhsKind = utils::classifyLHS(expr);
 
-  mlir::Value memref = generateExpr(expr);
-  if (!memref) {
+  mlir::Value lhsAddr = generateExpr(expr);
+  if (!lhsAddr) {
     llvm::WithColor::error()
         << "cmlirc: cannot get lvalue for increment/decrement\n";
     return nullptr;
   }
 
-  std::optional<ArrayAccessInfo> access;
-  if (needsArrayAccess) {
+  std::optional<ArrayAccessInfo> arrayAccess;
+  if (lhsKind == utils::LHSKind::Indexed) {
     if (!lastArrayAccess) {
       llvm::WithColor::error() << "cmlirc: array access info not available\n";
       return nullptr;
     }
-    access = std::move(lastArrayAccess);
+    arrayAccess = std::move(lastArrayAccess);
     lastArrayAccess.reset();
   }
 
+  mlir::Type elementType = convertType(expr->getType());
+
   // Load → compute → store
   mlir::Value oldVal =
-      access ? mlir::memref::LoadOp::create(builder, loc, access->base,
-                                            access->indices)
-                   .getResult()
-             : mlir::memref::LoadOp::create(builder, loc, memref).getResult();
+      utils::loadLHS(builder, loc, lhsKind, lhsAddr, arrayAccess, elementType);
+
+  if (!oldVal) {
+    return nullptr;
+  }
 
   mlir::Value newVal = applyIncDec(builder, loc, oldVal, isIncrement);
   if (!newVal) {
     return nullptr;
   }
 
-  if (access) {
-    mlir::memref::StoreOp::create(builder, loc, newVal, access->base,
-                                  access->indices);
-  } else {
-    mlir::memref::StoreOp::create(builder, loc, newVal, memref,
-                                  mlir::ValueRange{});
-  }
+  utils::storeLHS(builder, loc, lhsKind, newVal, lhsAddr, arrayAccess);
 
   return isPrefix ? newVal : oldVal;
 }
