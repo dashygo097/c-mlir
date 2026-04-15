@@ -92,19 +92,27 @@ public:
 
     // Raise to Polyhedral / Affine Model
     if (options::raiseSCF2Affine || options::raiseMemref2Affine) {
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createRaiseMemrefToAffine());
-
       if (options::raiseSCF2Affine) {
         pm.addPass(cmlir::createRaiseSCF2AffinePass());
       }
+
+      pm.addPass(mlir::createCanonicalizerPass());
+
       pm.addPass(cmlir::createRaiseMemref2AffinePass());
+
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createRaiseMemrefToAffine());
+
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
 
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createAffineLoopNormalizePass());
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createAffineScalarReplacementPass());
+
       pm.addPass(mlir::affine::createLoopFusionPass());
+
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createSimplifyAffineStructuresPass());
       pm.addPass(mlir::createCanonicalizerPass());
