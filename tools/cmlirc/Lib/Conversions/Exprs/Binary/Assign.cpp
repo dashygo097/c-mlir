@@ -79,7 +79,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
 
   mlir::Value resultValue = rhsValue;
 
-  // Compound-assignment: read-modify-write
+  // Compound-assignment
   if (assignOp->getOpcode() != clang::BO_Assign) {
     mlir::Type lhsElemType = convertType(assignOp->getLHS()->getType());
     mlir::Value oldValue =

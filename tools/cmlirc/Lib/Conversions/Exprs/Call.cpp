@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Casts.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -439,7 +440,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     return OpClass::create(builder, loc, args).getResult();                    \
   }
 
-// Macro for Integer operations
 #define REGISTER_INT_BYPASS(OpClass, names)                                    \
   if (matchCall(calleeName, names)) {                                          \
     std::vector<mlir::Value> args;                                             \
