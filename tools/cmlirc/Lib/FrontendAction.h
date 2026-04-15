@@ -97,14 +97,11 @@ public:
       }
 
       pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
 
       pm.addPass(cmlir::createRaiseMemref2AffinePass());
-
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createRaiseMemrefToAffine());
-
-      pm.addPass(mlir::createCanonicalizerPass());
-      pm.addPass(mlir::createCSEPass());
 
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createAffineLoopNormalizePass());
