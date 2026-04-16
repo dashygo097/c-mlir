@@ -17,6 +17,9 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
   mlir::OpBuilder &builder = contextManager.Builder();
   builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
+  // Name of the function
+  std::string funcName = decl->getNameAsString();
+
   // Convert parameter types
   llvm::SmallVector<mlir::Type, 4> argTypes;
 
@@ -26,6 +29,8 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
     if (!methodDecl->isStatic()) {
       isInstanceMethod = true;
       mlir::Type thisType = convertType(methodDecl->getThisType());
+      funcName =
+          "__" + methodDecl->getParent()->getNameAsString() + "_" + funcName;
       argTypes.push_back(thisType);
     }
   }
@@ -46,8 +51,9 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
   auto funcType = builder.getFunctionType(argTypes, returnTypes);
 
   // Create function
+
   auto funcOp = mlir::func::FuncOp::create(builder, builder.getUnknownLoc(),
-                                           decl->getNameAsString(), funcType);
+                                           funcName, funcType);
 
   // Create entry block
   auto *entryBlock = funcOp.addEntryBlock();
