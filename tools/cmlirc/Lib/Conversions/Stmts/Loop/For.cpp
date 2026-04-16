@@ -230,6 +230,100 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     mlir::func::ReturnOp::create(builder, loc,
                                  mlir::ValueRange{whileOp.getResult(0)});
     return;
+  } else if (hasReturn && !funcRetType) {
+    mlir::Value initKeepGoing = utils::boolConst(builder, loc, true);
+
+    auto whileOp = mlir::scf::WhileOp::create(
+        builder, loc, mlir::TypeRange{builder.getI1Type()},
+        mlir::ValueRange{initKeepGoing},
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+          mlir::OpBuilder::InsertionGuard g(builder);
+          builder.setInsertionPointToEnd(b.getInsertionBlock());
+
+          mlir::Value cond =
+              forStmt->getCond()
+                  ? utils::toBool(builder, loc,
+                                  generateExpr(forStmt->getCond()))
+                  : utils::boolConst(builder, loc, true);
+
+          mlir::Value finalCond = utils::andi(builder, loc, cond, args[0]);
+
+          if (breakFlag) {
+            mlir::Value notBroke = utils::noti(
+                builder, loc,
+                mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                    .getResult());
+            finalCond = utils::andi(builder, loc, finalCond, notBroke);
+          }
+
+          mlir::scf::ConditionOp::create(builder, loc, finalCond,
+                                         mlir::ValueRange{args[0]});
+        },
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+          mlir::scf::YieldOp::create(b, l, args);
+        });
+
+    mlir::Block *afterBlock = &whileOp.getAfter().front();
+    afterBlock->back().erase();
+    builder.setInsertionPointToEnd(afterBlock);
+
+    mlir::Value iterRetFlag =
+        mlir::memref::AllocaOp::create(
+            builder, loc, mlir::MemRefType::get({}, builder.getI1Type()))
+            .getResult();
+    mlir::memref::StoreOp::create(
+        builder, loc, utils::boolConst(builder, loc, false), iterRetFlag);
+
+    loopStack.push_back(LoopContext{&whileOp.getBefore().front(),
+                                    afterBlock,
+                                    breakFlag,
+                                    continueFlag,
+                                    iterRetFlag,
+                                    {}});
+
+    auto *compound =
+        llvm::dyn_cast_or_null<clang::CompoundStmt>(forStmt->getBody());
+    if (needsGuard && compound) {
+      for (clang::Stmt *s : compound->body()) {
+        mlir::Value guard = utils::buildGuard(builder, loc, breakFlag,
+                                              continueFlag, iterRetFlag);
+        utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+      }
+    } else {
+      TraverseStmt(forStmt->getBody());
+    }
+
+    loopStack.pop_back();
+
+    if (forStmt->getInc()) {
+      mlir::Value notRet = utils::noti(
+          builder, loc,
+          mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
+      mlir::Value incGuard = notRet;
+      if (breakFlag) {
+        mlir::Value notBroke = utils::noti(
+            builder, loc,
+            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
+        incGuard = utils::andi(builder, loc, incGuard, notBroke);
+      }
+      utils::emitGuarded(builder, loc, incGuard,
+                         [&] { TraverseStmt(forStmt->getInc()); });
+    }
+
+    if (continueFlag) {
+      mlir::memref::StoreOp::create(
+          builder, loc, utils::boolConst(builder, loc, false), continueFlag);
+    }
+
+    mlir::Value didReturn =
+        mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
+    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
+
+    mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{newKeepGoing});
+
+    builder.setInsertionPointAfter(whileOp);
+
+    return;
   }
 
   auto whileOp = mlir::scf::WhileOp::create(
