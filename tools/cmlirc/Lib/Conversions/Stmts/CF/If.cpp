@@ -47,9 +47,11 @@ auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
     {
       mlir::OpBuilder::InsertionGuard guard(builder);
       mlir::Block *thenBlock = &ifOp.getThenRegion().front();
+
       removeAutoYield(thenBlock);
       builder.setInsertionPointToStart(thenBlock);
       TraverseStmt(ifStmt->getThen());
+
       builder.setInsertionPointToEnd(thenBlock);
       if (thenBlock->empty() ||
           !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
@@ -59,9 +61,11 @@ auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
     if (hasElse) {
       mlir::OpBuilder::InsertionGuard guard(builder);
       mlir::Block *elseBlock = &ifOp.getElseRegion().front();
+
       removeAutoYield(elseBlock);
       builder.setInsertionPointToStart(elseBlock);
       TraverseStmt(ifStmt->getElse());
+
       builder.setInsertionPointToEnd(elseBlock);
       if (elseBlock->empty() ||
           !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {

@@ -77,10 +77,12 @@ auto CMLIRConverter::TraverseFunctionDecl(clang::FunctionDecl *decl) -> bool {
   // Traverse function body manually
   TraverseStmt(decl->getBody());
 
+  mlir::Block *finalBlock = builder.getInsertionBlock();
+  builder.setInsertionPointToEnd(finalBlock);
+
   // Ensure the function has a terminator
-  builder.setInsertionPointToEnd(entryBlock);
-  if (entryBlock->empty() ||
-      !entryBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+  if (finalBlock->empty() ||
+      !finalBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
     mlir::func::ReturnOp::create(builder, builder.getUnknownLoc());
   }
 
