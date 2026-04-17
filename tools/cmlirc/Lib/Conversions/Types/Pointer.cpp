@@ -8,6 +8,10 @@ auto CMLIRConverter::convertPointerType(const clang::PointerType *type)
   mlir::OpBuilder &builder = contextManager.Builder();
   clang::QualType pointeeType = type->getPointeeType().getCanonicalType();
 
+  if (pointeeType->isVoidType()) {
+    return mlir::LLVM::LLVMPointerType::get(builder.getContext());
+  }
+
   if (mlir::isa<clang::RecordType>(pointeeType.getTypePtr())) {
     return mlir::LLVM::LLVMPointerType::get(builder.getContext());
   }

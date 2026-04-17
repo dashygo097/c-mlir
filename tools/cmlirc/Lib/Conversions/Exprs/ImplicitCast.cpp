@@ -1,6 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h" // ADDED: Required for LLVM::LoadOp
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
 
@@ -176,6 +176,21 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
     if (!subValue) {
       return nullptr;
     }
+
+    if (mlir::isa<mlir::MemRefType>(subValue.getType()) &&
+        mlir::isa<mlir::LLVM::LLVMPointerType>(targetType)) {
+
+      mlir::Value ptrAsIndex =
+          mlir::memref::ExtractAlignedPointerAsIndexOp::create(
+              builder, loc, builder.getIndexType(), subValue);
+
+      mlir::Value ptrAsI64 = mlir::arith::IndexCastOp::create(
+          builder, loc, builder.getI64Type(), ptrAsIndex);
+
+      return mlir::LLVM::IntToPtrOp::create(builder, loc, targetType, ptrAsI64)
+          .getResult();
+    }
+
     return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
         .getResult();
   }
