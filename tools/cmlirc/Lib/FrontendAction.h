@@ -47,19 +47,19 @@ public:
     mlir::PassManager pm(&contextManager->MLIRContext());
     pm.enableVerifier(true);
 
-    // Initial Cleanup and Constant Propagation
+    // PHASE 1: INITIAL CLEANUP & SSA CONVERSION
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createSCCPPass());
     pm.addPass(cmlir::createConstPropPass());
-    pm.addPass(cmlir::createArithCastPropPass());
-    pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
     pm.addPass(mlir::createCSEPass());
 
-    if (options::fma) {
-      pm.addPass(cmlir::createFMAPass());
-    }
+    pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
+    pm.addPass(mlir::memref::createNormalizeMemRefsPass());
+    pm.addPass(mlir::createMem2Reg());
+    pm.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
 
-    // Inlining
+    // PHASE 2: INLINING
     if (options::funcInline) {
       pm.addPass(mlir::createInlinerPass());
       pm.addPass(mlir::createSymbolDCEPass());
@@ -67,30 +67,37 @@ public:
       pm.addPass(mlir::createSCCPPass());
       pm.addPass(cmlir::createConstPropPass());
       pm.addPass(mlir::createCSEPass());
+
+      pm.addPass(mlir::createMem2Reg());
+      pm.addPass(mlir::createCanonicalizerPass());
     }
 
-    // Memory & Struct Optimizations
+    // PHASE 3: STRUCT OPTIMIZATIONS
     if (options::struct2Memref) {
       pm.addPass(cmlir::createStruct2MemrefPass());
+      pm.addPass(mlir::createMem2Reg());
+      pm.addPass(mlir::createCanonicalizerPass());
     }
-    pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
-    pm.addPass(mlir::memref::createNormalizeMemRefsPass());
-    pm.addPass(mlir::createMem2Reg());
-    pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCSEPass());
-    pm.addPass(mlir::createRemoveDeadValuesPass());
 
-    // SCF-Level Loop Optimizations
+    // PHASE 4: LOOP OPTIMIZATIONS
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::bufferization::createBufferHoistingPass());
 
+    // FMA fusion
+    if (options::fma) {
+      pm.addPass(cmlir::createFMAPass());
+    }
+
+    // Loop vectorization
     pm.addPass(cmlir::createLoopVectorizePass());
     pm.addPass(mlir::createCanonicalizerPass());
+
+    // Loop unrolling
     pm.addPass(cmlir::createLoopUnrollPass());
     pm.addPass(mlir::createLoopInvariantCodeMotionPass());
 
-    // Raise to Polyhedral / Affine Model
+    // PHASE 5: AFFINE TRANSFORMATIONS
     if (options::raiseSCF2Affine || options::raiseMemref2Affine) {
       if (options::raiseSCF2Affine) {
         pm.addPass(cmlir::createRaiseSCF2AffinePass());
@@ -107,16 +114,15 @@ public:
           mlir::affine::createAffineLoopNormalizePass());
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createAffineScalarReplacementPass());
-
       pm.addPass(mlir::affine::createLoopFusionPass());
-
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createSimplifyAffineStructuresPass());
+
       pm.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createCSEPass());
     }
 
-    // Post-Optimization Cleanups
+    // PHASE 6: FINAL CLEANUP
     pm.addPass(mlir::createMem2Reg());
     pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
     pm.addNestedPass<mlir::func::FuncOp>(
@@ -126,6 +132,7 @@ public:
     pm.addPass(cmlir::createConstPropPass());
     pm.addPass(cmlir::createArithCastPropPass());
     pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
+
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createRemoveDeadValuesPass());
@@ -138,12 +145,14 @@ public:
       pm.clear();
     }
 
-    // Run the pipeline
+    // RUN WITH PROPER ERROR HANDLING
     if (mlir::failed(pm.run(contextManager->Module()))) {
       llvm::WithColor::error() << "cmlirc: failed to run optimization passes\n";
+      llvm::errs() << "\nModule state before failure:\n";
+      contextManager->dump(llvm::errs());
+      std::exit(1);
     }
 
-    // Output the resulting MLIR
     contextManager->dump(*outStream);
     outStream->flush();
   }
