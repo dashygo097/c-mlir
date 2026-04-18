@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
+#include "../Utils/LHS.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/Support/WithColor.h"
@@ -17,43 +18,50 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   using CK = clang::CastKind;
 
   switch (castExpr->getCastKind()) {
-  case CK::CK_LValueToRValue: {
+  case clang::CK_LValueToRValue: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue) {
       return nullptr;
     }
 
-    if (mlir::isa<mlir::LLVM::LLVMPointerType>(subValue.getType())) {
+    if (mlir::isa<mlir::LLVM::LLVMPointerType>(subValue.getType()) &&
+        !lastArrayAccess) {
       return mlir::LLVM::LoadOp::create(builder, loc, targetType, subValue)
           .getResult();
     }
 
-    if (subExpr->getType()->isPointerType()) {
+    if (subExpr->getType()->isPointerType() && !lastArrayAccess) {
       return subValue;
+    }
+
+    if (lastArrayAccess && lastArrayAccess->base == subValue) {
+
+      if (mlir::isa<mlir::LLVM::LLVMPointerType>(subValue.getType())) {
+        mlir::Value offsetPtr =
+            utils::getLLVMOffsetPointer(builder, loc, lastArrayAccess->base,
+                                        targetType, lastArrayAccess->indices);
+
+        mlir::Value result =
+            mlir::LLVM::LoadOp::create(builder, loc, targetType, offsetPtr)
+                .getResult();
+        lastArrayAccess.reset();
+        return result;
+      }
+
+      mlir::Value result =
+          mlir::memref::LoadOp::create(builder, loc, lastArrayAccess->base,
+                                       lastArrayAccess->indices)
+              .getResult();
+      lastArrayAccess.reset();
+      return result;
     }
 
     if (auto memrefType =
             mlir::dyn_cast<mlir::MemRefType>(subValue.getType())) {
       if (memrefType.hasRank() && memrefType.getRank() == 0) {
         return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
-      } else if (memrefType.hasRank() && memrefType.getRank() > 0) {
-        if (lastArrayAccess && lastArrayAccess->base == subValue) {
-          mlir::Value result =
-              mlir::memref::LoadOp::create(builder, loc, lastArrayAccess->base,
-                                           lastArrayAccess->indices)
-                  .getResult();
-          lastArrayAccess.reset();
-          return result;
-        } else {
-          return subValue;
-        }
-      } else {
-        return subValue;
       }
-    } else if (mlir::isa<mlir::UnrankedMemRefType>(subValue.getType())) {
-      return subValue;
     }
-
     return subValue;
   }
 

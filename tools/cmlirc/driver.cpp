@@ -24,7 +24,8 @@ llvm::cl::opt<std::string>
 llvm::cl::opt<std::string> outputFile("o",
                                       llvm::cl::desc("Write output to <file>"),
                                       llvm::cl::value_desc("file"),
-                                      llvm::cl::init("-"));
+                                      llvm::cl::init("-"),
+                                      llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<std::string>
     functionName("function", llvm::cl::init(""),

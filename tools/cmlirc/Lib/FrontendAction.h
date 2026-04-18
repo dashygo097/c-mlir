@@ -45,7 +45,7 @@ public:
 
   void EndSourceFileAction() override {
     mlir::PassManager pm(&contextManager->MLIRContext());
-    pm.enableVerifier(false);
+    pm.enableVerifier(true);
 
     // Initial Cleanup and Constant Propagation
     pm.addPass(mlir::createCanonicalizerPass());
@@ -99,9 +99,9 @@ public:
       pm.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createCSEPass());
 
-      pm.addPass(cmlir::createRaiseMemref2AffinePass());
-      pm.addNestedPass<mlir::func::FuncOp>(
-          mlir::affine::createRaiseMemrefToAffine());
+      if (options::raiseMemref2Affine) {
+        pm.addPass(cmlir::createRaiseMemref2AffinePass());
+      }
 
       pm.addNestedPass<mlir::func::FuncOp>(
           mlir::affine::createAffineLoopNormalizePass());

@@ -1,5 +1,6 @@
 #include "../../Converter.h"
-#include "../Utils/Constants.h"
+#include "../Utils/Casts.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlirc {
 
@@ -9,17 +10,45 @@ auto CMLIRConverter::generateConditionalOperator(
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value condition = generateExpr(condOp->getCond());
-  mlir::Value trueValue = generateExpr(condOp->getTrueExpr());
-  mlir::Value falseValue;
-  mlir::Type resultType = trueValue.getType();
+  if (!condition) {
+    return nullptr;
+  }
+  mlir::Value condBool = utils::toBool(builder, loc, condition);
 
-  falseValue = condOp->getFalseExpr()
-                   ? generateExpr(condOp->getFalseExpr())
-                   : utils::intConst(builder, loc, resultType, 0);
+  mlir::Type targetType = convertType(condOp->getType());
 
-  mlir::Value result = mlir::arith::SelectOp::create(builder, loc, condition,
-                                                     trueValue, falseValue);
+  auto ifOp = mlir::scf::IfOp::create(builder, loc, targetType, condBool,
+                                      /*hasElse=*/true);
 
-  return result;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    mlir::Block *thenBlock = &ifOp.getThenRegion().front();
+    builder.setInsertionPointToStart(thenBlock);
+
+    mlir::Value trueValue = generateExpr(condOp->getTrueExpr());
+    trueValue = utils::castValue(builder, loc, trueValue, targetType, true);
+
+    mlir::scf::YieldOp::create(builder, loc, trueValue);
+  }
+
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    mlir::Block *elseBlock = &ifOp.getElseRegion().front();
+    builder.setInsertionPointToStart(elseBlock);
+
+    mlir::Value falseValue;
+    if (condOp->getFalseExpr()) {
+      falseValue = generateExpr(condOp->getFalseExpr());
+      falseValue = utils::castValue(builder, loc, falseValue, targetType, true);
+    } else {
+      falseValue = utils::intConst(builder, loc, targetType, 0);
+    }
+
+    mlir::scf::YieldOp::create(builder, loc, falseValue);
+  }
+
+  builder.setInsertionPointAfter(ifOp);
+  return ifOp.getResult(0);
 }
+
 } // namespace cmlirc
