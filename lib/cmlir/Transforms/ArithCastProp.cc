@@ -205,10 +205,7 @@ struct ArithCastPropPass
     patterns.add<PropFPToSIPattern>(&getContext());
     patterns.add<FoldArithIndexCastPattern>(&getContext());
 
-    if (mlir::failed(mlir::applyPatternsGreedily(op, std::move(patterns)))) {
-      signalPassFailure();
-      return;
-    }
+    (void)mlir::applyPatternsGreedily(op, std::move(patterns));
   }
 };
 
