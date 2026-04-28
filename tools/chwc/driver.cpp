@@ -10,7 +10,7 @@ using namespace clang::tooling;
 using namespace chwc;
 
 namespace chwc::options {
-llvm::cl::OptionCategory toolOptions("CHWC Options");
+llvm::cl::OptionCategory toolOptions("Tool Options");
 
 // General options
 llvm::cl::opt<bool> verbose("v", llvm::cl::init(false),

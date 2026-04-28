@@ -29,7 +29,7 @@ public:
 
   void EndSourceFileAction() override {
     mlir::PassManager pm(&contextManager->MLIRContext());
-    pm.enableVerifier(false);
+    pm.enableVerifier(true);
 
     if (options::disableOpt) {
       llvm::WithColor::warning() << "chwc: optimization passes are disabled\n";

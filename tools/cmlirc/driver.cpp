@@ -9,7 +9,7 @@ using namespace clang::tooling;
 using namespace cmlirc;
 
 namespace cmlirc::options {
-llvm::cl::OptionCategory toolOptions("CMLIRC Options");
+llvm::cl::OptionCategory toolOptions("Tool Options");
 
 // General options
 llvm::cl::opt<bool> verbose("v", llvm::cl::init(false),
