@@ -1,10 +1,28 @@
 #include "../../Converter.h"
 #include "../Utils/HWOps.h"
-#include "clang/AST/Attr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
+
+auto isMethodNamed(clang::CXXMethodDecl *methodDecl, llvm::StringRef name)
+    -> bool {
+  if (!methodDecl) {
+    return false;
+  }
+
+  clang::DeclarationName declName = methodDecl->getDeclName();
+  if (!declName.isIdentifier()) {
+    return false;
+  }
+
+  clang::IdentifierInfo *identifier = declName.getAsIdentifierInfo();
+  if (!identifier) {
+    return false;
+  }
+
+  return identifier->getName() == name;
+}
 
 auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
   if (!recordDecl) {
@@ -27,58 +45,6 @@ auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
   }
 
   return false;
-}
-
-auto getAnnotation(clang::Decl *decl) -> std::optional<std::string> {
-  for (auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-    return attr->getAnnotation().str();
-  }
-
-  return std::nullopt;
-}
-
-auto classifyField(clang::FieldDecl *fieldDecl) -> std::optional<HWFieldKind> {
-  std::optional<std::string> annotation = getAnnotation(fieldDecl);
-  if (!annotation) {
-    return std::nullopt;
-  }
-
-  if (*annotation == "hw.input") {
-    return HWFieldKind::Input;
-  }
-
-  if (*annotation == "hw.output") {
-    return HWFieldKind::Output;
-  }
-
-  if (*annotation == "hw.reg") {
-    return HWFieldKind::Reg;
-  }
-
-  if (*annotation == "hw.wire") {
-    return HWFieldKind::Wire;
-  }
-
-  return std::nullopt;
-}
-
-auto isMethodNamed(clang::CXXMethodDecl *methodDecl, llvm::StringRef name)
-    -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  clang::DeclarationName declName = methodDecl->getDeclName();
-  if (!declName.isIdentifier()) {
-    return false;
-  }
-
-  clang::IdentifierInfo *identifier = declName.getAsIdentifierInfo();
-  if (!identifier) {
-    return false;
-  }
-
-  return identifier->getName() == name;
 }
 
 void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {

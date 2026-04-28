@@ -73,8 +73,9 @@ private:
   void collectResetValues();
 
   // field traits
-  void emitStateDecls();
+  auto classifyField(clang::FieldDecl *fieldDecl) -> std::optional<HWFieldKind>;
   auto getAssignedField(clang::Expr *expr) -> const clang::FieldDecl *;
+  void emitStateDecls();
 
   // type traits
   auto convertType(clang::QualType type) -> mlir::Type;

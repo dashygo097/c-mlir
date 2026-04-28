@@ -18,6 +18,7 @@ auto CHWConverter::generateAssignmentBinaryOperator(
   }
 
   const clang::FieldDecl *fieldDecl = getAssignedField(lhs);
+
   if (fieldDecl) {
     auto fieldIt = fieldTable.find(fieldDecl);
     if (fieldIt == fieldTable.end()) {
@@ -59,21 +60,6 @@ auto CHWConverter::generateAssignmentBinaryOperator(
 
   llvm::WithColor::error() << "chwc: unsupported assignment lhs\n";
   return rhsValue;
-}
-
-auto CHWConverter::getAssignedField(clang::Expr *expr)
-    -> const clang::FieldDecl * {
-  expr = ignoreCasts(expr);
-
-  if (auto *memberExpr = mlir::dyn_cast_or_null<clang::MemberExpr>(expr)) {
-    return mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
-  }
-
-  if (auto *declRef = mlir::dyn_cast_or_null<clang::DeclRefExpr>(expr)) {
-    return mlir::dyn_cast<clang::FieldDecl>(declRef->getDecl());
-  }
-
-  return nullptr;
 }
 
 } // namespace chwc
