@@ -1,5 +1,6 @@
+#include "../Utils/Module.h"
 #include "../../Converter.h"
-#include "../Utils/HWOps.h"
+#include "../Utils/Constants.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/WithColor.h"
 
@@ -103,7 +104,7 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
-  utils::beginHWModule(builder, loc, recordDecl, fieldTable);
+  utils::beginHWModule(moduleState, builder, loc, recordDecl, fieldTable);
 
   collectResetValues();
   emitStateDecls();
@@ -119,10 +120,10 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
       value = utils::zeroValue(builder, loc, fieldInfo.type);
     }
 
-    utils::emitOutputAssign(builder, loc, fieldInfo, value);
+    utils::emitOutputAssign(moduleState, builder, loc, fieldInfo, value);
   }
 
-  utils::endHWModule(builder, loc);
+  utils::endHWModule(moduleState, builder, loc);
 }
 
 } // namespace chwc

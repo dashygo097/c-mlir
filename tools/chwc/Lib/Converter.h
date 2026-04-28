@@ -2,6 +2,7 @@
 #define CHWC_ASTVISITOR_H
 
 #include "./Context/ContextManager.h"
+#include "circt/Dialect/HW/HWOps.h"
 #include "mlir/IR/Value.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
@@ -22,6 +23,18 @@ struct HWFieldInfo {
   mlir::Type type;
   HWFieldKind kind{HWFieldKind::Wire};
   mlir::Value resetValue{};
+};
+
+struct HWModuleState {
+  circt::hw::HWModuleOp moduleOp;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValueTable;
+  llvm::SmallVector<mlir::Value, 8> outputValues;
+
+  void clear() {
+    moduleOp = nullptr;
+    inputValueTable.clear();
+    outputValues.clear();
+  }
 };
 
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
@@ -53,6 +66,8 @@ private:
   const clang::CXXRecordDecl *currentRecordDecl{nullptr};
   const clang::CXXMethodDecl *resetMethod{nullptr};
   const clang::CXXMethodDecl *clockTickMethod{nullptr};
+
+  HWModuleState moduleState;
 
   llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fieldTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentFieldValueTable;

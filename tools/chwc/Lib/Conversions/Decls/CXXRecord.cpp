@@ -1,8 +1,4 @@
 #include "../../Converter.h"
-#include "../Utils/HWOps.h"
-#include "clang/AST/Attr.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/WithColor.h"
 
 namespace chwc {
 

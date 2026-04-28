@@ -9,6 +9,7 @@ extern llvm::cl::OptionCategory toolOptions;
 extern llvm::cl::opt<bool> verbose;
 extern llvm::cl::opt<std::string> systemRoot;
 extern llvm::cl::opt<std::string> outputFile;
+extern llvm::cl::opt<std::string> moduleName;
 
 extern llvm::cl::opt<bool> disableOpt;
 

@@ -1,5 +1,6 @@
 #include "../../Converter.h"
-#include "../Utils/HWOps.h"
+#include "../Utils/Module.h"
+#include "../Utils/State.h"
 
 namespace chwc {
 
@@ -64,7 +65,7 @@ void CHWConverter::emitStateDecls() {
     switch (fieldInfo.kind) {
     case HWFieldKind::Input: {
       currentFieldValueTable[fieldDecl] =
-          utils::getInputValue(builder, loc, fieldInfo);
+          utils::getInputValue(moduleState, builder, loc, fieldInfo);
       break;
     }
 

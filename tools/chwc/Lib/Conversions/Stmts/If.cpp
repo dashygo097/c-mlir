@@ -1,5 +1,6 @@
 #include "../../Converter.h"
-#include "../Utils/HWOps.h"
+#include "../Utils/Casts.h"
+#include "../Utils/Comb.h"
 
 namespace chwc {
 

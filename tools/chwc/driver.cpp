@@ -27,6 +27,11 @@ llvm::cl::opt<std::string> outputFile("o",
                                       llvm::cl::value_desc("file"),
                                       llvm::cl::init("-"));
 
+llvm::cl::opt<std::string>
+    moduleName("module", llvm::cl::init(""),
+               llvm::cl::desc("Name of the hardware module class to compile"),
+               llvm::cl::value_desc("name"), llvm::cl::cat(toolOptions));
+
 // Passes
 llvm::cl::opt<bool> disableOpt("disable-opt", llvm::cl::init(false),
                                llvm::cl::desc("Disable optimizations"),

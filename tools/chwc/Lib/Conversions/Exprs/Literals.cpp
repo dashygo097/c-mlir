@@ -1,5 +1,5 @@
 #include "../../Converter.h"
-#include "../Utils/HWOps.h"
+#include "../Utils/Constants.h"
 
 namespace chwc {
 
