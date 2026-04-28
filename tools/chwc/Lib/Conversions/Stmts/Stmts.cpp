@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Utils/Constants.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -28,45 +27,6 @@ auto CHWConverter::TraverseStmt(clang::Stmt *stmt) -> bool {
   llvm::WithColor::error()
       << "chwc: unsupported statement conversion for stmt: "
       << stmt->getStmtClassName() << "\n";
-  return true;
-}
-
-auto CHWConverter::TraverseCompoundStmt(clang::CompoundStmt *compoundStmt)
-    -> bool {
-  for (clang::Stmt *stmt : compoundStmt->body()) {
-    TraverseStmt(stmt);
-  }
-
-  return true;
-}
-
-auto CHWConverter::TraverseDeclStmt(clang::DeclStmt *declStmt) -> bool {
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
-
-  for (clang::Decl *decl : declStmt->decls()) {
-    auto *varDecl = mlir::dyn_cast<clang::VarDecl>(decl);
-    if (!varDecl) {
-      llvm::WithColor::error()
-          << "chwc: only local var decl is supported in clock_tick()\n";
-      continue;
-    }
-
-    mlir::Type type = convertType(varDecl->getType());
-    if (!type) {
-      continue;
-    }
-
-    mlir::Value value{};
-    if (varDecl->hasInit()) {
-      value = generateExpr(varDecl->getInit());
-    } else {
-      value = utils::zeroValue(builder, loc, type);
-    }
-
-    localValueTable[varDecl] = value;
-  }
-
   return true;
 }
 

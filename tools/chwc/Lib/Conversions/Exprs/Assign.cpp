@@ -1,11 +1,8 @@
 #include "../../Converter.h"
+#include "../Utils/Expr.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
-
-auto ignoreCasts(clang::Expr *expr) -> clang::Expr * {
-  return expr ? expr->IgnoreParenImpCasts() : nullptr;
-}
 
 auto CHWConverter::generateAssignmentBinaryOperator(
     clang::BinaryOperator *assignOp) -> mlir::Value {
@@ -50,7 +47,8 @@ auto CHWConverter::generateAssignmentBinaryOperator(
     return rhsValue;
   }
 
-  auto *declRef = mlir::dyn_cast_or_null<clang::DeclRefExpr>(ignoreCasts(lhs));
+  auto *declRef =
+      mlir::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhs));
   if (declRef) {
     if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
       localValueTable[varDecl] = rhsValue;

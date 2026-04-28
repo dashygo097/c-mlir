@@ -1,24 +1,14 @@
 #include "../../Converter.h"
+#include "../Utils/Annotation.h"
+#include "../Utils/Expr.h"
 #include "../Utils/Module.h"
 #include "../Utils/State.h"
 
 namespace chwc {
 
-auto ignoreCasts(clang::Expr *expr) -> clang::Expr * {
-  return expr ? expr->IgnoreParenImpCasts() : nullptr;
-}
-
-auto getAnnotation(clang::Decl *decl) -> std::optional<std::string> {
-  for (auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-    return attr->getAnnotation().str();
-  }
-
-  return std::nullopt;
-}
-
 auto CHWConverter::classifyField(clang::FieldDecl *fieldDecl)
     -> std::optional<HWFieldKind> {
-  std::optional<std::string> annotation = getAnnotation(fieldDecl);
+  std::optional<std::string> annotation = utils::getAnnotation(fieldDecl);
   if (!annotation) {
     return std::nullopt;
   }
@@ -44,7 +34,7 @@ auto CHWConverter::classifyField(clang::FieldDecl *fieldDecl)
 
 auto CHWConverter::getAssignedField(clang::Expr *expr)
     -> const clang::FieldDecl * {
-  expr = ignoreCasts(expr);
+  expr = utils::ignoreCasts(expr);
 
   if (auto *memberExpr = mlir::dyn_cast_or_null<clang::MemberExpr>(expr)) {
     return mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());

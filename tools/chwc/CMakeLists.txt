@@ -10,6 +10,8 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
+  Lib/Conversions/Stmts/Compound.cpp
+  Lib/Conversions/Stmts/Decl.cpp
   Lib/Conversions/Stmts/If.cpp
   Lib/Conversions/Stmts/Stmts.cpp
 
