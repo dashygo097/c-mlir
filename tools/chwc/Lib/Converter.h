@@ -26,11 +26,12 @@ struct HWFieldInfo {
 
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
 public:
-  explicit CHWConverter(ContextManager &contextManager)
+  explicit CHWConverter(CHWContextManager &contextManager)
       : contextManager(contextManager) {}
   ~CHWConverter() = default;
 
   // decl traits
+  auto TraverseFunctionDecl(clang::FunctionDecl *functionDecl) -> bool;
   auto TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl) -> bool;
 
   // stmt traits
@@ -46,7 +47,7 @@ public:
   // loop optimizations
 
 private:
-  ContextManager &contextManager;
+  CHWContextManager &contextManager;
 
   // states
   const clang::CXXRecordDecl *currentRecordDecl{nullptr};
@@ -59,13 +60,20 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
 
-  // helpers
+  // Hareware abstraction layer
+  // module traits
+  auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
   void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
   void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
-  void collectResetValues();
-  void emitStateDecls();
+
+  // clock traits
   void emitClockTick();
 
+  // reset traits
+  void collectResetValues();
+
+  // field traits
+  void emitStateDecls();
   auto getAssignedField(clang::Expr *expr) -> const clang::FieldDecl *;
 
   // type traits

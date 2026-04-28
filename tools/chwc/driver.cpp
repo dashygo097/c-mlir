@@ -49,8 +49,10 @@ int main(int argc, const char **argv) {
   CommonOptionsParser &optionsParser = expectedParser.get();
   ClangTool tool(optionsParser.getCompilations(),
                  optionsParser.getSourcePathList());
-  tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
-      {"-isysroot", options::systemRoot}, ArgumentInsertPosition::BEGIN));
+  if (!options::systemRoot.empty()) {
+    tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
+        {"-isysroot", options::systemRoot}, ArgumentInsertPosition::BEGIN));
+  }
 
   llvm::raw_ostream *out;
   std::unique_ptr<llvm::raw_fd_ostream> fileOut;

@@ -1,4 +1,26 @@
 add_clang_executable(chwc
+  Lib/Conversions/Types/Builtin.cpp
+  Lib/Conversions/Types/Types.cpp
+
+  Lib/Conversions/Exprs/Assign.cpp
+  Lib/Conversions/Exprs/Binary.cpp
+  Lib/Conversions/Exprs/Literals.cpp
+  Lib/Conversions/Exprs/DeclRef.cpp
+  Lib/Conversions/Exprs/ImplicitCast.cpp
+  Lib/Conversions/Exprs/Member.cpp
+  Lib/Conversions/Exprs/Exprs.cpp
+
+  Lib/Conversions/Stmts/If.cpp
+  Lib/Conversions/Stmts/Stmts.cpp
+
+  Lib/Conversions/Decls/Function.cpp
+  Lib/Conversions/Decls/CXXRecord.cpp
+
+  Lib/Conversions/Hal/Module.cpp
+  Lib/Conversions/Hal/Clock.cpp
+  Lib/Conversions/Hal/Reset.cpp
+  Lib/Conversions/Hal/Field.cpp
+
   Lib/Context/ContextManager.cpp
   driver.cpp
 )

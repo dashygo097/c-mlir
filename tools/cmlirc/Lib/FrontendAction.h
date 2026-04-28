@@ -35,7 +35,7 @@ public:
     mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
 
     contextManager =
-        std::make_unique<ContextManager>(&ci.getASTContext(), &registry);
+        std::make_unique<CMLIRContextManager>(&ci.getASTContext(), &registry);
 
     auto pragmaHandler = std::make_unique<CMLIRPragmaHandler>(loopHintMap);
     ci.getPreprocessor().AddPragmaHandler(pragmaHandler.release());
@@ -158,7 +158,7 @@ public:
   }
 
 private:
-  std::unique_ptr<ContextManager> contextManager;
+  std::unique_ptr<CMLIRContextManager> contextManager;
   LoopHintMap loopHintMap;
   llvm::raw_ostream *outStream;
 };

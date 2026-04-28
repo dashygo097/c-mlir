@@ -4,15 +4,18 @@
 #include "../ArgumentList.h"
 #include "./Converter.h"
 #include "clang/AST/ASTConsumer.h"
+#include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
 class CHWConsumer : public clang::ASTConsumer {
 public:
-  explicit CHWConsumer(ContextManager &ctx) : visitor(ctx) {}
+  explicit CHWConsumer(CHWContextManager &ctx) : visitor(ctx) {}
   ~CHWConsumer() override = default;
 
-  void HandleTranslationUnit(clang::ASTContext &ctx) override {}
+  void HandleTranslationUnit(clang::ASTContext &ctx) override {
+    visitor.TraverseDecl(ctx.getTranslationUnitDecl());
+  }
 
 private:
   CHWConverter visitor;

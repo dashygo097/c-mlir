@@ -33,9 +33,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 add_subdirectory(include)
 add_subdirectory(lib)
 
-# Runtime
-add_subdirectory(runtime)
-
 # Executables
 if(BUILD_EXECUTABLES)
   add_subdirectory(tools)

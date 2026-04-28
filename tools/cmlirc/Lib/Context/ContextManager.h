@@ -10,11 +10,11 @@
 
 namespace cmlirc {
 
-class ContextManager {
+class CMLIRContextManager {
 public:
-  explicit ContextManager(clang::ASTContext *clangContext,
-                          mlir::DialectRegistry *registry = nullptr);
-  ~ContextManager() = default;
+  explicit CMLIRContextManager(clang::ASTContext *clangContext,
+                               mlir::DialectRegistry *registry = nullptr);
+  ~CMLIRContextManager() = default;
 
   [[nodiscard]] auto ClangContext() noexcept -> clang::ASTContext & {
     return *clangCtx;

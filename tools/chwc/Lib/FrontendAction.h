@@ -3,6 +3,11 @@
 
 #include "../ArgumentList.h"
 #include "./Consumer.h"
+#include "circt/Dialect/Comb/CombDialect.h"
+#include "circt/Dialect/HW/HWDialect.h"
+#include "circt/Dialect/SV/SVDialect.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Pass/PassManager.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -21,8 +26,14 @@ public:
       -> std::unique_ptr<clang::ASTConsumer> override {
     mlir::DialectRegistry registry;
 
+    registry.insert<circt::hw::HWDialect>();
+    registry.insert<circt::comb::CombDialect>();
+    registry.insert<circt::seq::SeqDialect>();
+    registry.insert<circt::sv::SVDialect>();
+    registry.insert<mlir::arith::ArithDialect>();
+
     contextManager =
-        std::make_unique<ContextManager>(&ci.getASTContext(), &registry);
+        std::make_unique<CHWContextManager>(&ci.getASTContext(), &registry);
 
     return std::make_unique<CHWConsumer>(*contextManager);
   }
@@ -44,7 +55,7 @@ public:
   }
 
 private:
-  std::unique_ptr<ContextManager> contextManager;
+  std::unique_ptr<CHWContextManager> contextManager;
   llvm::raw_ostream *outStream;
 };
 

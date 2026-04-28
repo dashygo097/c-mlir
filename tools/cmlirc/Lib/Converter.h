@@ -43,7 +43,7 @@ struct ArrayAccessInfo {
 
 class CMLIRConverter : public clang::RecursiveASTVisitor<CMLIRConverter> {
 public:
-  explicit CMLIRConverter(ContextManager &contextManager,
+  explicit CMLIRConverter(CMLIRContextManager &contextManager,
                           LoopHintMap &loopHintMap)
       : contextManager(contextManager), loopHintMap(loopHintMap) {}
   ~CMLIRConverter() = default;
@@ -85,7 +85,7 @@ public:
   void emitWhileStyleForLoop(clang::ForStmt *forStmt);
 
 private:
-  ContextManager &contextManager;
+  CMLIRContextManager &contextManager;
   LoopHintMap &loopHintMap;
 
   // states

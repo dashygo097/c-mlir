@@ -1,0 +1,162 @@
+#include "../../Converter.h"
+#include "../Utils/HWOps.h"
+#include "clang/AST/Attr.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/WithColor.h"
+
+namespace chwc {
+
+auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
+  if (!recordDecl) {
+    return false;
+  }
+
+  for (const clang::CXXBaseSpecifier &base : recordDecl->bases()) {
+    auto *baseRecord = base.getType()->getAsCXXRecordDecl();
+    if (!baseRecord) {
+      continue;
+    }
+
+    if (baseRecord->getNameAsString() == "Hardware") {
+      return true;
+    }
+
+    if (isHardwareClass(baseRecord)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+auto getAnnotation(clang::Decl *decl) -> std::optional<std::string> {
+  for (auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
+    return attr->getAnnotation().str();
+  }
+
+  return std::nullopt;
+}
+
+auto classifyField(clang::FieldDecl *fieldDecl) -> std::optional<HWFieldKind> {
+  std::optional<std::string> annotation = getAnnotation(fieldDecl);
+  if (!annotation) {
+    return std::nullopt;
+  }
+
+  if (*annotation == "hw.input") {
+    return HWFieldKind::Input;
+  }
+
+  if (*annotation == "hw.output") {
+    return HWFieldKind::Output;
+  }
+
+  if (*annotation == "hw.reg") {
+    return HWFieldKind::Reg;
+  }
+
+  if (*annotation == "hw.wire") {
+    return HWFieldKind::Wire;
+  }
+
+  return std::nullopt;
+}
+
+auto isMethodNamed(clang::CXXMethodDecl *methodDecl, llvm::StringRef name)
+    -> bool {
+  if (!methodDecl) {
+    return false;
+  }
+
+  clang::DeclarationName declName = methodDecl->getDeclName();
+  if (!declName.isIdentifier()) {
+    return false;
+  }
+
+  clang::IdentifierInfo *identifier = declName.getAsIdentifierInfo();
+  if (!identifier) {
+    return false;
+  }
+
+  return identifier->getName() == name;
+}
+
+void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
+  fieldTable.clear();
+  currentFieldValueTable.clear();
+  nextFieldValueTable.clear();
+  outputValueTable.clear();
+  localValueTable.clear();
+
+  resetMethod = nullptr;
+  clockTickMethod = nullptr;
+
+  for (auto *fieldDecl : recordDecl->fields()) {
+    std::optional<HWFieldKind> kind = classifyField(fieldDecl);
+    if (!kind) {
+      continue;
+    }
+
+    mlir::Type type = convertType(fieldDecl->getType());
+    if (!type) {
+      llvm::WithColor::error() << "chwc: unsupported hardware field type: "
+                               << fieldDecl->getType().getAsString() << "\n";
+      continue;
+    }
+
+    HWFieldInfo fieldInfo;
+    fieldInfo.fieldDecl = fieldDecl;
+    fieldInfo.name = fieldDecl->getNameAsString();
+    fieldInfo.type = type;
+    fieldInfo.kind = *kind;
+
+    fieldTable[fieldDecl] = fieldInfo;
+  }
+
+  for (auto *methodDecl : recordDecl->methods()) {
+    if (isMethodNamed(methodDecl, "reset")) {
+      resetMethod = methodDecl;
+      continue;
+    }
+
+    if (isMethodNamed(methodDecl, "clock_tick")) {
+      clockTickMethod = methodDecl;
+      continue;
+    }
+  }
+
+  if (!clockTickMethod) {
+    llvm::WithColor::error() << "chwc: hardware class requires clock_tick()\n";
+  }
+}
+
+void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
+  mlir::OpBuilder &builder = contextManager.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(contextManager.Module().getBody());
+
+  utils::beginHWModule(builder, loc, recordDecl, fieldTable);
+
+  collectResetValues();
+  emitStateDecls();
+  emitClockTick();
+
+  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
+    if (fieldInfo.kind != HWFieldKind::Output) {
+      continue;
+    }
+
+    mlir::Value value = outputValueTable.lookup(fieldDecl);
+    if (!value) {
+      value = utils::zeroValue(builder, loc, fieldInfo.type);
+    }
+
+    utils::emitOutputAssign(builder, loc, fieldInfo, value);
+  }
+
+  utils::endHWModule(builder, loc);
+}
+
+} // namespace chwc

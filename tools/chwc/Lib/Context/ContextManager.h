@@ -10,11 +10,11 @@
 
 namespace chwc {
 
-class ContextManager {
+class CHWContextManager {
 public:
-  explicit ContextManager(clang::ASTContext *clangContext,
-                          mlir::DialectRegistry *registry = nullptr);
-  ~ContextManager() = default;
+  explicit CHWContextManager(clang::ASTContext *clangContext,
+                             mlir::DialectRegistry *registry = nullptr);
+  ~CHWContextManager() = default;
 
   [[nodiscard]] auto ClangContext() noexcept -> clang::ASTContext & {
     return *clangCtx;

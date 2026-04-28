@@ -11,7 +11,7 @@ namespace cmlirc {
 
 class CMLIRConsumer : public clang::ASTConsumer {
 public:
-  explicit CMLIRConsumer(ContextManager &ctx, LoopHintMap &loopHintMap)
+  explicit CMLIRConsumer(CMLIRContextManager &ctx, LoopHintMap &loopHintMap)
       : visitor(ctx, loopHintMap) {}
   ~CMLIRConsumer() override = default;
 

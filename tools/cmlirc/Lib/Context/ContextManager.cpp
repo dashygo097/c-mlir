@@ -14,8 +14,8 @@
 
 namespace cmlirc {
 
-ContextManager::ContextManager(clang::ASTContext *clangContext,
-                               mlir::DialectRegistry *registry) {
+CMLIRContextManager::CMLIRContextManager(clang::ASTContext *clangContext,
+                                         mlir::DialectRegistry *registry) {
   clangCtx = clangContext;
   mlirCtx = std::make_unique<mlir::MLIRContext>();
   builder = std::make_unique<mlir::OpBuilder>(mlirCtx.get());
@@ -37,7 +37,7 @@ ContextManager::ContextManager(clang::ASTContext *clangContext,
   module = mlir::ModuleOp::create(builder->getUnknownLoc());
 }
 
-void ContextManager::dump(llvm::raw_ostream &os) {
+void CMLIRContextManager::dump(llvm::raw_ostream &os) {
   std::string buf;
   llvm::raw_string_ostream ss(buf);
   mlir::OpPrintingFlags flags;
@@ -158,6 +158,6 @@ void ContextManager::dump(llvm::raw_ostream &os) {
   }
 }
 
-void ContextManager::dump() { dump(llvm::outs()); }
+void CMLIRContextManager::dump() { dump(llvm::outs()); }
 
 } // namespace cmlirc
