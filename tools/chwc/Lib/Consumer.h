@@ -4,6 +4,8 @@
 #include "../ArgumentList.h"
 #include "./Converter.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/Basic/SourceManager.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -14,39 +16,13 @@ public:
   ~CHWConsumer() override = default;
 
   void HandleTranslationUnit(clang::ASTContext &ctx) override {
+    clang::TranslationUnitDecl *tuDecl = ctx.getTranslationUnitDecl();
     std::string targetModuleName = options::moduleName;
 
-    if (targetModuleName.empty()) {
-      visitor.TraverseDecl(ctx.getTranslationUnitDecl());
-      return;
-    }
-
-    clang::TranslationUnitDecl *tuDecl = ctx.getTranslationUnitDecl();
     bool found = false;
+    scanDeclContext(ctx, tuDecl, targetModuleName, found);
 
-    for (auto *decl : tuDecl->decls()) {
-      auto *recordDecl = mlir::dyn_cast<clang::CXXRecordDecl>(decl);
-      if (!recordDecl) {
-        continue;
-      }
-
-      if (recordDecl->getNameAsString() != targetModuleName) {
-        continue;
-      }
-
-      found = true;
-
-      if (!recordDecl->isCompleteDefinition()) {
-        llvm::WithColor::error() << "chwc: module '" << targetModuleName
-                                 << "' found but has no complete definition\n";
-        return;
-      }
-
-      visitor.TraverseCXXRecordDecl(recordDecl);
-      return;
-    }
-
-    if (!found) {
+    if (!targetModuleName.empty() && !found) {
       llvm::WithColor::error()
           << "chwc: module '" << targetModuleName << "' not found\n";
     }
@@ -54,6 +30,83 @@ public:
 
 private:
   CHWConverter visitor;
+
+  auto isFromMainFile(clang::ASTContext &ctx, clang::Decl *decl) -> bool {
+    if (!decl) {
+      return false;
+    }
+
+    clang::SourceLocation loc = decl->getLocation();
+    if (loc.isInvalid()) {
+      return false;
+    }
+
+    clang::SourceManager &sm = ctx.getSourceManager();
+    loc = sm.getExpansionLoc(loc);
+
+    return sm.isWrittenInMainFile(loc);
+  }
+
+  auto recordNameMatches(clang::CXXRecordDecl *recordDecl,
+                         llvm::StringRef targetModuleName) -> bool {
+    if (targetModuleName.empty()) {
+      return true;
+    }
+
+    if (recordDecl->getNameAsString() == targetModuleName) {
+      return true;
+    }
+
+    if (recordDecl->getQualifiedNameAsString() == targetModuleName) {
+      return true;
+    }
+
+    return false;
+  }
+
+  void scanDeclContext(clang::ASTContext &ctx, clang::DeclContext *declContext,
+                       llvm::StringRef targetModuleName, bool &found) {
+    if (!declContext) {
+      return;
+    }
+
+    for (clang::Decl *decl : declContext->decls()) {
+      if (!decl) {
+        continue;
+      }
+
+      if (auto *namespaceDecl = mlir::dyn_cast<clang::NamespaceDecl>(decl)) {
+        if (isFromMainFile(ctx, namespaceDecl)) {
+          scanDeclContext(ctx, namespaceDecl, targetModuleName, found);
+        }
+        continue;
+      }
+
+      auto *recordDecl = mlir::dyn_cast<clang::CXXRecordDecl>(decl);
+      if (!recordDecl) {
+        continue;
+      }
+
+      if (!isFromMainFile(ctx, recordDecl)) {
+        continue;
+      }
+
+      if (!recordDecl->isCompleteDefinition()) {
+        continue;
+      }
+
+      if (!recordNameMatches(recordDecl, targetModuleName)) {
+        continue;
+      }
+
+      visitor.TraverseCXXRecordDecl(recordDecl);
+
+      if (!targetModuleName.empty()) {
+        found = true;
+        return;
+      }
+    }
+  }
 };
 
 } // namespace chwc

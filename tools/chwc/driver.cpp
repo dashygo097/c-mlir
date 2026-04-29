@@ -1,3 +1,7 @@
+#ifndef CHWC_RUNTIME_INCLUDE_DIR
+#define CHWC_RUNTIME_INCLUDE_DIR ""
+#endif
+
 #include "./ArgumentList.h"
 #include "./Lib/ActionFactory.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -57,6 +61,11 @@ int main(int argc, const char **argv) {
   if (!options::systemRoot.empty()) {
     tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
         {"-isysroot", options::systemRoot}, ArgumentInsertPosition::BEGIN));
+  }
+
+  if (std::string(CHWC_RUNTIME_INCLUDE_DIR).size() != 0) {
+    tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(
+        {"-I", CHWC_RUNTIME_INCLUDE_DIR}, ArgumentInsertPosition::BEGIN));
   }
 
   llvm::raw_ostream *out;

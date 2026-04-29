@@ -1,3 +1,5 @@
+add_subdirectory(Runtime)
+
 add_clang_executable(chwc
   Lib/Conversions/Types/Builtin.cpp
   Lib/Conversions/Types/Types.cpp
@@ -28,15 +30,15 @@ add_clang_executable(chwc
 )
 
 target_link_libraries(chwc PRIVATE
+  chwc-runtime
+
   cmlir
 
-  # LLVM Libraries
-
-  # MLIR Libraries
+  # MLIR
   MLIRSupport
   MLIRIR
 
-  # Clang Libraries
+  # Clang
   clangSupport
   clangTooling
 
@@ -46,8 +48,14 @@ target_link_libraries(chwc PRIVATE
   CIRCTComb
   CIRCTSeq
   CIRCTSV
-  CIRCTMoore
   CIRCTFirtool
 )
 
-add_dependencies(chwc MLIRCMLIROpsIncGen MLIRCMLIRTransformsIncGen)
+target_compile_definitions(chwc PRIVATE
+  CHWC_RUNTIME_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Runtime/include"
+)
+
+add_dependencies(chwc
+  MLIRCMLIROpsIncGen
+  MLIRCMLIRTransformsIncGen
+)

@@ -1,9 +1,9 @@
 #include "./ContextManager.h"
 #include "circt/Dialect/Comb/CombDialect.h"
 #include "circt/Dialect/HW/HWDialect.h"
-#include "circt/Dialect/Moore/MooreDialect.h"
 #include "circt/Dialect/SV/SVDialect.h"
 #include "circt/Dialect/Seq/SeqDialect.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -24,11 +24,11 @@ CHWContextManager::CHWContextManager(clang::ASTContext *clangContext,
   }
 
   // Load necessary dialects
+  mlirCtx->getOrLoadDialect<mlir::arith::ArithDialect>();
   mlirCtx->getOrLoadDialect<circt::hw::HWDialect>();
   mlirCtx->getOrLoadDialect<circt::comb::CombDialect>();
   mlirCtx->getOrLoadDialect<circt::seq::SeqDialect>();
   mlirCtx->getOrLoadDialect<circt::sv::SVDialect>();
-  mlirCtx->getOrLoadDialect<circt::moore::MooreDialect>();
 
   module = mlir::ModuleOp::create(builder->getUnknownLoc());
 }
