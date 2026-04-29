@@ -26,11 +26,11 @@ public:
       -> std::unique_ptr<clang::ASTConsumer> override {
     mlir::DialectRegistry registry;
 
+    registry.insert<mlir::arith::ArithDialect>();
     registry.insert<circt::hw::HWDialect>();
     registry.insert<circt::comb::CombDialect>();
     registry.insert<circt::seq::SeqDialect>();
     registry.insert<circt::sv::SVDialect>();
-    registry.insert<mlir::arith::ArithDialect>();
 
     contextManager =
         std::make_unique<CHWContextManager>(&ci.getASTContext(), &registry);

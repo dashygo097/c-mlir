@@ -4,11 +4,17 @@
 namespace chwc {
 
 void CHWConverter::emitClockTick() {
-  if (!clockTickMethod || !clockTickMethod->hasBody()) {
+  if (clockTickMethods.empty()) {
     return;
   }
 
-  TraverseStmt(clockTickMethod->getBody());
+  for (clang::CXXMethodDecl *methodDecl : clockTickMethods) {
+    if (!methodDecl || !methodDecl->hasBody()) {
+      continue;
+    }
+
+    TraverseStmt(methodDecl->getBody());
+  }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -29,7 +35,8 @@ void CHWConverter::emitClockTick() {
       nextValue = currentFieldValueTable.lookup(fieldDecl);
     }
 
-    utils::emitRegisterNextAssign(builder, loc, fieldInfo, nextValue);
+    utils::emitRegisterNextAssign(registerNextBackedgeTable, builder, loc,
+                                  fieldInfo, nextValue);
   }
 }
 

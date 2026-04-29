@@ -71,8 +71,9 @@ void CHWConverter::emitStateDecls() {
     }
 
     case HWFieldKind::Reg: {
-      mlir::Value value =
-          utils::emitRegister(builder, loc, fieldInfo, fieldInfo.resetValue);
+      mlir::Value value = utils::emitRegister(
+          backedgeBuilder, registerNextBackedgeTable, clockValue, resetValue,
+          builder, loc, fieldInfo, fieldInfo.resetValue);
 
       currentFieldValueTable[fieldDecl] = value;
       nextFieldValueTable[fieldDecl] = value;

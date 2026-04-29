@@ -1,29 +1,11 @@
 #include "../Utils/Module.h"
 #include "../../Converter.h"
+#include "../Utils/Annotation.h"
 #include "../Utils/Constants.h"
-#include "llvm/ADT/StringRef.h"
+
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
-
-auto isMethodNamed(clang::CXXMethodDecl *methodDecl, llvm::StringRef name)
-    -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  clang::DeclarationName declName = methodDecl->getDeclName();
-  if (!declName.isIdentifier()) {
-    return false;
-  }
-
-  clang::IdentifierInfo *identifier = declName.getAsIdentifierInfo();
-  if (!identifier) {
-    return false;
-  }
-
-  return identifier->getName() == name;
-}
 
 auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
   if (!recordDecl) {
@@ -49,16 +31,7 @@ auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
 }
 
 void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
-  hardwareFieldOrder.clear();
-
-  fieldTable.clear();
-  currentFieldValueTable.clear();
-  nextFieldValueTable.clear();
-  outputValueTable.clear();
-  localValueTable.clear();
-
-  resetMethod = nullptr;
-  clockTickMethod = nullptr;
+  clearHardwareState();
 
   for (auto *fieldDecl : recordDecl->fields()) {
     std::optional<HWFieldKind> kind = classifyField(fieldDecl);
@@ -84,19 +57,21 @@ void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
   }
 
   for (auto *methodDecl : recordDecl->methods()) {
-    if (isMethodNamed(methodDecl, "reset")) {
-      resetMethod = methodDecl;
+    if (utils::isResetMethod(methodDecl)) {
+      resetMethods.push_back(methodDecl);
       continue;
     }
 
-    if (isMethodNamed(methodDecl, "clock_tick")) {
-      clockTickMethod = methodDecl;
+    if (utils::isClockTickMethod(methodDecl)) {
+      clockTickMethods.push_back(methodDecl);
       continue;
     }
   }
 
-  if (!clockTickMethod) {
-    llvm::WithColor::error() << "chwc: hardware class requires clock_tick()\n";
+  if (clockTickMethods.empty()) {
+    llvm::WithColor::error()
+        << "chwc: hardware class requires clock_tick method or "
+           "[[clang::annotate(\"hw.clock_tick\")]] method\n";
   }
 }
 
@@ -107,8 +82,10 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
-  utils::beginHWModule(currentModuleOp, inputValueTable, outputValues, builder,
-                       loc, recordDecl, fieldTable, hardwareFieldOrder);
+  utils::beginHWModule(currentModuleOp, clockValue, resetValue, backedgeBuilder,
+                       inputValueTable, outputValues, registerNextBackedgeTable,
+                       builder, loc, recordDecl, fieldTable,
+                       hardwareFieldOrder);
 
   collectResetValues();
   emitStateDecls();
@@ -133,8 +110,9 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
     utils::emitOutputAssign(outputValues, builder, loc, fieldInfo, value);
   }
 
-  utils::endHWModule(currentModuleOp, inputValueTable, outputValues, builder,
-                     loc);
+  utils::endHWModule(currentModuleOp, clockValue, resetValue, backedgeBuilder,
+                     inputValueTable, outputValues, registerNextBackedgeTable,
+                     builder, loc);
 }
 
 } // namespace chwc

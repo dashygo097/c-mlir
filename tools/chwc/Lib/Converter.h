@@ -3,10 +3,12 @@
 
 #include "./Context/ContextManager.h"
 #include "circt/Dialect/HW/HWOps.h"
+#include "circt/Support/BackedgeBuilder.h"
 #include "mlir/IR/Value.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -54,10 +56,18 @@ private:
 
   // states
   const clang::CXXRecordDecl *currentRecordDecl{nullptr};
-  const clang::CXXMethodDecl *resetMethod{nullptr};
-  const clang::CXXMethodDecl *clockTickMethod{nullptr};
+
+  llvm::SmallVector<clang::CXXMethodDecl *, 4> resetMethods;
+  llvm::SmallVector<clang::CXXMethodDecl *, 4> clockTickMethods;
 
   circt::hw::HWModuleOp currentModuleOp;
+  mlir::Value clockValue;
+  mlir::Value resetValue;
+
+  std::unique_ptr<circt::BackedgeBuilder> backedgeBuilder;
+  llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
+      registerNextBackedgeTable;
+
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValueTable;
   llvm::SmallVector<mlir::Value, 8> outputValues;
 
@@ -68,13 +78,17 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
 
-  // Hardware abstraction layer
-  // module traits
-  auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
-  void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
-  void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
   void clearHardwareState() {
     currentModuleOp = nullptr;
+    clockValue = nullptr;
+    resetValue = nullptr;
+
+    if (backedgeBuilder) {
+      backedgeBuilder->abandon();
+    }
+    backedgeBuilder.reset();
+
+    registerNextBackedgeTable.clear();
     inputValueTable.clear();
     outputValues.clear();
 
@@ -85,9 +99,15 @@ private:
     outputValueTable.clear();
     localValueTable.clear();
 
-    resetMethod = nullptr;
-    clockTickMethod = nullptr;
+    resetMethods.clear();
+    clockTickMethods.clear();
   }
+
+  // Hareware abstraction layer
+  // module traits
+  auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
+  void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
+  void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
 
   // clock traits
   void emitClockTick();

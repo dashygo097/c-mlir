@@ -1,6 +1,8 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 
+#include "llvm/Support/WithColor.h"
+
 namespace chwc {
 
 void CHWConverter::collectResetValues() {
@@ -13,37 +15,40 @@ void CHWConverter::collectResetValues() {
     }
   }
 
-  if (!resetMethod || !resetMethod->hasBody()) {
-    return;
-  }
+  for (clang::CXXMethodDecl *resetMethod : resetMethods) {
+    if (!resetMethod || !resetMethod->hasBody()) {
+      continue;
+    }
 
-  auto *body = mlir::dyn_cast<clang::CompoundStmt>(resetMethod->getBody());
-  if (!body) {
-    llvm::WithColor::error() << "chwc: reset() body must be compound stmt\n";
-    return;
-  }
-
-  for (clang::Stmt *stmt : body->body()) {
-    auto *assignOp = mlir::dyn_cast<clang::BinaryOperator>(stmt);
-    if (!assignOp || !assignOp->isAssignmentOp()) {
+    auto *body = mlir::dyn_cast<clang::CompoundStmt>(resetMethod->getBody());
+    if (!body) {
       llvm::WithColor::error()
-          << "chwc: reset() only supports field = constant\n";
+          << "chwc: reset method body must be compound stmt\n";
       continue;
     }
 
-    const clang::FieldDecl *fieldDecl = getAssignedField(assignOp->getLHS());
-    if (!fieldDecl || !fieldTable.count(fieldDecl)) {
-      llvm::WithColor::error()
-          << "chwc: reset() assignment lhs must be hardware field\n";
-      continue;
-    }
+    for (clang::Stmt *stmt : body->body()) {
+      auto *assignOp = mlir::dyn_cast<clang::BinaryOperator>(stmt);
+      if (!assignOp || !assignOp->isAssignmentOp()) {
+        llvm::WithColor::error()
+            << "chwc: reset method only supports field = constant\n";
+        continue;
+      }
 
-    mlir::Value value = generateExpr(assignOp->getRHS());
-    if (!value) {
-      continue;
-    }
+      const clang::FieldDecl *fieldDecl = getAssignedField(assignOp->getLHS());
+      if (!fieldDecl || !fieldTable.count(fieldDecl)) {
+        llvm::WithColor::error()
+            << "chwc: reset assignment lhs must be hardware field\n";
+        continue;
+      }
 
-    fieldTable[fieldDecl].resetValue = value;
+      mlir::Value value = generateExpr(assignOp->getRHS());
+      if (!value) {
+        continue;
+      }
+
+      fieldTable[fieldDecl].resetValue = value;
+    }
   }
 }
 
