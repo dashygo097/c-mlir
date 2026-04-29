@@ -139,6 +139,13 @@ private:
   auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
   auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp)
       -> mlir::Value;
+  auto generatePureBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
+  auto generateCompoundAssignmentBinaryOperator(
+      clang::CompoundAssignOperator *compoundOp) -> mlir::Value;
+  auto generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs)
+      -> mlir::Value;
+  auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
+      -> mlir::Value;
 };
 
 } // namespace chwc

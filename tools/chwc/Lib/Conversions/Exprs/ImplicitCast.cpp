@@ -43,12 +43,6 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
     uint32_t dstWidth = dstIntType.getWidth();
 
     if (srcWidth < dstWidth) {
-      bool isSigned = subExpr->getType()->isSignedIntegerType();
-      if (isSigned) {
-        return mlir::arith::ExtSIOp::create(builder, loc, targetType, subValue)
-            .getResult();
-      }
-
       return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
           .getResult();
     }
