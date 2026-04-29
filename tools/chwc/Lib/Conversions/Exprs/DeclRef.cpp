@@ -25,24 +25,50 @@ auto CHWConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef)
 
     HWFieldInfo &fieldInfo = fieldIt->second;
 
-    if (fieldInfo.kind == HWFieldKind::Output) {
+    switch (fieldInfo.kind) {
+    case HWFieldKind::Input: {
+      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
+      if (value) {
+        return value;
+      }
+      break;
+    }
+
+    case HWFieldKind::Output: {
       mlir::Value value = outputValueTable.lookup(fieldDecl);
       if (value) {
         return value;
       }
-    }
 
-    if (fieldInfo.kind == HWFieldKind::Reg ||
-        fieldInfo.kind == HWFieldKind::Wire) {
-      mlir::Value value = nextFieldValueTable.lookup(fieldDecl);
+      value = currentFieldValueTable.lookup(fieldDecl);
       if (value) {
         return value;
       }
+
+      break;
     }
 
-    mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
+    case HWFieldKind::Reg: {
+      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
+      if (value) {
+        return value;
+      }
+      break;
+    }
+
+    case HWFieldKind::Wire: {
+      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
+      if (value) {
+        return value;
+      }
+
+      value = nextFieldValueTable.lookup(fieldDecl);
+      if (value) {
+        return value;
+      }
+
+      break;
+    }
     }
 
     llvm::WithColor::error()

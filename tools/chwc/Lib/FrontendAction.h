@@ -9,6 +9,7 @@
 #include "circt/Dialect/Seq/SeqDialect.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
@@ -35,6 +36,12 @@ public:
     contextManager =
         std::make_unique<CHWContextManager>(&ci.getASTContext(), &registry);
 
+    contextManager->MLIRContext().loadDialect<mlir::arith::ArithDialect>();
+    contextManager->MLIRContext().loadDialect<circt::hw::HWDialect>();
+    contextManager->MLIRContext().loadDialect<circt::comb::CombDialect>();
+    contextManager->MLIRContext().loadDialect<circt::seq::SeqDialect>();
+    contextManager->MLIRContext().loadDialect<circt::sv::SVDialect>();
+
     return std::make_unique<CHWConsumer>(*contextManager);
   }
 
@@ -44,12 +51,20 @@ public:
 
     if (options::disableOpt) {
       llvm::WithColor::warning() << "chwc: optimization passes are disabled\n";
-      pm.clear();
+    } else {
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
+      pm.addPass(mlir::createSymbolDCEPass());
+
+      pm.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createCSEPass());
     }
 
     if (mlir::failed(pm.run(contextManager->Module()))) {
       llvm::WithColor::error() << "chwc: failed to run optimization passes\n";
+      return;
     }
+
     contextManager->dump(*outStream);
     outStream->flush();
   }
