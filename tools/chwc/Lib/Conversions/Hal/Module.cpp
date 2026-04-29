@@ -107,8 +107,8 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
-  utils::beginHWModule(moduleState, builder, loc, recordDecl, fieldTable,
-                       hardwareFieldOrder);
+  utils::beginHWModule(currentModuleOp, inputValueTable, outputValues, builder,
+                       loc, recordDecl, fieldTable, hardwareFieldOrder);
 
   collectResetValues();
   emitStateDecls();
@@ -130,10 +130,11 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
       value = utils::zeroValue(builder, loc, fieldInfo.type);
     }
 
-    utils::emitOutputAssign(moduleState, builder, loc, fieldInfo, value);
+    utils::emitOutputAssign(outputValues, builder, loc, fieldInfo, value);
   }
 
-  utils::endHWModule(moduleState, builder, loc);
+  utils::endHWModule(currentModuleOp, inputValueTable, outputValues, builder,
+                     loc);
 }
 
 } // namespace chwc

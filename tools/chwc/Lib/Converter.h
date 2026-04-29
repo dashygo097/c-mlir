@@ -6,6 +6,8 @@
 #include "mlir/IR/Value.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include <optional>
 #include <string>
 
 namespace chwc {
@@ -23,18 +25,6 @@ struct HWFieldInfo {
   mlir::Type type;
   HWFieldKind kind{HWFieldKind::Wire};
   mlir::Value resetValue{};
-};
-
-struct HWModuleState {
-  circt::hw::HWModuleOp moduleOp;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValueTable;
-  llvm::SmallVector<mlir::Value, 8> outputValues;
-
-  void clear() {
-    moduleOp = nullptr;
-    inputValueTable.clear();
-    outputValues.clear();
-  }
 };
 
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
@@ -67,7 +57,9 @@ private:
   const clang::CXXMethodDecl *resetMethod{nullptr};
   const clang::CXXMethodDecl *clockTickMethod{nullptr};
 
-  HWModuleState moduleState;
+  circt::hw::HWModuleOp currentModuleOp;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValueTable;
+  llvm::SmallVector<mlir::Value, 8> outputValues;
 
   llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fieldTable;
   llvm::SmallVector<const clang::FieldDecl *, 8> hardwareFieldOrder;
@@ -76,11 +68,26 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
 
-  // Hareware abstraction layer
+  // Hardware abstraction layer
   // module traits
   auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
   void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
   void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
+  void clearHardwareState() {
+    currentModuleOp = nullptr;
+    inputValueTable.clear();
+    outputValues.clear();
+
+    fieldTable.clear();
+    hardwareFieldOrder.clear();
+    currentFieldValueTable.clear();
+    nextFieldValueTable.clear();
+    outputValueTable.clear();
+    localValueTable.clear();
+
+    resetMethod = nullptr;
+    clockTickMethod = nullptr;
+  }
 
   // clock traits
   void emitClockTick();

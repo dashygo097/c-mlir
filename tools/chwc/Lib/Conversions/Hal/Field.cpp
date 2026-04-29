@@ -62,7 +62,7 @@ void CHWConverter::emitStateDecls() {
     switch (fieldInfo.kind) {
     case HWFieldKind::Input: {
       currentFieldValueTable[fieldDecl] =
-          utils::getInputValue(moduleState, builder, loc, fieldInfo);
+          utils::getInputValue(inputValueTable, builder, loc, fieldInfo);
       break;
     }
 
