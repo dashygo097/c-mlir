@@ -91,6 +91,34 @@ inline auto shrU(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
   return sameTypeBinary(builder, loc, "comb.shru", lhs, rhs);
 }
 
+inline auto neg(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
+    -> mlir::Value {
+  if (!value) {
+    return nullptr;
+  }
+
+  mlir::Value zero = zeroValue(builder, loc, value.getType());
+  if (!zero) {
+    return nullptr;
+  }
+
+  return sub(builder, loc, zero, value);
+}
+
+inline auto bitNot(mlir::OpBuilder &builder, mlir::Location loc,
+                   mlir::Value value) -> mlir::Value {
+  if (!value) {
+    return nullptr;
+  }
+
+  mlir::Value allOnes = allOnesValue(builder, loc, value.getType());
+  if (!allOnes) {
+    return nullptr;
+  }
+
+  return bitXor(builder, loc, value, allOnes);
+}
+
 inline auto icmp(mlir::OpBuilder &builder, mlir::Location loc,
                  circt::comb::ICmpPredicate pred, mlir::Value lhs,
                  mlir::Value rhs) -> mlir::Value {

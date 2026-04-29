@@ -136,6 +136,7 @@ private:
       -> mlir::Value;
   auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
 
+  // binary
   auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
   auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp)
       -> mlir::Value;
@@ -146,6 +147,12 @@ private:
       -> mlir::Value;
   auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
+
+  // unary
+  auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
+  auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
+                                   bool isPrefix) -> mlir::Value;
+  auto generateAddrOfUnaryOperator(clang::Expr *addrOfExpr) -> mlir::Value;
 };
 
 } // namespace chwc

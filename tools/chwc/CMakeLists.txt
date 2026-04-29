@@ -7,6 +7,9 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/Binary/Assign.cpp
   Lib/Conversions/Exprs/Binary/Pure.cpp
   Lib/Conversions/Exprs/Binary/Binary.cpp
+  Lib/Conversions/Exprs/Unary/Unary.cpp
+  Lib/Conversions/Exprs/Unary/IncDec.cpp
+  Lib/Conversions/Exprs/Unary/AddrOf.cpp
   Lib/Conversions/Exprs/Literals.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ImplicitCast.cpp
