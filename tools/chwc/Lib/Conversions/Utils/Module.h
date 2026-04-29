@@ -10,10 +10,11 @@
 
 namespace chwc::utils {
 
-inline void beginHWModule(
-    HWModuleState &state, mlir::OpBuilder &builder, mlir::Location loc,
-    clang::CXXRecordDecl *recordDecl,
-    llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> &fieldTable) {
+inline void
+beginHWModule(HWModuleState &state, mlir::OpBuilder &builder,
+              mlir::Location loc, clang::CXXRecordDecl *recordDecl,
+              llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> &fieldTable,
+              llvm::ArrayRef<const clang::FieldDecl *> fieldOrder) {
   state.clear();
 
   llvm::SmallVector<circt::hw::PortInfo, 8> ports;
@@ -21,7 +22,14 @@ inline void beginHWModule(
   size_t inputArgNo = 0;
   size_t outputArgNo = 0;
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
+  for (const clang::FieldDecl *fieldDecl : fieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
+      continue;
+    }
+
+    HWFieldInfo &fieldInfo = fieldIt->second;
+
     if (fieldInfo.kind == HWFieldKind::Input) {
       circt::hw::PortInfo port;
       port.name = builder.getStringAttr(fieldInfo.name);
@@ -60,7 +68,13 @@ inline void beginHWModule(
 
   size_t argIndex = 0;
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
+  for (const clang::FieldDecl *fieldDecl : fieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
+      continue;
+    }
+
+    HWFieldInfo &fieldInfo = fieldIt->second;
     if (fieldInfo.kind != HWFieldKind::Input) {
       continue;
     }

@@ -49,6 +49,8 @@ auto CHWConverter::isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool {
 }
 
 void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
+  hardwareFieldOrder.clear();
+
   fieldTable.clear();
   currentFieldValueTable.clear();
   nextFieldValueTable.clear();
@@ -77,6 +79,7 @@ void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
     fieldInfo.type = type;
     fieldInfo.kind = *kind;
 
+    hardwareFieldOrder.push_back(fieldDecl);
     fieldTable[fieldDecl] = fieldInfo;
   }
 
@@ -104,13 +107,20 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(contextManager.Module().getBody());
 
-  utils::beginHWModule(moduleState, builder, loc, recordDecl, fieldTable);
+  utils::beginHWModule(moduleState, builder, loc, recordDecl, fieldTable,
+                       hardwareFieldOrder);
 
   collectResetValues();
   emitStateDecls();
   emitClockTick();
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
+  for (const clang::FieldDecl *fieldDecl : hardwareFieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
+      continue;
+    }
+
+    HWFieldInfo &fieldInfo = fieldIt->second;
     if (fieldInfo.kind != HWFieldKind::Output) {
       continue;
     }

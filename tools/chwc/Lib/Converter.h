@@ -70,6 +70,7 @@ private:
   HWModuleState moduleState;
 
   llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fieldTable;
+  llvm::SmallVector<const clang::FieldDecl *, 8> hardwareFieldOrder;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;

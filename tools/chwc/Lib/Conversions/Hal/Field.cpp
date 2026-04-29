@@ -51,7 +51,14 @@ void CHWConverter::emitStateDecls() {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
+  for (const clang::FieldDecl *fieldDecl : hardwareFieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
+      continue;
+    }
+
+    HWFieldInfo &fieldInfo = fieldIt->second;
+
     switch (fieldInfo.kind) {
     case HWFieldKind::Input: {
       currentFieldValueTable[fieldDecl] =
