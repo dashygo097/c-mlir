@@ -70,7 +70,7 @@ void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
 
   if (clockTickMethods.empty()) {
     llvm::WithColor::error()
-        << "chwc: hardware class requires clock_tick method or "
+        << "chwc: hardware class requires "
            "[[clang::annotate(\"hw.clock_tick\")]] method\n";
   }
 }

@@ -35,25 +35,6 @@ inline auto hasAnnotation(clang::Decl *decl, llvm::StringRef expected) -> bool {
   return false;
 }
 
-inline auto isMethodNamed(clang::CXXMethodDecl *methodDecl,
-                          llvm::StringRef name) -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  clang::DeclarationName declName = methodDecl->getDeclName();
-  if (!declName.isIdentifier()) {
-    return false;
-  }
-
-  clang::IdentifierInfo *identifier = declName.getAsIdentifierInfo();
-  if (!identifier) {
-    return false;
-  }
-
-  return identifier->getName() == name;
-}
-
 inline auto isResetMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   if (!methodDecl) {
     return false;
@@ -63,7 +44,7 @@ inline auto isResetMethod(clang::CXXMethodDecl *methodDecl) -> bool {
     return true;
   }
 
-  return isMethodNamed(methodDecl, "reset");
+  return false;
 }
 
 inline auto isClockTickMethod(clang::CXXMethodDecl *methodDecl) -> bool {
@@ -75,7 +56,7 @@ inline auto isClockTickMethod(clang::CXXMethodDecl *methodDecl) -> bool {
     return true;
   }
 
-  return isMethodNamed(methodDecl, "clock_tick");
+  return false;
 }
 
 } // namespace chwc::utils

@@ -25,13 +25,6 @@ namespace chwc {
 class Hardware {
 public:
   virtual ~Hardware() = default;
-
-  virtual void reset() {}
-  virtual void clock_tick() {}
-
-  [[nodiscard]] virtual auto name() const noexcept -> const char * {
-    return "Unknown Hardware";
-  }
 };
 
 template <typename T>
