@@ -127,14 +127,19 @@ private:
   // expr traits
   auto generateExpr(clang::Expr *expr) -> mlir::Value;
 
-  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
-      -> mlir::Value;
-  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
-
+  // miscs
   auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
   auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
+  auto generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
+      -> mlir::Value;
+  auto generateReturnStmt(clang::ReturnStmt *returnStmt) -> mlir::Value;
+
+  // literals
+  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
+      -> mlir::Value;
+  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
 
   // binary
   auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;

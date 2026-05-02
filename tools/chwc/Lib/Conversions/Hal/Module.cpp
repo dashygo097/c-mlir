@@ -2,7 +2,6 @@
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
 #include "../Utils/Constants.h"
-
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -70,7 +69,7 @@ void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
 
   if (clockTickMethods.empty()) {
     llvm::WithColor::error()
-        << "chwc: hardware class requires "
+        << "chwc: hardware class requires at least one "
            "[[clang::annotate(\"hw.clock_tick\")]] method\n";
   }
 }

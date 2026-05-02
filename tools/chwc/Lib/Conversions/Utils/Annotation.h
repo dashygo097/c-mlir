@@ -36,27 +36,15 @@ inline auto hasAnnotation(clang::Decl *decl, llvm::StringRef expected) -> bool {
 }
 
 inline auto isResetMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  if (hasAnnotation(methodDecl, "hw.reset")) {
-    return true;
-  }
-
-  return false;
+  return hasAnnotation(methodDecl, "hw.reset");
 }
 
 inline auto isClockTickMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  if (!methodDecl) {
-    return false;
-  }
+  return hasAnnotation(methodDecl, "hw.clock_tick");
+}
 
-  if (hasAnnotation(methodDecl, "hw.clock_tick")) {
-    return true;
-  }
-
-  return false;
+inline auto isLifecycleMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  return isResetMethod(methodDecl) || isClockTickMethod(methodDecl);
 }
 
 } // namespace chwc::utils
