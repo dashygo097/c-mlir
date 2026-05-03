@@ -9,4 +9,12 @@
 using Hardware = ::chwc::Hardware;
 #endif
 
+#ifndef CHWC_NO_GLOBAL_TYPE_ALIAS
+using chwc::Input;
+using chwc::Output;
+using chwc::Reg;
+using chwc::UInt;
+using chwc::Wire;
+#endif
+
 #endif // CHWC_RUNTIME_RUNTIME_H
