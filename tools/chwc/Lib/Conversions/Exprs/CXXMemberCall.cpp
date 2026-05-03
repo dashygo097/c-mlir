@@ -3,6 +3,7 @@
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
+
 auto isMethodOfCurrentRecord(const clang::CXXRecordDecl *currentRecordDecl,
                              clang::CXXMethodDecl *methodDecl) -> bool {
   if (!currentRecordDecl || !methodDecl) {
@@ -54,12 +55,22 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> savedLocalValueTable =
       localValueTable;
 
+  mlir::Value savedReturnValue = currentReturnValue;
+  bool savedHasReturnValue = hasCurrentReturnValue;
+
+  currentReturnValue = nullptr;
+  hasCurrentReturnValue = false;
+  ++helperInlineDepth;
+
   for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
-    clang::Expr *argExpr = callExpr->getArg(i);
-    mlir::Value argValue = generateExpr(argExpr);
+    mlir::Value argValue = generateExpr(callExpr->getArg(i));
     if (!argValue) {
       llvm::WithColor::error()
           << "chwc: failed to lower member helper argument " << i << "\n";
+
+      --helperInlineDepth;
+      currentReturnValue = savedReturnValue;
+      hasCurrentReturnValue = savedHasReturnValue;
       localValueTable = std::move(savedLocalValueTable);
       return nullptr;
     }
@@ -68,32 +79,19 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     localValueTable[paramDecl] = argValue;
   }
 
-  auto *body = mlir::dyn_cast<clang::CompoundStmt>(methodDecl->getBody());
-  if (!body) {
-    llvm::WithColor::error()
-        << "chwc: member helper body must be compound stmt: "
-        << methodDecl->getNameAsString() << "\n";
-    localValueTable = std::move(savedLocalValueTable);
-    return nullptr;
-  }
+  TraverseStmt(methodDecl->getBody());
 
-  mlir::Value returnValue{};
+  mlir::Value returnValue = currentReturnValue;
+  bool hasReturnValue = hasCurrentReturnValue;
 
-  for (clang::Stmt *stmt : body->body()) {
-    if (auto *returnStmt = mlir::dyn_cast<clang::ReturnStmt>(stmt)) {
-      returnValue = generateReturnStmt(returnStmt);
-      break;
-    }
-
-    TraverseStmt(stmt);
-  }
-
+  --helperInlineDepth;
+  currentReturnValue = savedReturnValue;
+  hasCurrentReturnValue = savedHasReturnValue;
   localValueTable = std::move(savedLocalValueTable);
 
-  if (!returnValue && !methodDecl->getReturnType()->isVoidType()) {
-    llvm::WithColor::error()
-        << "chwc: non-void member helper has no lowered return: "
-        << methodDecl->getNameAsString() << "\n";
+  if (!hasReturnValue && !methodDecl->getReturnType()->isVoidType()) {
+    llvm::WithColor::error() << "chwc: non-void member helper has no return: "
+                             << methodDecl->getNameAsString() << "\n";
     return nullptr;
   }
 

@@ -16,6 +16,7 @@ auto CHWConverter::TraverseStmt(clang::Stmt *stmt) -> bool {
   REGISTER_STMT_CONVERSION(CompoundStmt)
   REGISTER_STMT_CONVERSION(DeclStmt)
   REGISTER_STMT_CONVERSION(IfStmt)
+  REGISTER_STMT_CONVERSION(ReturnStmt)
 
 #undef REGISTER_STMT_CONVERSION
 

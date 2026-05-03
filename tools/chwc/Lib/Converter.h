@@ -43,6 +43,7 @@ public:
   auto TraverseStmt(clang::Stmt *stmt) -> bool;
   auto TraverseCompoundStmt(clang::CompoundStmt *compoundStmt) -> bool;
   auto TraverseDeclStmt(clang::DeclStmt *declStmt) -> bool;
+  auto TraverseReturnStmt(clang::ReturnStmt *returnStmt) -> bool;
 
   // control flow
   auto TraverseIfStmt(clang::IfStmt *ifStmt) -> bool;
@@ -77,6 +78,10 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
+
+  mlir::Value currentReturnValue{};
+  bool hasCurrentReturnValue{false};
+  unsigned helperInlineDepth{0};
 
   void clearHardwareState() {
     currentModuleOp = nullptr;
