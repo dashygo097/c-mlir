@@ -1,7 +1,7 @@
 #include "../Utils/Module.h"
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
-#include "../Utils/Constants.h"
+#include "../Utils/Constant.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {

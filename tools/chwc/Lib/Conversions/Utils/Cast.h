@@ -1,7 +1,7 @@
 #ifndef CHWC_UTILS_CASTS_H
 #define CHWC_UTILS_CASTS_H
 
-#include "./Constants.h"
+#include "./Constant.h"
 #include "circt/Dialect/Comb/CombOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/BuiltinTypes.h"

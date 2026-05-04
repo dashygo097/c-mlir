@@ -1,9 +1,7 @@
 #include "../../../Converter.h"
-#include "../../Utils/Casts.h"
+#include "../../Utils/Cast.h"
 #include "../../Utils/Comb.h"
-
 #include "clang/AST/OperationKinds.h"
-
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {

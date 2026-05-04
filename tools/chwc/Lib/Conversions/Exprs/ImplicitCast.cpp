@@ -1,5 +1,5 @@
 #include "../../Converter.h"
-#include "../Utils/Casts.h"
+#include "../Utils/Cast.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "llvm/Support/WithColor.h"
 

@@ -2,7 +2,7 @@
 #define CHWC_UTILS_COMB_H
 
 #include "./Builder.h"
-#include "./Casts.h"
+#include "./Cast.h"
 #include "circt/Dialect/Comb/CombOps.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/WithColor.h"
