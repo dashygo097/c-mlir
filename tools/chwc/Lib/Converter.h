@@ -156,6 +156,8 @@ private:
       -> mlir::Value;
   auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)
       -> mlir::Value;
+  auto generateCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr)
+      -> mlir::Value;
 
   auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
   auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,

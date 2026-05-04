@@ -60,6 +60,11 @@ auto CHWConverter::generateCXXOperatorCallExpr(
 
       HWFieldInfo &fieldInfo = fieldIt->second;
 
+      rhsValue = utils::promoteValue(builder, loc, rhsValue, fieldInfo.type);
+      if (!rhsValue) {
+        return nullptr;
+      }
+
       switch (fieldInfo.kind) {
       case HWFieldKind::Input:
         llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
@@ -85,6 +90,11 @@ auto CHWConverter::generateCXXOperatorCallExpr(
         mlir::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
     if (declRef) {
       if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+        mlir::Type targetType = convertType(varDecl->getType());
+        if (targetType) {
+          rhsValue = utils::promoteValue(builder, loc, rhsValue, targetType);
+        }
+
         localValueTable[varDecl] = rhsValue;
         return rhsValue;
       }

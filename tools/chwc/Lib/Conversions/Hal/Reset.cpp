@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Cast.h"
 #include "../Utils/Constant.h"
 #include "clang/AST/ExprCXX.h"
 #include "llvm/Support/WithColor.h"
@@ -79,7 +80,13 @@ void CHWConverter::collectResetValues() {
         continue;
       }
 
-      fieldTable[fieldDecl].resetValue = value;
+      HWFieldInfo &fieldInfo = fieldTable[fieldDecl];
+      value = utils::promoteValue(builder, loc, value, fieldInfo.type);
+      if (!value) {
+        continue;
+      }
+
+      fieldInfo.resetValue = value;
     }
   }
 }

@@ -20,6 +20,7 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/MaterializeTemporary.cpp
   Lib/Conversions/Exprs/CXXConstruct.cpp
   Lib/Conversions/Exprs/CXXOperatorCall.cpp
+  Lib/Conversions/Exprs/CXXFunctionalCast.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/Compound.cpp
