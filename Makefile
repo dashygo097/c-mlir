@@ -5,6 +5,7 @@ BUILD_DIR = $(PROJECT_DIR)/build
 # Build configuration
 BUILD_TYPE ?= Release 
 GENERATOR ?= Ninja 
+TEST_TARGET ?=
 
 # Detect generator command
 ifeq ($(GENERATOR),Ninja)
@@ -53,7 +54,7 @@ clean:
 # Run tests
 test:
 	@echo "==> Running tests..."
-	@cd $(BUILD_DIR) && ninja check-cmlirc
+	@cd $(BUILD_DIR) && ninja check-$(TEST_TARGET)
 
 # Help message
 help:

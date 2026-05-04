@@ -19,6 +19,7 @@ set(CMLIR_TEST_DEPS
   mlir-translate
   
   cmlirc
+  chwc
   
   # Clang
   clang
@@ -26,16 +27,31 @@ set(CMLIR_TEST_DEPS
 
 add_lit_testsuite(check-cmlirc
   "Running the C-MLIR regression tests"
-  ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
   DEPENDS ${CMLIR_TEST_DEPS}
 )
 
 add_lit_testsuite(check-cmlirc-single
   "Running the C-MLIR regression tests (single-threaded)"
-  ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
+  DEPENDS ${CMLIR_TEST_DEPS}
+  ARGS -j 1 -v
+)
+
+add_lit_testsuite(check-chwc
+  "Running the C-HW regression tests"
+  ${CMAKE_CURRENT_BINARY_DIR}/chwc
+  DEPENDS ${CMLIR_TEST_DEPS}
+)
+
+add_lit_testsuite(check-chwc-single
+  "Running the C-HW regression tests (single-threaded)"
+  ${CMAKE_CURRENT_BINARY_DIR}/chwc
   DEPENDS ${CMLIR_TEST_DEPS}
   ARGS -j 1 -v
 )
 
 set_target_properties(check-cmlirc PROPERTIES FOLDER "Tests")
 set_target_properties(check-cmlirc-single PROPERTIES FOLDER "Tests")
+set_target_properties(check-chwc PROPERTIES FOLDER "Tests")
+set_target_properties(check-chwc-single PROPERTIES FOLDER "Tests")
