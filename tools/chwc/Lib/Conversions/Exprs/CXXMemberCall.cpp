@@ -1,5 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
+#include "../Utils/Cast.h"
+#include "../Utils/Type.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -18,12 +20,63 @@ auto isMethodOfCurrentRecord(const clang::CXXRecordDecl *currentRecordDecl,
   return parent->getCanonicalDecl() == currentRecordDecl->getCanonicalDecl();
 }
 
+auto getImplicitObject(clang::CXXMemberCallExpr *callExpr) -> clang::Expr * {
+  if (!callExpr) {
+    return nullptr;
+  }
+
+  return callExpr->getImplicitObjectArgument();
+}
+
+auto isSignalReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  if (!methodDecl) {
+    return false;
+  }
+
+  std::string name = methodDecl->getNameAsString();
+  return name == "read" || name == "value" || name == "raw" ||
+         name == "operator bool";
+}
+
+auto isSignalBoolMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  if (!methodDecl) {
+    return false;
+  }
+
+  return methodDecl->getNameAsString() == "operator bool";
+}
+
 auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     -> mlir::Value {
   clang::CXXMethodDecl *methodDecl = callExpr->getMethodDecl();
   if (!methodDecl) {
     llvm::WithColor::error()
         << "chwc: unsupported member call without resolved method\n";
+    return nullptr;
+  }
+
+  clang::Expr *objectExpr = getImplicitObject(callExpr);
+  clang::QualType objectType =
+      objectExpr ? objectExpr->getType() : clang::QualType{};
+
+  if (!objectType.isNull() && utils::isSignalType(objectType)) {
+    if (isSignalReadMethod(methodDecl)) {
+      mlir::Value value = generateExpr(objectExpr);
+      if (!value) {
+        return nullptr;
+      }
+
+      if (isSignalBoolMethod(methodDecl)) {
+        mlir::OpBuilder &builder = contextManager.Builder();
+        mlir::Location loc = builder.getUnknownLoc();
+        return utils::toBool(builder, loc, value);
+      }
+
+      return value;
+    }
+
+    llvm::WithColor::error() << "chwc: unsupported Signal member call: "
+                             << methodDecl->getNameAsString() << "\n";
     return nullptr;
   }
 

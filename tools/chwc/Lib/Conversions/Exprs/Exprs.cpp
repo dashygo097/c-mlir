@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "clang/AST/Expr.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -16,14 +15,19 @@ auto CHWConverter::generateExpr(clang::Expr *expr) -> mlir::Value {
     return generate##ExprType(node);                                           \
   }
 
+  REGISTER_EXPR_CONVERSION(ExprWithCleanups)
+  REGISTER_EXPR_CONVERSION(CXXBindTemporaryExpr)
+  REGISTER_EXPR_CONVERSION(MaterializeTemporaryExpr)
+  REGISTER_EXPR_CONVERSION(CXXConstructExpr)
   REGISTER_EXPR_CONVERSION(CXXBoolLiteralExpr)
   REGISTER_EXPR_CONVERSION(IntegerLiteral)
   REGISTER_EXPR_CONVERSION(DeclRefExpr)
   REGISTER_EXPR_CONVERSION(ImplicitCastExpr)
   REGISTER_EXPR_CONVERSION(MemberExpr)
   REGISTER_EXPR_CONVERSION(CXXMemberCallExpr)
-  REGISTER_EXPR_CONVERSION(BinaryOperator)
+  REGISTER_EXPR_CONVERSION(CXXOperatorCallExpr)
   REGISTER_EXPR_CONVERSION(UnaryOperator)
+  REGISTER_EXPR_CONVERSION(BinaryOperator)
 
 #undef REGISTER_EXPR_CONVERSION
 

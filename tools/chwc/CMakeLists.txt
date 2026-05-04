@@ -15,6 +15,11 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/ImplicitCast.cpp
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/CXXMemberCall.cpp
+  Lib/Conversions/Exprs/ExprWithCleanups.cpp
+  Lib/Conversions/Exprs/CXXBindTemporary.cpp
+  Lib/Conversions/Exprs/MaterializeTemporary.cpp
+  Lib/Conversions/Exprs/CXXConstruct.cpp
+  Lib/Conversions/Exprs/CXXOperatorCall.cpp
   Lib/Conversions/Exprs/Exprs.cpp
 
   Lib/Conversions/Stmts/Compound.cpp

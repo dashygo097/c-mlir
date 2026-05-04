@@ -3,11 +3,18 @@
 #include "../Utils/Expr.h"
 #include "../Utils/Module.h"
 #include "../Utils/State.h"
+#include "../Utils/Type.h"
 
 namespace chwc {
 
 auto CHWConverter::classifyField(clang::FieldDecl *fieldDecl)
     -> std::optional<HWFieldKind> {
+  utils::SignalTypeInfo typeInfo =
+      utils::getSignalTypeInfo(fieldDecl->getType());
+  if (typeInfo.isSignal && typeInfo.fieldKind) {
+    return typeInfo.fieldKind;
+  }
+
   std::optional<std::string> annotation = utils::getAnnotation(fieldDecl);
   if (!annotation) {
     return std::nullopt;

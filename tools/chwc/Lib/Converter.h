@@ -5,6 +5,7 @@
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Support/BackedgeBuilder.h"
 #include "mlir/IR/Value.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -104,11 +105,15 @@ private:
     outputValueTable.clear();
     localValueTable.clear();
 
+    currentReturnValue = nullptr;
+    hasCurrentReturnValue = false;
+    helperInlineDepth = 0;
+
     resetMethods.clear();
     clockTickMethods.clear();
   }
 
-  // Hareware abstraction layer
+  // Hardware abstraction layer
   // module traits
   auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
   void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
@@ -132,37 +137,42 @@ private:
   // expr traits
   auto generateExpr(clang::Expr *expr) -> mlir::Value;
 
-  // miscs
+  auto generateExprWithCleanups(clang::ExprWithCleanups *expr) -> mlir::Value;
+  auto generateCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr)
+      -> mlir::Value;
+  auto generateMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr)
+      -> mlir::Value;
+  auto generateCXXConstructExpr(clang::CXXConstructExpr *expr) -> mlir::Value;
+
+  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
+      -> mlir::Value;
+  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
+
   auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
   auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
   auto generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       -> mlir::Value;
-  auto generateReturnStmt(clang::ReturnStmt *returnStmt) -> mlir::Value;
-
-  // literals
-  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
+  auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)
       -> mlir::Value;
-  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
 
-  // binary
+  auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
+  auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
+                                   bool isPrefix) -> mlir::Value;
+  auto generateAddrOfUnaryOperator(clang::Expr *addrOfExpr) -> mlir::Value;
+
   auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
   auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp)
       -> mlir::Value;
   auto generatePureBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
   auto generateCompoundAssignmentBinaryOperator(
       clang::CompoundAssignOperator *compoundOp) -> mlir::Value;
+
   auto generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
   auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
-
-  // unary
-  auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
-  auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
-                                   bool isPrefix) -> mlir::Value;
-  auto generateAddrOfUnaryOperator(clang::Expr *addrOfExpr) -> mlir::Value;
 };
 
 } // namespace chwc

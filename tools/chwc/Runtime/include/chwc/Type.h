@@ -405,11 +405,8 @@ private:
 };
 
 template <typename T> using Input = Signal<T, ObjectKind::Input>;
-
 template <typename T> using Output = Signal<T, ObjectKind::Output>;
-
 template <typename T> using Wire = Signal<T, ObjectKind::Wire>;
-
 template <typename T> using Reg = Signal<T, ObjectKind::Reg>;
 
 template <typename T> struct TypeTraits {

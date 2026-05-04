@@ -1,8 +1,39 @@
 #include "../../Converter.h"
 #include "../Utils/Constant.h"
+#include "clang/AST/ExprCXX.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
+
+auto getResetAssign(clang::Stmt *stmt, clang::Expr *&lhs, clang::Expr *&rhs)
+    -> bool {
+  if (auto *assignOp = mlir::dyn_cast<clang::BinaryOperator>(stmt)) {
+    if (!assignOp->isAssignmentOp()) {
+      return false;
+    }
+
+    lhs = assignOp->getLHS();
+    rhs = assignOp->getRHS();
+    return true;
+  }
+
+  if (auto *operatorCall = mlir::dyn_cast<clang::CXXOperatorCallExpr>(stmt)) {
+    if (operatorCall->getOperator() != clang::OO_Equal ||
+        operatorCall->getNumArgs() != 2) {
+      return false;
+    }
+
+    lhs = operatorCall->getArg(0);
+    rhs = operatorCall->getArg(1);
+    return true;
+  }
+
+  if (auto *cleanups = mlir::dyn_cast<clang::ExprWithCleanups>(stmt)) {
+    return getResetAssign(cleanups->getSubExpr(), lhs, rhs);
+  }
+
+  return false;
+}
 
 void CHWConverter::collectResetValues() {
   mlir::OpBuilder &builder = contextManager.Builder();
@@ -27,21 +58,23 @@ void CHWConverter::collectResetValues() {
     }
 
     for (clang::Stmt *stmt : body->body()) {
-      auto *assignOp = mlir::dyn_cast<clang::BinaryOperator>(stmt);
-      if (!assignOp || !assignOp->isAssignmentOp()) {
+      clang::Expr *lhs = nullptr;
+      clang::Expr *rhs = nullptr;
+
+      if (!getResetAssign(stmt, lhs, rhs)) {
         llvm::WithColor::error()
             << "chwc: reset method only supports field = constant\n";
         continue;
       }
 
-      const clang::FieldDecl *fieldDecl = getAssignedField(assignOp->getLHS());
+      const clang::FieldDecl *fieldDecl = getAssignedField(lhs);
       if (!fieldDecl || !fieldTable.count(fieldDecl)) {
         llvm::WithColor::error()
             << "chwc: reset assignment lhs must be hardware field\n";
         continue;
       }
 
-      mlir::Value value = generateExpr(assignOp->getRHS());
+      mlir::Value value = generateExpr(rhs);
       if (!value) {
         continue;
       }

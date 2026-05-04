@@ -1,5 +1,5 @@
-#ifndef CHWC_UTILS_CONSTANTS_H
-#define CHWC_UTILS_CONSTANTS_H
+#ifndef CHWC_UTILS_CONSTANT_H
+#define CHWC_UTILS_CONSTANT_H
 
 #include "circt/Dialect/HW/HWOps.h"
 #include "mlir/IR/Builders.h"
@@ -75,4 +75,4 @@ inline auto allOnesValue(mlir::OpBuilder &builder, mlir::Location loc,
 
 } // namespace chwc::utils
 
-#endif // CHWC_UTILS_CONSTANTS_H
+#endif // CHWC_UTILS_CONSTANT_H

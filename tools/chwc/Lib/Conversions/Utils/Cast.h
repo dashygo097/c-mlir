@@ -1,5 +1,5 @@
-#ifndef CHWC_UTILS_CASTS_H
-#define CHWC_UTILS_CASTS_H
+#ifndef CHWC_UTILS_CAST_H
+#define CHWC_UTILS_CAST_H
 
 #include "./Constant.h"
 #include "circt/Dialect/Comb/CombOps.h"
@@ -76,4 +76,4 @@ inline auto truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
 
 } // namespace chwc::utils
 
-#endif // CHWC_UTILS_CASTS_H
+#endif // CHWC_UTILS_CAST_H
