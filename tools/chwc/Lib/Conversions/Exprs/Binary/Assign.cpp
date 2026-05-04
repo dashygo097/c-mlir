@@ -24,10 +24,10 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::mul(builder, loc, lhs, rhs);
 
   case CBO::BO_DivAssign:
-    return utils::divU(builder, loc, lhs, rhs);
+    return utils::div(builder, loc, lhs, rhs);
 
   case CBO::BO_RemAssign:
-    return utils::modU(builder, loc, lhs, rhs);
+    return utils::mod(builder, loc, lhs, rhs);
 
   case CBO::BO_AndAssign:
     return utils::bitAnd(builder, loc, lhs, rhs);

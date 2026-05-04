@@ -41,23 +41,13 @@ inline auto mul(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
   return sameTypeBinary(builder, loc, "comb.mul", lhs, rhs);
 }
 
-inline auto divS(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinary(builder, loc, "comb.divs", lhs, rhs);
-}
-
-inline auto divU(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
+inline auto div(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                mlir::Value rhs) -> mlir::Value {
   return sameTypeBinary(builder, loc, "comb.divu", lhs, rhs);
 }
 
-inline auto modS(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinary(builder, loc, "comb.mods", lhs, rhs);
-}
-
-inline auto modU(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
+inline auto mod(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                mlir::Value rhs) -> mlir::Value {
   return sameTypeBinary(builder, loc, "comb.modu", lhs, rhs);
 }
 

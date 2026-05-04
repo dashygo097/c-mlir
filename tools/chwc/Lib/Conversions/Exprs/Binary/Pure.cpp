@@ -34,10 +34,10 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return utils::mul(builder, loc, lhs, rhs);
 
   case CBO::BO_Div:
-    return utils::divU(builder, loc, lhs, rhs);
+    return utils::div(builder, loc, lhs, rhs);
 
   case CBO::BO_Rem:
-    return utils::modU(builder, loc, lhs, rhs);
+    return utils::mod(builder, loc, lhs, rhs);
 
   case CBO::BO_And:
     return utils::bitAnd(builder, loc, lhs, rhs);
