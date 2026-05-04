@@ -33,6 +33,7 @@ for var in ['HOME', 'TMPDIR', 'TMP', 'TEMP']:
         config.environment[var] = os.environ[var]
 
 config.substitutions.append(('%cmlir', 'cmlirc'))
+config.substitutions.append(('%cmlir', 'chwc'))
 
 tools = {
     'FileCheck': 'FileCheck',
@@ -42,16 +43,3 @@ tools = {
 
 for name, tool in tools.items():
     config.substitutions.append(('%' + name, tool))
-
-if platform.system() == 'Darwin':
-    config.available_features.add('darwin')
-elif platform.system() == 'Linux':
-    config.available_features.add('linux')
-elif platform.system() == 'Windows':
-    config.available_features.add('windows')
-
-if hasattr(config, 'target_triple'):
-    if 'x86' in config.target_triple.lower():
-        config.available_features.add('x86')
-    if 'arm' in config.target_triple.lower() or 'aarch64' in config.target_triple.lower():
-        config.available_features.add('arm')
