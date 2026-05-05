@@ -19,6 +19,11 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return nullptr;
   }
 
+  mlir::Type computeType = lhs.getType();
+  if (computeType != rhs.getType()) {
+    rhs = utils::promoteValue(builder, loc, rhs, computeType);
+  }
+
   using CBO = clang::BinaryOperatorKind;
 
   switch (binOp->getOpcode()) {

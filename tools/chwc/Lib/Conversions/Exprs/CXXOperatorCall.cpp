@@ -164,6 +164,11 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     return nullptr;
   }
 
+  mlir::Type computeType = lhs.getType();
+  if (computeType != rhs.getType()) {
+    rhs = utils::promoteValue(builder, loc, rhs, computeType);
+  }
+
   switch (op) {
   case OO::OO_Plus:
     return utils::add(builder, loc, lhs, rhs);
