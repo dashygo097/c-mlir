@@ -18,6 +18,7 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   switch (castExpr->getCastKind()) {
   case CK::CK_LValueToRValue:
   case CK::CK_NoOp:
+  case CK::CK_ConstructorConversion:
   case CK::CK_UserDefinedConversion: {
     mlir::Value subValue = generateExpr(subExpr);
     if (!subValue) {
