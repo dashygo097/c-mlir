@@ -126,14 +126,14 @@ pip install lit
 **2. Run tests**
 
 ```bash
-make test
+make test TEST_TARGET=xxx # The name of the executable you want to test(cmlirc, chwc, etc.)
 ```
 
 Or manually follow this:
 
 ```bash
 cd build
-ninja check-cmlirc
+ninja check-xxx # The name of the executable you want to test(cmlirc, chwc, etc.)
 ```
 
 ## Examples
