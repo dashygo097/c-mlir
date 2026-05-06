@@ -175,6 +175,9 @@ private:
       -> mlir::Value;
   auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
+
+  auto generateConditionalOperator(clang::ConditionalOperator *condOp)
+      -> mlir::Value;
 };
 
 } // namespace chwc

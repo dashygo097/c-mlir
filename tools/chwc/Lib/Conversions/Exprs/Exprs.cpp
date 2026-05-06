@@ -29,6 +29,7 @@ auto CHWConverter::generateExpr(clang::Expr *expr) -> mlir::Value {
   REGISTER_EXPR_CONVERSION(CXXFunctionalCastExpr)
   REGISTER_EXPR_CONVERSION(UnaryOperator)
   REGISTER_EXPR_CONVERSION(BinaryOperator)
+  REGISTER_EXPR_CONVERSION(ConditionalOperator)
 
 #undef REGISTER_EXPR_CONVERSION
 

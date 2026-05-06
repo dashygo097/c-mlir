@@ -10,6 +10,7 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/Unary/Unary.cpp
   Lib/Conversions/Exprs/Unary/IncDec.cpp
   Lib/Conversions/Exprs/Unary/AddrOf.cpp
+  Lib/Conversions/Exprs/ConditionalOperator.cpp
   Lib/Conversions/Exprs/Literals.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ImplicitCast.cpp
