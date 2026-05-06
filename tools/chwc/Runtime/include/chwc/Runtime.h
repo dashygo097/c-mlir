@@ -3,7 +3,8 @@
 
 #include "chwc/Annotation.h"
 #include "chwc/Hardware.h"
-#include "chwc/Type.h"
+#include "chwc/Types/Signal.h"
+#include "chwc/Types/UInt.h"
 
 #ifndef CHWC_NO_GLOBAL_HARDWARE_ALIAS
 using Hardware = ::chwc::Hardware;
