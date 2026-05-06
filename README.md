@@ -136,6 +136,93 @@ cd build
 ninja check-cmlirc
 ```
 
+## Examples
+
+### Examples for `cmlirc` (c/c++ to mlir compiler)
+
+**1. Dot Product**
+
+```c++
+float dot(const float *a, const float *b, int n) {
+  float result = 0;
+  for (int i = 0; i < n; i++) {
+    result += a[i] * b[i];
+  }
+  return result;
+}
+```
+
+```bash
+cmlirc dot.c
+```
+
+```mlir
+module {
+  func.func @dot(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: i32) -> f32 {
+    %c1 = arith.constant 1 : index
+    %cst = arith.constant 0.000000e+00 : f32
+    %c0 = arith.constant 0 : index
+    %0 = arith.index_cast %arg2 : i32 to index
+    %1 = scf.for %arg3 = %c0 to %0 step %c1 iter_args(%arg4 = %cst) -> (f32) {
+      %2 = memref.load %arg0[%arg3] : memref<?xf32>
+      %3 = memref.load %arg1[%arg3] : memref<?xf32>
+      %4 = arith.mulf %2, %3 : f32
+      %5 = arith.addf %arg4, %4 : f32
+      scf.yield %5 : f32
+    }
+    return %1 : f32
+  }
+}
+```
+
+### Examples for `chwc` (c/c++ to hardware compiler)
+
+**1. Counter**
+
+```c++
+#include <chwc/Runtime.h> // Runtime Lib
+
+class Counter final : public Hardware {
+public:
+  Input<UInt<1>> en;
+  Output<UInt<16>> out;
+  Reg<UInt<16>> value;
+
+  // HW_RESET denotes this function processes reset tasks
+  HW_RESET void rst() { value = 0; }
+
+  // HW_CLOCK_TICK denotes this function processes clock related tasks
+  HW_CLOCK_TICK void tick() {
+    if (en) {
+      value = add_one(value);
+    }
+    out = value;
+  }
+
+  // HW_FUNC denotes this function is an inline helper function
+  HW_FUNC UInt<16> add_one(UInt<16> input) { return input + 1; }
+};
+```
+
+```bash
+chwc counter.cpp
+```
+
+```mlir
+module {
+  hw.module @Counter(in %clk : !seq.clock, in %rst : i1, in %en : i1, out out : i16) {
+    %c1_i16 = arith.constant 1 : i16
+    %c0_i16 = arith.constant 0 : i16
+    %value = seq.firreg %1 clock %clk reset sync %rst, %c0_i16 : i16
+    %0 = comb.add %value, %c1_i16 : i16
+    %1 = comb.mux %en, %0, %value : i16
+    hw.output %value : i16
+  }
+}
+```
+
+which can be lowered into (system)verilog with `circt-opt` and `firtool`.
+
 ## Acknowledgement
 
 - This work is inspired by [Polygeist](https://github.com/llvm/Polygeist.git)

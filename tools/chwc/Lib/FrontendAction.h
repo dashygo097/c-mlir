@@ -8,6 +8,7 @@
 #include "circt/Dialect/SV/SVDialect.h"
 #include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Support/LLVM.h"
+#include "cmlir/Transforms/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -53,6 +54,8 @@ public:
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
     pm.addPass(mlir::createSymbolDCEPass());
+
+    pm.addPass(cmlir::createConstPropPass());
 
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());

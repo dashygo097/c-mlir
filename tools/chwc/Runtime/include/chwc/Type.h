@@ -64,6 +64,56 @@ public:
 
   constexpr auto operator~() const -> UInt { return UInt(~value_); }
 
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator+(T rhs) const -> UInt {
+    return *this + UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator-(T rhs) const -> UInt {
+    return *this - UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator*(T rhs) const -> UInt {
+    return *this * UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator/(T rhs) const -> UInt {
+    return *this / UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator%(T rhs) const -> UInt {
+    return *this % UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator&(T rhs) const -> UInt {
+    return *this & UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator|(T rhs) const -> UInt {
+    return *this | UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator^(T rhs) const -> UInt {
+    return *this ^ UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator<<(T rhs) const -> UInt {
+    return *this << UInt(rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  constexpr auto operator>>(T rhs) const -> UInt {
+    return *this >> UInt(rhs);
+  }
+
   template <std::size_t OtherWidth>
   constexpr auto operator+(UInt<OtherWidth> rhs) const -> UInt {
     return UInt(value_ + rhs.raw());
