@@ -12,7 +12,7 @@ float reduce_sum64(float a[64]) {
   return result;
 }
 
-// CHECK: func @reduce_sum64(%arg0: memref<?xf32>) -> f32
+// CHECK: func.func @reduce_sum64(%arg0: memref<?xf32>) -> f32
 // CHECK-DAG: %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG: %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG: %[[c64:.+]] = arith.constant 64 : index
@@ -34,7 +34,7 @@ float reduce_sum64(float a[64]) {
   return result;
 }
 
-// CHECKUNROLL: func @reduce_sum64(%arg0: memref<?xf32>) -> f32
+// CHECKUNROLL: func.func @reduce_sum64(%arg0: memref<?xf32>) -> f32
 // CHECKUNROLL-DAG: %[[c0:.+]] = arith.constant 0 : index
 // CHECKUNROLL-DAG: %[[c1:.+]] = arith.constant 1 : index
 // CHECKUNROLL-DAG: %[[c2:.+]] = arith.constant 2 : index

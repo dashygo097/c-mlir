@@ -8,7 +8,7 @@ int max2(int a, int b) {
   return a > b ? a : b;
 }
 
-// CHECK2: func @max2(%arg0: i32, %arg1: i32) -> i32
+// CHECK2: func.func @max2(%arg0: i32, %arg1: i32) -> i32
 // CHECK2: %[[V0:.*]] = arith.cmpi sgt, %arg0, %arg1 : i32
 // CHECK2: %[[V1:.*]] = arith.select %[[V0]], %arg0, %arg1 : i32
 // CHECK2: return %[[V1]] : i32
@@ -24,7 +24,7 @@ int max3(int a, int b, int c) {
   }
 }
 
-// CHECK3: func @max3(%arg0: i32, %arg1: i32, %arg2: i32) -> i32
+// CHECK3: func.func @max3(%arg0: i32, %arg1: i32, %arg2: i32) -> i32
 // CHECK3-DAG: %[[false:.*]] = arith.constant false
 // CHECK3: %[[V0:.*]] = arith.cmpi sgt, %arg0, %arg1 : i32
 // CHECK3: %[[V1:.*]] = arith.cmpi sgt, %arg0, %arg2 : i32
@@ -48,7 +48,7 @@ int max4(int a, int b, int c, int d) {
   return max;
 }
 
-// CHECK4: func @max4(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32) -> i32
+// CHECK4: func.func @max4(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32) -> i32
 // CHECK4: %[[V0:.*]] = arith.cmpi sgt, %arg1, %arg0 : i32
 // CHECK4: %[[V1:.*]] = arith.select %[[V0]], %arg1, %arg0 : i32
 // CHECK4: %[[V2:.*]] = arith.cmpi sgt, %arg2, %[[V1]] : i32

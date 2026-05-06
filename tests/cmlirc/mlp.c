@@ -12,7 +12,7 @@ void mlp(float output[2], const float input[2]) {
   }
 }
 
-// CHECK: func @mlp(%arg0: memref<?xf32>, %arg1: memref<?xf32>)
+// CHECK: func.func @mlp(%arg0: memref<?xf32>, %arg1: memref<?xf32>)
 // CHECK-DAG: %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG: %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG: %[[c2:.+]] = arith.constant 2 : index

@@ -8,7 +8,7 @@ int dot(const int *a, const int *b, int n) {
   return result;
 }
 
-// CHECK: func @dot(%arg0: memref<?xi32>, %arg1: memref<?xi32>, %arg2: i32) -> i32
+// CHECK: func.func @dot(%arg0: memref<?xi32>, %arg1: memref<?xi32>, %arg2: i32) -> i32
 // CHECK-DAG: %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG: %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG: %[[c0_i32:.+]] = arith.constant 0 : i32

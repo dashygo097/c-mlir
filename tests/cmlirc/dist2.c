@@ -15,7 +15,7 @@ float dist2(struct Point p1, struct Point p2) {
   return dx * dx + dy * dy;
 }
 
-// CHECK: func @dist2(%arg0: !llvm.struct<(f32, f32)>, %arg1: !llvm.struct<(f32, f32)>) -> f32
+// CHECK: func.func @dist2(%arg0: !llvm.struct<(f32, f32)>, %arg1: !llvm.struct<(f32, f32)>) -> f32
 // CHECK: %[[V0:.*]] = llvm.extractvalue %arg0[0] : !llvm.struct<(f32, f32)>
 // CHECK: %[[V1:.*]] = llvm.extractvalue %arg1[0] : !llvm.struct<(f32, f32)>
 // CHECK: %[[V2:.*]] = arith.subf %[[V0]], %[[V1]] : f32
@@ -39,7 +39,7 @@ float dist2(struct Point p1, struct Point p2) {
   return dx * dx + dy * dy;
 }
 
-// CHECKMEMREF: func @dist2(%arg0: memref<?x2xf32>, %arg1: memref<?x2xf32>) -> f32
+// CHECKMEMREF: func.func @dist2(%arg0: memref<?x2xf32>, %arg1: memref<?x2xf32>) -> f32
 // CHECKMEMREF-DAG: %[[c0:.*]] = arith.constant 0 : index
 // CHECKMEMREF-DAG: %[[c1:.*]] = arith.constant 1 : index
 // CHECKMEMREF: %[[V0:.*]] = memref.load %arg0[%c0, %c0] : memref<?x2xf32>
