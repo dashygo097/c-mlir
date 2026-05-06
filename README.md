@@ -138,7 +138,7 @@ ninja check-cmlirc
 
 ## Examples
 
-### Examples for `cmlirc` (c/c++ to mlir compiler)
+### `cmlirc` (c/c++ to mlir compiler)
 
 **1. Dot Product**
 
@@ -175,7 +175,7 @@ module {
 }
 ```
 
-### Examples for `chwc` (c/c++ to hardware compiler)
+### `chwc` (c/c++ to hardware compiler)
 
 **1. Counter**
 
