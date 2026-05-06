@@ -76,8 +76,8 @@ inline auto shrS(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
   return sameTypeBinary(builder, loc, "comb.shrs", lhs, rhs);
 }
 
-inline auto shrU(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
+inline auto shr(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                mlir::Value rhs) -> mlir::Value {
   return sameTypeBinary(builder, loc, "comb.shru", lhs, rhs);
 }
 

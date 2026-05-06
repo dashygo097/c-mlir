@@ -55,7 +55,7 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return utils::shl(builder, loc, lhs, rhs);
 
   case CBO::BO_Shr:
-    return utils::shrU(builder, loc, lhs, rhs);
+    return utils::shr(builder, loc, lhs, rhs);
 
   case CBO::BO_EQ:
     return utils::icmpEq(builder, loc, lhs, rhs);

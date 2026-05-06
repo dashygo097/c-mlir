@@ -40,7 +40,7 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::shl(builder, loc, lhs, rhs);
 
   case CBO::BO_ShrAssign:
-    return utils::shrU(builder, loc, lhs, rhs);
+    return utils::shr(builder, loc, lhs, rhs);
 
   default:
     llvm::WithColor::error() << "chwc: unsupported compound assignment: "

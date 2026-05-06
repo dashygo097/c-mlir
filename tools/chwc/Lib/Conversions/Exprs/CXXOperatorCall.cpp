@@ -62,7 +62,7 @@ auto emitOverloadedCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::shl(builder, loc, lhs, rhs);
 
   case OO::OO_GreaterGreaterEqual:
-    return utils::shrU(builder, loc, lhs, rhs);
+    return utils::shr(builder, loc, lhs, rhs);
 
   default:
     llvm::WithColor::error()
@@ -355,7 +355,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     return utils::shl(builder, loc, lhs, rhs);
 
   case OO::OO_GreaterGreater:
-    return utils::shrU(builder, loc, lhs, rhs);
+    return utils::shr(builder, loc, lhs, rhs);
 
   case OO::OO_EqualEqual:
     return utils::icmpEq(builder, loc, lhs, rhs);
