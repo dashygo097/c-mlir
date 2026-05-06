@@ -16,5 +16,6 @@
 
 #define HW_RESET CHWC_METHOD_ANNOTATE("hw.reset")
 #define HW_CLOCK_TICK CHWC_METHOD_ANNOTATE("hw.clock_tick")
+#define HW_FUNC CHWC_METHOD_ANNOTATE("hw.func")
 
 #endif // CHWC_ANNOTATE_RUNTIME_H

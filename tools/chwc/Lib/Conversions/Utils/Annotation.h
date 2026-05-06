@@ -43,6 +43,10 @@ inline auto isClockTickMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   return hasAnnotation(methodDecl, "hw.clock_tick");
 }
 
+inline auto isFuncMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  return hasAnnotation(methodDecl, "hw.func");
+}
+
 inline auto isLifecycleMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   return isResetMethod(methodDecl) || isClockTickMethod(methodDecl);
 }
