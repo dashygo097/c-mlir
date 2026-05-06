@@ -2,6 +2,7 @@
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
 #include "../Utils/Expr.h"
+#include "../Utils/Type.h"
 #include "clang/AST/ExprCXX.h"
 #include "llvm/Support/WithColor.h"
 
@@ -29,8 +30,8 @@ auto isOverloadedCompoundAssign(clang::OverloadedOperatorKind op) -> bool {
 
 auto emitOverloadedCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
                                  clang::OverloadedOperatorKind op,
-                                 mlir::Value lhs, mlir::Value rhs)
-    -> mlir::Value {
+                                 mlir::Value lhs, mlir::Value rhs,
+                                 bool isSigned) -> mlir::Value {
   using OO = clang::OverloadedOperatorKind;
 
   switch (op) {
@@ -44,10 +45,12 @@ auto emitOverloadedCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::mul(builder, loc, lhs, rhs);
 
   case OO::OO_SlashEqual:
-    return utils::div(builder, loc, lhs, rhs);
+    return isSigned ? utils::divS(builder, loc, lhs, rhs)
+                    : utils::divU(builder, loc, lhs, rhs);
 
   case OO::OO_PercentEqual:
-    return utils::mod(builder, loc, lhs, rhs);
+    return isSigned ? utils::modS(builder, loc, lhs, rhs)
+                    : utils::modU(builder, loc, lhs, rhs);
 
   case OO::OO_AmpEqual:
     return utils::bitAnd(builder, loc, lhs, rhs);
@@ -62,7 +65,8 @@ auto emitOverloadedCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::shl(builder, loc, lhs, rhs);
 
   case OO::OO_GreaterGreaterEqual:
-    return utils::shr(builder, loc, lhs, rhs);
+    return isSigned ? utils::shrS(builder, loc, lhs, rhs)
+                    : utils::shrU(builder, loc, lhs, rhs);
 
   default:
     llvm::WithColor::error()
@@ -192,8 +196,12 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return nullptr;
     }
 
-    mlir::Value resultValue =
-        emitOverloadedCompoundArith(builder, loc, op, oldValue, rhsValue);
+    clang::QualType objectType =
+        lhsExpr ? lhsExpr->getType() : clang::QualType{};
+    auto typeInfo = utils::getSignalTypeInfo(objectType);
+
+    mlir::Value resultValue = emitOverloadedCompoundArith(
+        builder, loc, op, oldValue, rhsValue, typeInfo.isSigned);
 
     if (!resultValue) {
       return nullptr;
@@ -326,6 +334,11 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     rhs = utils::promoteValue(builder, loc, rhs, computeType);
   }
 
+  clang::Expr *objectExpr = callExpr->getArg(0);
+  clang::QualType objectType =
+      objectExpr ? objectExpr->getType() : clang::QualType{};
+  auto typeInfo = utils::getSignalTypeInfo(objectType);
+
   switch (op) {
   case OO::OO_Plus:
     return utils::add(builder, loc, lhs, rhs);
@@ -337,10 +350,12 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     return utils::mul(builder, loc, lhs, rhs);
 
   case OO::OO_Slash:
-    return utils::div(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::divS(builder, loc, lhs, rhs)
+                             : utils::divU(builder, loc, lhs, rhs);
 
   case OO::OO_Percent:
-    return utils::mod(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::modS(builder, loc, lhs, rhs)
+                             : utils::modU(builder, loc, lhs, rhs);
 
   case OO::OO_Amp:
     return utils::bitAnd(builder, loc, lhs, rhs);
@@ -355,7 +370,8 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     return utils::shl(builder, loc, lhs, rhs);
 
   case OO::OO_GreaterGreater:
-    return utils::shr(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::shrS(builder, loc, lhs, rhs)
+                             : utils::shrU(builder, loc, lhs, rhs);
 
   case OO::OO_EqualEqual:
     return utils::icmpEq(builder, loc, lhs, rhs);
@@ -364,16 +380,20 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     return utils::icmpNe(builder, loc, lhs, rhs);
 
   case OO::OO_Less:
-    return utils::icmpUlt(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSlt(builder, loc, lhs, rhs)
+                             : utils::icmpUlt(builder, loc, lhs, rhs);
 
   case OO::OO_LessEqual:
-    return utils::icmpUle(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSle(builder, loc, lhs, rhs)
+                             : utils::icmpUle(builder, loc, lhs, rhs);
 
   case OO::OO_Greater:
-    return utils::icmpUgt(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSgt(builder, loc, lhs, rhs)
+                             : utils::icmpUgt(builder, loc, lhs, rhs);
 
   case OO::OO_GreaterEqual:
-    return utils::icmpUge(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSge(builder, loc, lhs, rhs)
+                             : utils::icmpUge(builder, loc, lhs, rhs);
 
   case OO::OO_AmpAmp:
     return generateLAndBinaryOperator(lhs, rhs);

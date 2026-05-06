@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Cast.h"
 #include "../../Utils/Comb.h"
+#include "../../Utils/Type.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
@@ -24,6 +25,11 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     rhs = utils::promoteValue(builder, loc, rhs, computeType);
   }
 
+  clang::Expr *objectExpr = binOp->getLHS();
+  clang::QualType objectType =
+      objectExpr ? objectExpr->getType() : clang::QualType{};
+  auto typeInfo = utils::getSignalTypeInfo(objectType);
+
   using CBO = clang::BinaryOperatorKind;
 
   switch (binOp->getOpcode()) {
@@ -37,10 +43,12 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return utils::mul(builder, loc, lhs, rhs);
 
   case CBO::BO_Div:
-    return utils::div(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::divS(builder, loc, lhs, rhs)
+                             : utils::divU(builder, loc, lhs, rhs);
 
   case CBO::BO_Rem:
-    return utils::mod(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::modS(builder, loc, lhs, rhs)
+                             : utils::modU(builder, loc, lhs, rhs);
 
   case CBO::BO_And:
     return utils::bitAnd(builder, loc, lhs, rhs);
@@ -55,7 +63,8 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return utils::shl(builder, loc, lhs, rhs);
 
   case CBO::BO_Shr:
-    return utils::shr(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::shrS(builder, loc, lhs, rhs)
+                             : utils::shrU(builder, loc, lhs, rhs);
 
   case CBO::BO_EQ:
     return utils::icmpEq(builder, loc, lhs, rhs);
@@ -64,16 +73,20 @@ auto CHWConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return utils::icmpNe(builder, loc, lhs, rhs);
 
   case CBO::BO_LT:
-    return utils::icmpUlt(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSlt(builder, loc, lhs, rhs)
+                             : utils::icmpUlt(builder, loc, lhs, rhs);
 
   case CBO::BO_LE:
-    return utils::icmpUle(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSle(builder, loc, lhs, rhs)
+                             : utils::icmpUle(builder, loc, lhs, rhs);
 
   case CBO::BO_GT:
-    return utils::icmpUgt(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSgt(builder, loc, lhs, rhs)
+                             : utils::icmpUgt(builder, loc, lhs, rhs);
 
   case CBO::BO_GE:
-    return utils::icmpUge(builder, loc, lhs, rhs);
+    return typeInfo.isSigned ? utils::icmpSge(builder, loc, lhs, rhs)
+                             : utils::icmpUge(builder, loc, lhs, rhs);
 
   case CBO::BO_LAnd:
     return generateLAndBinaryOperator(lhs, rhs);

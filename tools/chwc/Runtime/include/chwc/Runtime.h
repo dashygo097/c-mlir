@@ -3,6 +3,7 @@
 
 #include "chwc/Annotation.h"
 #include "chwc/Hardware.h"
+#include "chwc/Types/SInt.h"
 #include "chwc/Types/Signal.h"
 #include "chwc/Types/UInt.h"
 
@@ -14,8 +15,12 @@ using Hardware = ::chwc::Hardware;
 using ::chwc::Input;
 using ::chwc::Output;
 using ::chwc::Reg;
-using ::chwc::UInt;
 using ::chwc::Wire;
+
+using ::chwc::SInt;
+using ::chwc::UInt;
+
+using Bool = UInt<1>;
 #endif
 
 #endif // CHWC_RUNTIME_RUNTIME_H

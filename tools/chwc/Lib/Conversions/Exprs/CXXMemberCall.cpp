@@ -21,14 +21,6 @@ auto isMethodOfCurrentRecord(const clang::CXXRecordDecl *currentRecordDecl,
   return parent->getCanonicalDecl() == currentRecordDecl->getCanonicalDecl();
 }
 
-auto getImplicitObject(clang::CXXMemberCallExpr *callExpr) -> clang::Expr * {
-  if (!callExpr) {
-    return nullptr;
-  }
-
-  return callExpr->getImplicitObjectArgument();
-}
-
 auto isSignalReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   if (!methodDecl) {
     return false;
@@ -74,7 +66,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     return nullptr;
   }
 
-  clang::Expr *objectExpr = getImplicitObject(callExpr);
+  clang::Expr *objectExpr = callExpr->getImplicitObjectArgument();
   clang::QualType objectType =
       objectExpr ? objectExpr->getType() : clang::QualType{};
 
@@ -137,7 +129,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   if (!methodDecl->getReturnType()->isVoidType() &&
       !isValidHelperValueType(methodDecl->getReturnType())) {
     llvm::WithColor::error()
-        << "chwc: HW_FUNC return type must be UInt<W> or void: "
+        << "chwc: HW_FUNC return type must be UInt<W>, SInt<W> or void: "
         << methodDecl->getNameAsString() << "\n";
     return nullptr;
   }
@@ -151,7 +143,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   for (clang::ParmVarDecl *paramDecl : methodDecl->parameters()) {
     if (!isValidHelperValueType(paramDecl->getType())) {
       llvm::WithColor::error()
-          << "chwc: HW_FUNC parameter type must be UInt<W>: "
+          << "chwc: HW_FUNC parameter type must be UInt<W> or SInt<W>: "
           << methodDecl->getNameAsString() << "\n";
       return nullptr;
     }

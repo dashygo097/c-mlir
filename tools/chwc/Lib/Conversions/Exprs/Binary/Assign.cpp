@@ -2,13 +2,14 @@
 #include "../../Utils/Cast.h"
 #include "../../Utils/Comb.h"
 #include "../../Utils/Expr.h"
+#include "../../Utils/Type.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
 auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
                        clang::BinaryOperatorKind op, mlir::Value lhs,
-                       mlir::Value rhs) -> mlir::Value {
+                       mlir::Value rhs, bool isSigned) -> mlir::Value {
   using CBO = clang::BinaryOperatorKind;
 
   switch (op) {
@@ -22,10 +23,12 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::mul(builder, loc, lhs, rhs);
 
   case CBO::BO_DivAssign:
-    return utils::div(builder, loc, lhs, rhs);
+    return isSigned ? utils::divS(builder, loc, lhs, rhs)
+                    : utils::divU(builder, loc, lhs, rhs);
 
   case CBO::BO_RemAssign:
-    return utils::mod(builder, loc, lhs, rhs);
+    return isSigned ? utils::modS(builder, loc, lhs, rhs)
+                    : utils::modU(builder, loc, lhs, rhs);
 
   case CBO::BO_AndAssign:
     return utils::bitAnd(builder, loc, lhs, rhs);
@@ -40,7 +43,8 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
     return utils::shl(builder, loc, lhs, rhs);
 
   case CBO::BO_ShrAssign:
-    return utils::shr(builder, loc, lhs, rhs);
+    return isSigned ? utils::shrS(builder, loc, lhs, rhs)
+                    : utils::shrU(builder, loc, lhs, rhs);
 
   default:
     llvm::WithColor::error() << "chwc: unsupported compound assignment: "
@@ -76,6 +80,11 @@ auto CHWConverter::generateAssignmentBinaryOperator(
       return nullptr;
     }
 
+    clang::Expr *objectExpr = assignOp->getLHS();
+    clang::QualType objectType =
+        objectExpr ? objectExpr->getType() : clang::QualType{};
+    auto typeInfo = utils::getSignalTypeInfo(objectType);
+
     mlir::Type lhsStorageType = oldValue.getType();
     mlir::Type computeType =
         convertType(compoundOp->getComputationResultType());
@@ -85,8 +94,9 @@ auto CHWConverter::generateAssignmentBinaryOperator(
     mlir::Value computeRHS =
         utils::promoteValue(builder, loc, rhsValue, computeType);
 
-    mlir::Value computed = emitCompoundArith(
-        builder, loc, assignOp->getOpcode(), computeLHS, computeRHS);
+    mlir::Value computed =
+        emitCompoundArith(builder, loc, assignOp->getOpcode(), computeLHS,
+                          computeRHS, typeInfo.isSigned);
 
     if (!computed) {
       return nullptr;
