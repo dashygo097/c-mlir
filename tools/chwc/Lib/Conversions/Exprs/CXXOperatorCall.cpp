@@ -7,6 +7,70 @@
 
 namespace chwc {
 
+auto isOverloadedCompoundAssign(clang::OverloadedOperatorKind op) -> bool {
+  using OO = clang::OverloadedOperatorKind;
+
+  switch (op) {
+  case OO::OO_PlusEqual:
+  case OO::OO_MinusEqual:
+  case OO::OO_StarEqual:
+  case OO::OO_SlashEqual:
+  case OO::OO_PercentEqual:
+  case OO::OO_AmpEqual:
+  case OO::OO_PipeEqual:
+  case OO::OO_CaretEqual:
+  case OO::OO_LessLessEqual:
+  case OO::OO_GreaterGreaterEqual:
+    return true;
+  default:
+    return false;
+  }
+}
+
+auto emitOverloadedCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
+                                 clang::OverloadedOperatorKind op,
+                                 mlir::Value lhs, mlir::Value rhs)
+    -> mlir::Value {
+  using OO = clang::OverloadedOperatorKind;
+
+  switch (op) {
+  case OO::OO_PlusEqual:
+    return utils::add(builder, loc, lhs, rhs);
+
+  case OO::OO_MinusEqual:
+    return utils::sub(builder, loc, lhs, rhs);
+
+  case OO::OO_StarEqual:
+    return utils::mul(builder, loc, lhs, rhs);
+
+  case OO::OO_SlashEqual:
+    return utils::div(builder, loc, lhs, rhs);
+
+  case OO::OO_PercentEqual:
+    return utils::mod(builder, loc, lhs, rhs);
+
+  case OO::OO_AmpEqual:
+    return utils::bitAnd(builder, loc, lhs, rhs);
+
+  case OO::OO_PipeEqual:
+    return utils::bitOr(builder, loc, lhs, rhs);
+
+  case OO::OO_CaretEqual:
+    return utils::bitXor(builder, loc, lhs, rhs);
+
+  case OO::OO_LessLessEqual:
+    return utils::shl(builder, loc, lhs, rhs);
+
+  case OO::OO_GreaterGreaterEqual:
+    return utils::shrU(builder, loc, lhs, rhs);
+
+  default:
+    llvm::WithColor::error()
+        << "chwc: unsupported overloaded compound assignment\n";
+    return nullptr;
+  }
+}
+
 auto getOperatorLHS(clang::CXXOperatorCallExpr *callExpr) -> clang::Expr * {
   if (!callExpr || callExpr->getNumArgs() < 1) {
     return nullptr;
@@ -102,6 +166,99 @@ auto CHWConverter::generateCXXOperatorCallExpr(
 
     llvm::WithColor::error() << "chwc: unsupported overloaded assignment lhs\n";
     return rhsValue;
+  }
+
+  if (isOverloadedCompoundAssign(op)) {
+    clang::Expr *lhsExpr = getOperatorLHS(callExpr);
+    clang::Expr *rhsExpr = getOperatorRHS(callExpr);
+
+    if (!lhsExpr || !rhsExpr) {
+      llvm::WithColor::error()
+          << "chwc: malformed overloaded compound assignment operator\n";
+      return nullptr;
+    }
+
+    mlir::Value oldValue = generateExpr(lhsExpr);
+    mlir::Value rhsValue = generateExpr(rhsExpr);
+
+    if (!oldValue || !rhsValue) {
+      llvm::WithColor::error() << "chwc: failed to generate overloaded "
+                                  "compound assignment operands\n";
+      return nullptr;
+    }
+
+    rhsValue = utils::promoteValue(builder, loc, rhsValue, oldValue.getType());
+    if (!rhsValue) {
+      return nullptr;
+    }
+
+    mlir::Value resultValue =
+        emitOverloadedCompoundArith(builder, loc, op, oldValue, rhsValue);
+
+    if (!resultValue) {
+      return nullptr;
+    }
+
+    const clang::FieldDecl *fieldDecl = getAssignedField(lhsExpr);
+    if (fieldDecl) {
+      auto fieldIt = fieldTable.find(fieldDecl);
+      if (fieldIt == fieldTable.end()) {
+        llvm::WithColor::error()
+            << "chwc: compound assignment lhs is not hardware field\n";
+        return resultValue;
+      }
+
+      HWFieldInfo &fieldInfo = fieldIt->second;
+
+      resultValue =
+          utils::promoteValue(builder, loc, resultValue, fieldInfo.type);
+      if (!resultValue) {
+        return nullptr;
+      }
+
+      switch (fieldInfo.kind) {
+      case HWFieldKind::Input:
+        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
+        break;
+
+      case HWFieldKind::Output:
+        outputValueTable[fieldDecl] = resultValue;
+        break;
+
+      case HWFieldKind::Reg:
+        nextFieldValueTable[fieldDecl] = resultValue;
+        break;
+
+      case HWFieldKind::Wire:
+        currentFieldValueTable[fieldDecl] = resultValue;
+        break;
+      }
+
+      return resultValue;
+    }
+
+    auto *declRef =
+        mlir::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
+
+    if (declRef) {
+      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+        mlir::Type targetType = convertType(varDecl->getType());
+        if (targetType) {
+          resultValue =
+              utils::promoteValue(builder, loc, resultValue, targetType);
+          if (!resultValue) {
+            return nullptr;
+          }
+        }
+
+        localValueTable[varDecl] = resultValue;
+        return resultValue;
+      }
+    }
+
+    llvm::WithColor::error()
+        << "chwc: unsupported overloaded compound assignment lhs\n";
+    return resultValue;
   }
 
   if (op == OO::OO_PlusPlus || op == OO::OO_MinusMinus) {

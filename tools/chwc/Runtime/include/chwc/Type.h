@@ -34,6 +34,10 @@ public:
   constexpr UInt(T value)
       : value_(normalize(static_cast<storage_type>(value))) {}
 
+  template <std::size_t OtherWidth>
+  constexpr UInt(UInt<OtherWidth> value)
+      : value_(normalize(static_cast<storage_type>(value.raw()))) {}
+
   constexpr auto raw() const -> storage_type { return value_; }
 
   constexpr auto value() const -> storage_type { return value_; }
@@ -48,124 +52,156 @@ public:
     return *this;
   }
 
+  template <std::size_t OtherWidth>
+  constexpr auto operator=(UInt<OtherWidth> value) -> UInt & {
+    value_ = normalize(value.raw());
+    return *this;
+  }
+
   constexpr auto operator+() const -> UInt { return *this; }
 
   constexpr auto operator-() const -> UInt { return UInt(0 - value_); }
 
   constexpr auto operator~() const -> UInt { return UInt(~value_); }
 
-  constexpr auto operator+(UInt rhs) const -> UInt {
-    return UInt(value_ + rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator+(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ + rhs.raw());
   }
 
-  constexpr auto operator-(UInt rhs) const -> UInt {
-    return UInt(value_ - rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator-(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ - rhs.raw());
   }
 
-  constexpr auto operator*(UInt rhs) const -> UInt {
-    return UInt(value_ * rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator*(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ * rhs.raw());
   }
 
-  constexpr auto operator/(UInt rhs) const -> UInt {
-    return rhs.value_ == 0 ? UInt(0) : UInt(value_ / rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator/(UInt<OtherWidth> rhs) const -> UInt {
+    return rhs.raw() == 0 ? UInt(0) : UInt(value_ / rhs.raw());
   }
 
-  constexpr auto operator%(UInt rhs) const -> UInt {
-    return rhs.value_ == 0 ? UInt(0) : UInt(value_ % rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator%(UInt<OtherWidth> rhs) const -> UInt {
+    return rhs.raw() == 0 ? UInt(0) : UInt(value_ % rhs.raw());
   }
 
-  constexpr auto operator&(UInt rhs) const -> UInt {
-    return UInt(value_ & rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator&(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ & rhs.raw());
   }
 
-  constexpr auto operator|(UInt rhs) const -> UInt {
-    return UInt(value_ | rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator|(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ | rhs.raw());
   }
 
-  constexpr auto operator^(UInt rhs) const -> UInt {
-    return UInt(value_ ^ rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator^(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ ^ rhs.raw());
   }
 
-  constexpr auto operator<<(UInt rhs) const -> UInt {
-    return UInt(value_ << rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator<<(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ << rhs.raw());
   }
 
-  constexpr auto operator>>(UInt rhs) const -> UInt {
-    return UInt(value_ >> rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator>>(UInt<OtherWidth> rhs) const -> UInt {
+    return UInt(value_ >> rhs.raw());
   }
 
-  constexpr auto operator+=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ + rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator+=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ + rhs.raw());
     return *this;
   }
 
-  constexpr auto operator-=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ - rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator-=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ - rhs.raw());
     return *this;
   }
 
-  constexpr auto operator*=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ * rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator*=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ * rhs.raw());
     return *this;
   }
 
-  constexpr auto operator/=(UInt rhs) -> UInt & {
-    value_ = rhs.value_ == 0 ? 0 : normalize(value_ / rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator/=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = rhs.raw() == 0 ? 0 : normalize(value_ / rhs.raw());
     return *this;
   }
 
-  constexpr auto operator%=(UInt rhs) -> UInt & {
-    value_ = rhs.value_ == 0 ? 0 : normalize(value_ % rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator%=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = rhs.raw() == 0 ? 0 : normalize(value_ % rhs.raw());
     return *this;
   }
 
-  constexpr auto operator&=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ & rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator&=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ & rhs.raw());
     return *this;
   }
 
-  constexpr auto operator|=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ | rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator|=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ | rhs.raw());
     return *this;
   }
 
-  constexpr auto operator^=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ ^ rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator^=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ ^ rhs.raw());
     return *this;
   }
 
-  constexpr auto operator<<=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ << rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator<<=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ << rhs.raw());
     return *this;
   }
 
-  constexpr auto operator>>=(UInt rhs) -> UInt & {
-    value_ = normalize(value_ >> rhs.value_);
+  template <std::size_t OtherWidth>
+  constexpr auto operator>>=(UInt<OtherWidth> rhs) -> UInt & {
+    value_ = normalize(value_ >> rhs.raw());
     return *this;
   }
 
-  constexpr auto operator==(UInt rhs) const -> bool {
-    return value_ == rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator==(UInt<OtherWidth> rhs) const -> bool {
+    return value_ == rhs.raw();
   }
 
-  constexpr auto operator!=(UInt rhs) const -> bool {
-    return value_ != rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator!=(UInt<OtherWidth> rhs) const -> bool {
+    return value_ != rhs.raw();
   }
 
-  constexpr auto operator<(UInt rhs) const -> bool {
-    return value_ < rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator<(UInt<OtherWidth> rhs) const -> bool {
+    return value_ < rhs.raw();
   }
 
-  constexpr auto operator<=(UInt rhs) const -> bool {
-    return value_ <= rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator<=(UInt<OtherWidth> rhs) const -> bool {
+    return value_ <= rhs.raw();
   }
 
-  constexpr auto operator>(UInt rhs) const -> bool {
-    return value_ > rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator>(UInt<OtherWidth> rhs) const -> bool {
+    return value_ > rhs.raw();
   }
 
-  constexpr auto operator>=(UInt rhs) const -> bool {
-    return value_ >= rhs.value_;
+  template <std::size_t OtherWidth>
+  constexpr auto operator>=(UInt<OtherWidth> rhs) const -> bool {
+    return value_ >= rhs.raw();
   }
 
   constexpr auto operator++() -> UInt & {
