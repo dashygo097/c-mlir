@@ -9,6 +9,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,6 +29,10 @@ struct HWFieldInfo {
   mlir::Type type;
   HWFieldKind kind{HWFieldKind::Wire};
   mlir::Value resetValue{};
+
+  bool isArray{false};
+  uint64_t arraySize{0};
+  mlir::Type elementType{};
 };
 
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
@@ -50,6 +55,7 @@ public:
   auto TraverseIfStmt(clang::IfStmt *ifStmt) -> bool;
 
   // loop
+  auto TraverseForStmt(clang::ForStmt *forStmt) -> bool;
 
   // loop optimizations
 
@@ -61,6 +67,7 @@ private:
   mlir::Value currentReturnValue{};
   bool hasCurrentReturnValue{false};
   unsigned helperInlineDepth{0};
+  bool isCollectingReset{false};
 
   llvm::SmallVector<clang::CXXMethodDecl *, 4> resetMethods;
   llvm::SmallVector<clang::CXXMethodDecl *, 4> clockTickMethods;
@@ -82,6 +89,7 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
+  llvm::DenseMap<const clang::VarDecl *, int64_t> localConstIntTable;
 
   void clearHardwareState() {
     currentModuleOp = nullptr;
@@ -103,10 +111,12 @@ private:
     nextFieldValueTable.clear();
     outputValueTable.clear();
     localValueTable.clear();
+    localConstIntTable.clear();
 
     currentReturnValue = nullptr;
     hasCurrentReturnValue = false;
     helperInlineDepth = 0;
+    isCollectingReset = false;
 
     resetMethods.clear();
     clockTickMethods.clear();
@@ -128,6 +138,14 @@ private:
   auto classifyField(clang::FieldDecl *fieldDecl) -> std::optional<HWFieldKind>;
   auto getAssignedField(clang::Expr *expr) -> const clang::FieldDecl *;
   void emitStateDecls();
+
+  auto readFieldValue(const clang::FieldDecl *fieldDecl) -> mlir::Value;
+  auto assignFieldValue(const clang::FieldDecl *fieldDecl, mlir::Value value)
+      -> mlir::Value;
+  auto readArrayElement(const clang::FieldDecl *fieldDecl, mlir::Value index)
+      -> mlir::Value;
+  auto assignArrayElement(const clang::FieldDecl *fieldDecl, mlir::Value index,
+                          mlir::Value value) -> mlir::Value;
 
   // type traits
   auto convertType(clang::QualType type) -> mlir::Type;
@@ -152,6 +170,8 @@ private:
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
   auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
+  auto generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub)
+      -> mlir::Value;
   auto generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       -> mlir::Value;
   auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)

@@ -4,6 +4,8 @@
 #include "../../Converter.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
+#include "llvm/Support/Casting.h"
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -15,6 +17,13 @@ struct SignalTypeInfo {
   bool isSigned{false};
   std::optional<HWFieldKind> fieldKind;
   unsigned width{0};
+};
+
+struct ConstantArrayTypeInfo {
+  bool isArray{false};
+  clang::QualType elementType;
+  uint64_t size{0};
+  SignalTypeInfo elementInfo;
 };
 
 inline auto getTemplateSpec(clang::QualType type)
@@ -177,6 +186,29 @@ inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   info.isSigned = elementInfo.isSigned;
   info.fieldKind = *kind;
   info.width = elementInfo.width;
+  return info;
+}
+
+inline auto getConstantArrayTypeInfo(clang::QualType type)
+    -> ConstantArrayTypeInfo {
+  ConstantArrayTypeInfo info;
+
+  type = type.getCanonicalType().getUnqualifiedType();
+
+  const clang::Type *typePtr = type.getTypePtrOrNull();
+  if (!typePtr) {
+    return info;
+  }
+
+  auto *arrayType = llvm::dyn_cast<clang::ConstantArrayType>(typePtr);
+  if (!arrayType) {
+    return info;
+  }
+
+  info.isArray = true;
+  info.elementType = arrayType->getElementType();
+  info.size = arrayType->getSize().getZExtValue();
+  info.elementInfo = getSignalTypeInfo(info.elementType);
   return info;
 }
 

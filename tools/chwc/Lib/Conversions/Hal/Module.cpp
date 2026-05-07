@@ -1,7 +1,8 @@
 #include "../Utils/Module.h"
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
-#include "../Utils/Constant.h"
+#include "../Utils/Array.h"
+#include "../Utils/Type.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -50,6 +51,23 @@ void CHWConverter::collectHardwareClass(clang::CXXRecordDecl *recordDecl) {
     fieldInfo.name = fieldDecl->getNameAsString();
     fieldInfo.type = type;
     fieldInfo.kind = *kind;
+
+    utils::ConstantArrayTypeInfo arrayInfo =
+        utils::getConstantArrayTypeInfo(fieldDecl->getType());
+
+    fieldInfo.isArray = arrayInfo.isArray;
+    if (arrayInfo.isArray) {
+      fieldInfo.arraySize = arrayInfo.size;
+      fieldInfo.elementType = convertType(arrayInfo.elementType);
+      if (!fieldInfo.elementType) {
+        llvm::WithColor::error()
+            << "chwc: unsupported hardware array element type: "
+            << arrayInfo.elementType.getAsString() << "\n";
+        continue;
+      }
+    } else {
+      fieldInfo.elementType = fieldInfo.type;
+    }
 
     hardwareFieldOrder.push_back(fieldDecl);
     fieldTable[fieldDecl] = fieldInfo;
@@ -103,7 +121,7 @@ void CHWConverter::emitHardwareClass(clang::CXXRecordDecl *recordDecl) {
 
     mlir::Value value = outputValueTable.lookup(fieldDecl);
     if (!value) {
-      value = utils::zeroValue(builder, loc, fieldInfo.type);
+      value = utils::zeroFieldValue(builder, loc, fieldInfo);
     }
 
     utils::emitOutputAssign(outputValues, builder, loc, fieldInfo, value);

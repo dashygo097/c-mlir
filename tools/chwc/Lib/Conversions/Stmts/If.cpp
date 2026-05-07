@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Array.h"
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
 
@@ -92,7 +93,7 @@ auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
 
       mlir::Value baseValue = savedOutputTable.lookup(fieldDecl);
       if (!baseValue) {
-        baseValue = utils::zeroValue(builder, loc, fieldInfo.type);
+        baseValue = utils::zeroFieldValue(builder, loc, fieldInfo);
       }
 
       mlir::Value thenValue = thenOutputTable.lookup(fieldDecl);

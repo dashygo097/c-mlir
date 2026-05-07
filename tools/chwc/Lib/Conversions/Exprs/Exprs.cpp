@@ -23,6 +23,7 @@ auto CHWConverter::generateExpr(clang::Expr *expr) -> mlir::Value {
   REGISTER_EXPR_CONVERSION(IntegerLiteral)
   REGISTER_EXPR_CONVERSION(DeclRefExpr)
   REGISTER_EXPR_CONVERSION(ImplicitCastExpr)
+  REGISTER_EXPR_CONVERSION(ArraySubscriptExpr)
   REGISTER_EXPR_CONVERSION(MemberExpr)
   REGISTER_EXPR_CONVERSION(CXXMemberCallExpr)
   REGISTER_EXPR_CONVERSION(CXXOperatorCallExpr)

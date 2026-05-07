@@ -14,6 +14,7 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/Literals.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ImplicitCast.cpp
+  Lib/Conversions/Exprs/ArraySubscript.cpp
   Lib/Conversions/Exprs/Member.cpp
   Lib/Conversions/Exprs/CXXMemberCall.cpp
   Lib/Conversions/Exprs/ExprWithCleanups.cpp
@@ -27,6 +28,7 @@ add_clang_executable(chwc
   Lib/Conversions/Stmts/Compound.cpp
   Lib/Conversions/Stmts/Decl.cpp
   Lib/Conversions/Stmts/If.cpp
+  Lib/Conversions/Stmts/For.cpp
   Lib/Conversions/Stmts/Return.cpp
   Lib/Conversions/Stmts/Stmts.cpp
 

@@ -117,47 +117,35 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return nullptr;
     }
 
-    const clang::FieldDecl *fieldDecl = getAssignedField(lhsExpr);
-    if (fieldDecl) {
-      auto fieldIt = fieldTable.find(fieldDecl);
-      if (fieldIt == fieldTable.end()) {
+    if (auto *arraySub = llvm::dyn_cast_or_null<clang::ArraySubscriptExpr>(
+            utils::ignoreCasts(lhsExpr))) {
+      const clang::FieldDecl *fieldDecl =
+          utils::getArrayBaseFieldDecl(arraySub->getBase());
+      if (!fieldDecl) {
         llvm::WithColor::error()
-            << "chwc: assignment lhs is not hardware field\n";
+            << "chwc: array assignment only supports hardware field arrays\n";
         return rhsValue;
       }
 
-      HWFieldInfo &fieldInfo = fieldIt->second;
-
-      rhsValue = utils::promoteValue(builder, loc, rhsValue, fieldInfo.type);
-      if (!rhsValue) {
-        return nullptr;
+      mlir::Value index = generateExpr(arraySub->getIdx());
+      if (!index) {
+        llvm::WithColor::error()
+            << "chwc: failed to generate array assignment index\n";
+        return rhsValue;
       }
 
-      switch (fieldInfo.kind) {
-      case HWFieldKind::Input:
-        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
-        break;
+      return assignArrayElement(fieldDecl, index, rhsValue);
+    }
 
-      case HWFieldKind::Output:
-        outputValueTable[fieldDecl] = rhsValue;
-        break;
-
-      case HWFieldKind::Reg:
-        nextFieldValueTable[fieldDecl] = rhsValue;
-        break;
-
-      case HWFieldKind::Wire:
-        currentFieldValueTable[fieldDecl] = rhsValue;
-        break;
-      }
-
-      return rhsValue;
+    const clang::FieldDecl *fieldDecl = getAssignedField(lhsExpr);
+    if (fieldDecl) {
+      return assignFieldValue(fieldDecl, rhsValue);
     }
 
     auto *declRef =
-        mlir::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
+        llvm::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
     if (declRef) {
-      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+      if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
         mlir::Type targetType = convertType(varDecl->getType());
         if (targetType) {
           rhsValue = utils::promoteValue(builder, loc, rhsValue, targetType);
@@ -207,49 +195,37 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return nullptr;
     }
 
-    const clang::FieldDecl *fieldDecl = getAssignedField(lhsExpr);
-    if (fieldDecl) {
-      auto fieldIt = fieldTable.find(fieldDecl);
-      if (fieldIt == fieldTable.end()) {
+    if (auto *arraySub = llvm::dyn_cast_or_null<clang::ArraySubscriptExpr>(
+            utils::ignoreCasts(lhsExpr))) {
+      const clang::FieldDecl *fieldDecl =
+          utils::getArrayBaseFieldDecl(arraySub->getBase());
+      if (!fieldDecl) {
         llvm::WithColor::error()
-            << "chwc: compound assignment lhs is not hardware field\n";
+            << "chwc: array compound assignment only supports hardware field "
+               "arrays\n";
         return resultValue;
       }
 
-      HWFieldInfo &fieldInfo = fieldIt->second;
-
-      resultValue =
-          utils::promoteValue(builder, loc, resultValue, fieldInfo.type);
-      if (!resultValue) {
-        return nullptr;
+      mlir::Value index = generateExpr(arraySub->getIdx());
+      if (!index) {
+        llvm::WithColor::error()
+            << "chwc: failed to generate array compound assignment index\n";
+        return resultValue;
       }
 
-      switch (fieldInfo.kind) {
-      case HWFieldKind::Input:
-        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
-        break;
+      return assignArrayElement(fieldDecl, index, resultValue);
+    }
 
-      case HWFieldKind::Output:
-        outputValueTable[fieldDecl] = resultValue;
-        break;
-
-      case HWFieldKind::Reg:
-        nextFieldValueTable[fieldDecl] = resultValue;
-        break;
-
-      case HWFieldKind::Wire:
-        currentFieldValueTable[fieldDecl] = resultValue;
-        break;
-      }
-
-      return resultValue;
+    const clang::FieldDecl *fieldDecl = getAssignedField(lhsExpr);
+    if (fieldDecl) {
+      return assignFieldValue(fieldDecl, resultValue);
     }
 
     auto *declRef =
-        mlir::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
+        llvm::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
 
     if (declRef) {
-      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+      if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
         mlir::Type targetType = convertType(varDecl->getType());
         if (targetType) {
           resultValue =

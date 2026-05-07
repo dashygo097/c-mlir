@@ -1,92 +1,59 @@
 #include "../../Converter.h"
-#include "../Utils/Cast.h"
-#include "../Utils/Constant.h"
-#include "clang/AST/ExprCXX.h"
-#include "llvm/Support/WithColor.h"
+#include "../Utils/Array.h"
 
 namespace chwc {
-
-auto getResetAssign(clang::Stmt *stmt, clang::Expr *&lhs, clang::Expr *&rhs)
-    -> bool {
-  if (auto *assignOp = mlir::dyn_cast<clang::BinaryOperator>(stmt)) {
-    if (!assignOp->isAssignmentOp()) {
-      return false;
-    }
-
-    lhs = assignOp->getLHS();
-    rhs = assignOp->getRHS();
-    return true;
-  }
-
-  if (auto *operatorCall = mlir::dyn_cast<clang::CXXOperatorCallExpr>(stmt)) {
-    if (operatorCall->getOperator() != clang::OO_Equal ||
-        operatorCall->getNumArgs() != 2) {
-      return false;
-    }
-
-    lhs = operatorCall->getArg(0);
-    rhs = operatorCall->getArg(1);
-    return true;
-  }
-
-  if (auto *cleanups = mlir::dyn_cast<clang::ExprWithCleanups>(stmt)) {
-    return getResetAssign(cleanups->getSubExpr(), lhs, rhs);
-  }
-
-  return false;
-}
 
 void CHWConverter::collectResetValues() {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
-    if (fieldInfo.kind == HWFieldKind::Reg) {
-      fieldInfo.resetValue = utils::zeroValue(builder, loc, fieldInfo.type);
+  for (const clang::FieldDecl *fieldDecl : hardwareFieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
+      continue;
     }
+
+    HWFieldInfo &fieldInfo = fieldIt->second;
+    if (fieldInfo.kind != HWFieldKind::Reg) {
+      continue;
+    }
+
+    fieldInfo.resetValue = utils::zeroFieldValue(builder, loc, fieldInfo);
   }
+
+  llvm::DenseMap<const clang::VarDecl *, mlir::Value> savedLocalValueTable =
+      localValueTable;
+  llvm::DenseMap<const clang::VarDecl *, int64_t> savedLocalConstIntTable =
+      localConstIntTable;
+
+  bool savedResetMode = isCollectingReset;
+  isCollectingReset = true;
 
   for (clang::CXXMethodDecl *resetMethod : resetMethods) {
     if (!resetMethod || !resetMethod->hasBody()) {
       continue;
     }
 
-    auto *body = mlir::dyn_cast<clang::CompoundStmt>(resetMethod->getBody());
-    if (!body) {
-      llvm::WithColor::error()
-          << "chwc: reset method body must be compound stmt\n";
+    TraverseStmt(resetMethod->getBody());
+  }
+
+  isCollectingReset = savedResetMode;
+  localValueTable = std::move(savedLocalValueTable);
+  localConstIntTable = std::move(savedLocalConstIntTable);
+
+  for (const clang::FieldDecl *fieldDecl : hardwareFieldOrder) {
+    auto fieldIt = fieldTable.find(fieldDecl);
+    if (fieldIt == fieldTable.end()) {
       continue;
     }
 
-    for (clang::Stmt *stmt : body->body()) {
-      clang::Expr *lhs = nullptr;
-      clang::Expr *rhs = nullptr;
+    HWFieldInfo &fieldInfo = fieldIt->second;
+    if (fieldInfo.kind != HWFieldKind::Reg) {
+      continue;
+    }
 
-      if (!getResetAssign(stmt, lhs, rhs)) {
-        llvm::WithColor::error()
-            << "chwc: reset method only supports field = constant\n";
-        continue;
-      }
-
-      const clang::FieldDecl *fieldDecl = getAssignedField(lhs);
-      if (!fieldDecl || !fieldTable.count(fieldDecl)) {
-        llvm::WithColor::error()
-            << "chwc: reset assignment lhs must be hardware field\n";
-        continue;
-      }
-
-      mlir::Value value = generateExpr(rhs);
-      if (!value) {
-        continue;
-      }
-
-      HWFieldInfo &fieldInfo = fieldTable[fieldDecl];
-      value = utils::promoteValue(builder, loc, value, fieldInfo.type);
-      if (!value) {
-        continue;
-      }
-
-      fieldInfo.resetValue = value;
+    if (!fieldInfo.resetValue) {
+      fieldInfo.resetValue = utils::zeroFieldValue(builder, loc, fieldInfo);
     }
   }
 }
