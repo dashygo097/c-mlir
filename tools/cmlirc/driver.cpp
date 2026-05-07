@@ -1,3 +1,7 @@
+#ifndef DEFAULT_SYSROOT
+#define DEFAULT_SYSROOT ""
+#endif
+
 #include "./ArgumentList.h"
 #include "./Lib/ActionFactory.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -17,7 +21,7 @@ llvm::cl::opt<bool> verbose("v", llvm::cl::init(false),
                             llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<std::string>
-    systemRoot("sysroot", llvm::cl::init(""),
+    systemRoot("sysroot", llvm::cl::init(DEFAULT_SYSROOT),
                llvm::cl::desc("Set the system root path"),
                llvm::cl::value_desc("path"), llvm::cl::cat(toolOptions));
 

@@ -83,6 +83,7 @@ set(CIRCT_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/build) # If you're not building `c
 
 # Compilation options
 set(USE_CCACHE ON)
+set(DEFAULT_SYSROOT "")
 
 # Build options
 set(BUILD_EXECUTABLES ON)

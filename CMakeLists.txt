@@ -34,6 +34,12 @@ add_subdirectory(include)
 add_subdirectory(lib)
 
 # Executables
+if(NOT DEFINED DEFAULT_SYSROOT)
+  set(DEFAULT_SYSROOT "")
+endif()
+message(STATUS "Default sysroot: ${DEFAULT_SYSROOT}")
+add_compile_definitions(DEFAULT_SYSROOT="${DEFAULT_SYSROOT}")
+
 if(BUILD_EXECUTABLES)
   add_subdirectory(tools)
 endif()
