@@ -1,4 +1,4 @@
-// RUN: chwc %s -module=Counter --sysroot=$(xcrun --show-sdk-path) | FileCheck %s
+// RUN: chwc %s -module=Counter | FileCheck %s
 #include <chwc/Runtime.h>
 
 class Counter final : public Hardware {

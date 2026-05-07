@@ -20,7 +20,7 @@ make config # generate configuration file at build/config.cmake
 **2. Build LLVM, MLIR and Clang:**
 
 ```bash
-mkdir circt/llvm/build
+mkdir -p circt/llvm/build
 cd circt/llvm/build
 cmake -G Ninja ../llvm \
   -DLLVM_ENABLE_PROJECTS="mlir;clang" \
@@ -36,14 +36,15 @@ For faster compilation, it is recommended to use -DLLVM_USE_LINKER=lld.
 **2.1 Build CIRCT:(_optional_)**
 
 ```bash
-mkdir circt/build
+mkdir -p circt/build
 cd circt/build
 cmake -G Ninja .. \
     -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=DEBUG \
-    -DLLVM_USE_SPLIT_DWARF=ON
+    -DLLVM_USE_SPLIT_DWARF=ON \
+    -DCIRCT_SLANG_FRONTEND_ENABLED=ON
 ninja
 ```
 
@@ -58,7 +59,7 @@ make
 Or manually follow this:
 
 ```bash
-mkdir build
+mkdir -p build
 cd build
 cmake -G Ninja ..
 ninja
@@ -107,7 +108,7 @@ make
 Or manually follow this:
 
 ```bash
-mkdir build
+mkdir -p build
 cd build
 cmake -G Ninja ..
 ninja
