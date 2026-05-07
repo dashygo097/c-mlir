@@ -142,7 +142,7 @@ ninja check-xxx # The name of the executable you want to test(cmlirc, chwc, etc.
 
 **1. Dot Product**
 
-```c++
+```cpp
 float dot(const float *a, const float *b, int n) {
   float result = 0;
   for (int i = 0; i < n; i++) {
@@ -179,7 +179,7 @@ module {
 
 **1. Counter**
 
-```c++
+```cpp
 #include <chwc/Runtime.h> // Runtime Lib
 
 class Counter final : public Hardware {
@@ -211,8 +211,8 @@ chwc counter.cpp
 ```mlir
 module {
   hw.module @Counter(in %clk : !seq.clock, in %rst : i1, in %en : i1, out out : i16) {
-    %c1_i16 = arith.constant 1 : i16
-    %c0_i16 = arith.constant 0 : i16
+    %c1_i16 = hw.constant 1 : i16
+    %c0_i16 = hw.constant 0 : i16
     %value = seq.firreg %1 clock %clk reset sync %rst, %c0_i16 : i16
     %0 = comb.add %value, %c1_i16 : i16
     %1 = comb.mux %en, %0, %value : i16
