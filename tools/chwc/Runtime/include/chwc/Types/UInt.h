@@ -33,7 +33,8 @@ public:
 
   constexpr explicit operator bool() const { return value_ != 0; }
 
-  constexpr explicit operator storage_type() const { return value_; }
+  // NOTE: explicit removed for signal unwarpping and debugging
+  constexpr operator storage_type() const { return value_; }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator=(T value) -> UInt & {

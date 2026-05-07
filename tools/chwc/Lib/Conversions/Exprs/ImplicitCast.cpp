@@ -1,6 +1,5 @@
 #include "../../Converter.h"
 #include "../Utils/Cast.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -24,7 +23,12 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
     if (!subValue) {
       return nullptr;
     }
-    return subValue;
+
+    if (!targetType) {
+      return subValue;
+    }
+
+    return utils::promoteValue(builder, loc, subValue, targetType);
   }
 
   case CK::CK_IntegralCast: {
@@ -33,27 +37,11 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       return nullptr;
     }
 
-    auto srcIntType = mlir::dyn_cast<mlir::IntegerType>(subValue.getType());
-    auto dstIntType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-    if (!srcIntType || !dstIntType) {
+    if (!targetType) {
       return subValue;
     }
 
-    uint32_t srcWidth = srcIntType.getWidth();
-    uint32_t dstWidth = dstIntType.getWidth();
-
-    if (srcWidth < dstWidth) {
-      return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-
-    if (srcWidth > dstWidth) {
-      return mlir::arith::TruncIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-
-    return subValue;
+    return utils::promoteValue(builder, loc, subValue, targetType);
   }
 
   case CK::CK_IntegralToBoolean: {
@@ -71,24 +59,11 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       return nullptr;
     }
 
-    auto srcIntType = mlir::dyn_cast<mlir::IntegerType>(subValue.getType());
-    auto dstIntType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-    if (!srcIntType || !dstIntType) {
+    if (!targetType) {
       return subValue;
     }
 
-    if (srcIntType.getWidth() < dstIntType.getWidth()) {
-      return mlir::arith::ExtUIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-
-    if (srcIntType.getWidth() > dstIntType.getWidth()) {
-      return mlir::arith::TruncIOp::create(builder, loc, targetType, subValue)
-          .getResult();
-    }
-
-    return subValue;
+    return utils::promoteValue(builder, loc, subValue, targetType);
   }
 
   default: {
@@ -102,7 +77,11 @@ auto CHWConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
         << clang::ImplicitCastExpr::getCastKindName(castExpr->getCastKind())
         << "\n";
 
-    return subValue;
+    if (!targetType) {
+      return subValue;
+    }
+
+    return utils::promoteValue(builder, loc, subValue, targetType);
   }
   }
 }

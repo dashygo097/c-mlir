@@ -9,7 +9,6 @@
 #include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Support/LLVM.h"
 #include "cmlir/Transforms/Passes.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -29,7 +28,6 @@ public:
       -> std::unique_ptr<clang::ASTConsumer> override {
     mlir::DialectRegistry registry;
 
-    registry.insert<mlir::arith::ArithDialect>();
     registry.insert<circt::hw::HWDialect>();
     registry.insert<circt::comb::CombDialect>();
     registry.insert<circt::seq::SeqDialect>();
@@ -38,7 +36,6 @@ public:
     contextManager =
         std::make_unique<CHWContextManager>(&ci.getASTContext(), &registry);
 
-    contextManager->MLIRContext().loadDialect<mlir::arith::ArithDialect>();
     contextManager->MLIRContext().loadDialect<circt::hw::HWDialect>();
     contextManager->MLIRContext().loadDialect<circt::comb::CombDialect>();
     contextManager->MLIRContext().loadDialect<circt::seq::SeqDialect>();

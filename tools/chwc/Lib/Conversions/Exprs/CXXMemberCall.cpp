@@ -3,6 +3,7 @@
 #include "../Utils/Cast.h"
 #include "../Utils/Type.h"
 #include "clang/AST/DeclCXX.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -21,39 +22,27 @@ auto isMethodOfCurrentRecord(const clang::CXXRecordDecl *currentRecordDecl,
   return parent->getCanonicalDecl() == currentRecordDecl->getCanonicalDecl();
 }
 
-auto isSignalReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  std::string name = methodDecl->getNameAsString();
-
-  if (name == "read" || name == "value" || name == "raw") {
-    return true;
-  }
-
-  if (mlir::isa<clang::CXXConversionDecl>(methodDecl)) {
-    return true;
-  }
-
-  return false;
-}
-
-auto isSignalBoolMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  if (!methodDecl) {
-    return false;
-  }
-
-  auto *conversionDecl = mlir::dyn_cast<clang::CXXConversionDecl>(methodDecl);
-  if (!conversionDecl) {
-    return false;
-  }
-
-  return conversionDecl->getConversionType()->isBooleanType();
+auto isChwcValueOrSignalType(clang::QualType type) -> bool {
+  return utils::getSignalTypeInfo(type).isValue;
 }
 
 auto isValidHelperValueType(clang::QualType type) -> bool {
   utils::SignalTypeInfo typeInfo = utils::getSignalTypeInfo(type);
+  return typeInfo.isValue && !typeInfo.isSignal;
+}
+
+auto isBoolConversion(clang::CXXConversionDecl *conversionDecl) -> bool {
+  return conversionDecl && conversionDecl->getConversionType()->isBooleanType();
+}
+
+auto isChwcValueConversion(clang::CXXConversionDecl *conversionDecl) -> bool {
+  if (!conversionDecl) {
+    return false;
+  }
+
+  utils::SignalTypeInfo typeInfo =
+      utils::getSignalTypeInfo(conversionDecl->getConversionType());
+
   return typeInfo.isValue && !typeInfo.isSignal;
 }
 
@@ -70,40 +59,54 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   clang::QualType objectType =
       objectExpr ? objectExpr->getType() : clang::QualType{};
 
-  if (!objectType.isNull() && utils::isSignalType(objectType)) {
-    if (isSignalReadMethod(methodDecl)) {
-      mlir::Value value = generateExpr(objectExpr);
+  if (!objectType.isNull() && isChwcValueOrSignalType(objectType)) {
+    auto *conversionDecl =
+        llvm::dyn_cast_or_null<clang::CXXConversionDecl>(methodDecl);
+
+    if (!conversionDecl) {
+      llvm::WithColor::error()
+          << "chwc: explicit CHWC member call is not part of the hardware DSL: "
+          << methodDecl->getQualifiedNameAsString() << "\n";
+      return nullptr;
+    }
+
+    if (!isBoolConversion(conversionDecl) &&
+        !isChwcValueConversion(conversionDecl)) {
+      llvm::WithColor::error()
+          << "chwc: native integer conversion is unsupported in normal "
+             "expression lowering: "
+          << methodDecl->getQualifiedNameAsString() << "\n";
+      return nullptr;
+    }
+
+    mlir::Value value = generateExpr(objectExpr);
+    if (!value) {
+      return nullptr;
+    }
+
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    if (isBoolConversion(conversionDecl)) {
+      return utils::toBool(builder, loc, value);
+    }
+
+    mlir::Type targetType = convertType(conversionDecl->getConversionType());
+    if (targetType) {
+      value = utils::promoteValue(builder, loc, value, targetType);
       if (!value) {
         return nullptr;
       }
-
-      mlir::OpBuilder &builder = contextManager.Builder();
-      mlir::Location loc = builder.getUnknownLoc();
-
-      if (isSignalBoolMethod(methodDecl)) {
-        return utils::toBool(builder, loc, value);
-      }
-
-      mlir::Type targetType = convertType(callExpr->getType());
-      if (targetType) {
-        value = utils::promoteValue(builder, loc, value, targetType);
-        if (!value) {
-          return nullptr;
-        }
-      }
-
-      return value;
     }
 
-    llvm::WithColor::error() << "chwc: unsupported Signal member call: "
-                             << methodDecl->getNameAsString() << "\n";
-    return nullptr;
+    return value;
   }
 
   if (!isMethodOfCurrentRecord(currentRecordDecl, methodDecl)) {
     llvm::WithColor::error()
         << "chwc: only calls to methods of the current hardware class are "
-           "supported\n";
+           "supported: "
+        << methodDecl->getQualifiedNameAsString() << "\n";
     return nullptr;
   }
 
@@ -152,6 +155,9 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> savedLocalValueTable =
       localValueTable;
 
+  llvm::DenseMap<const clang::VarDecl *, int64_t> savedLocalConstIntTable =
+      localConstIntTable;
+
   mlir::Value savedReturnValue = currentReturnValue;
   bool savedHasReturnValue = hasCurrentReturnValue;
 
@@ -172,6 +178,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       currentReturnValue = savedReturnValue;
       hasCurrentReturnValue = savedHasReturnValue;
       localValueTable = std::move(savedLocalValueTable);
+      localConstIntTable = std::move(savedLocalConstIntTable);
       return nullptr;
     }
 
@@ -182,6 +189,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       currentReturnValue = savedReturnValue;
       hasCurrentReturnValue = savedHasReturnValue;
       localValueTable = std::move(savedLocalValueTable);
+      localConstIntTable = std::move(savedLocalConstIntTable);
       return nullptr;
     }
 
@@ -191,6 +199,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       currentReturnValue = savedReturnValue;
       hasCurrentReturnValue = savedHasReturnValue;
       localValueTable = std::move(savedLocalValueTable);
+      localConstIntTable = std::move(savedLocalConstIntTable);
       return nullptr;
     }
 
@@ -206,6 +215,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   currentReturnValue = savedReturnValue;
   hasCurrentReturnValue = savedHasReturnValue;
   localValueTable = std::move(savedLocalValueTable);
+  localConstIntTable = std::move(savedLocalConstIntTable);
 
   if (!hasReturnValue && !methodDecl->getReturnType()->isVoidType()) {
     llvm::WithColor::error() << "chwc: non-void member helper has no return: "

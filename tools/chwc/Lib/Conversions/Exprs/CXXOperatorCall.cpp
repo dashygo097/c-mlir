@@ -4,6 +4,8 @@
 #include "../Utils/Expr.h"
 #include "../Utils/Type.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -100,6 +102,64 @@ auto CHWConverter::generateCXXOperatorCallExpr(
 
   OO op = callExpr->getOperator();
 
+  auto lowerArrayIndex = [&](auto &&self, clang::Expr *expr) -> mlir::Value {
+    if (!expr) {
+      return nullptr;
+    }
+
+    expr = utils::ignoreExprWrappers(expr);
+
+    if (auto *implicitCast =
+            llvm::dyn_cast_or_null<clang::ImplicitCastExpr>(expr)) {
+      using CK = clang::CastKind;
+
+      switch (implicitCast->getCastKind()) {
+      case CK::CK_LValueToRValue:
+      case CK::CK_NoOp:
+      case CK::CK_IntegralCast:
+      case CK::CK_UserDefinedConversion:
+      case CK::CK_ConstructorConversion:
+        return self(self, implicitCast->getSubExpr());
+
+      default:
+        break;
+      }
+    }
+
+    if (auto *explicitCast =
+            llvm::dyn_cast_or_null<clang::ExplicitCastExpr>(expr)) {
+      using CK = clang::CastKind;
+
+      switch (explicitCast->getCastKind()) {
+      case CK::CK_LValueToRValue:
+      case CK::CK_NoOp:
+      case CK::CK_IntegralCast:
+      case CK::CK_UserDefinedConversion:
+      case CK::CK_ConstructorConversion:
+        return self(self, explicitCast->getSubExpr());
+
+      default:
+        break;
+      }
+    }
+
+    if (auto *memberCall =
+            llvm::dyn_cast_or_null<clang::CXXMemberCallExpr>(expr)) {
+      auto *conversionDecl = llvm::dyn_cast_or_null<clang::CXXConversionDecl>(
+          memberCall->getMethodDecl());
+
+      if (conversionDecl) {
+        clang::Expr *objectExpr = memberCall->getImplicitObjectArgument();
+        if (objectExpr &&
+            utils::getSignalTypeInfo(objectExpr->getType()).isValue) {
+          return self(self, objectExpr);
+        }
+      }
+    }
+
+    return generateExpr(expr);
+  };
+
   if (op == OO::OO_Equal) {
     clang::Expr *lhsExpr = getOperatorLHS(callExpr);
     clang::Expr *rhsExpr = getOperatorRHS(callExpr);
@@ -118,7 +178,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     }
 
     if (auto *arraySub = llvm::dyn_cast_or_null<clang::ArraySubscriptExpr>(
-            utils::ignoreCasts(lhsExpr))) {
+            utils::ignoreExprWrappers(lhsExpr))) {
       const clang::FieldDecl *fieldDecl =
           utils::getArrayBaseFieldDecl(arraySub->getBase());
       if (!fieldDecl) {
@@ -127,7 +187,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
         return rhsValue;
       }
 
-      mlir::Value index = generateExpr(arraySub->getIdx());
+      mlir::Value index = lowerArrayIndex(lowerArrayIndex, arraySub->getIdx());
       if (!index) {
         llvm::WithColor::error()
             << "chwc: failed to generate array assignment index\n";
@@ -142,8 +202,8 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return assignFieldValue(fieldDecl, rhsValue);
     }
 
-    auto *declRef =
-        llvm::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
+    auto *declRef = llvm::dyn_cast_or_null<clang::DeclRefExpr>(
+        utils::ignoreExprWrappers(lhsExpr));
     if (declRef) {
       if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
         mlir::Type targetType = convertType(varDecl->getType());
@@ -196,7 +256,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
     }
 
     if (auto *arraySub = llvm::dyn_cast_or_null<clang::ArraySubscriptExpr>(
-            utils::ignoreCasts(lhsExpr))) {
+            utils::ignoreExprWrappers(lhsExpr))) {
       const clang::FieldDecl *fieldDecl =
           utils::getArrayBaseFieldDecl(arraySub->getBase());
       if (!fieldDecl) {
@@ -206,7 +266,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
         return resultValue;
       }
 
-      mlir::Value index = generateExpr(arraySub->getIdx());
+      mlir::Value index = lowerArrayIndex(lowerArrayIndex, arraySub->getIdx());
       if (!index) {
         llvm::WithColor::error()
             << "chwc: failed to generate array compound assignment index\n";
@@ -221,8 +281,8 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return assignFieldValue(fieldDecl, resultValue);
     }
 
-    auto *declRef =
-        llvm::dyn_cast_or_null<clang::DeclRefExpr>(utils::ignoreCasts(lhsExpr));
+    auto *declRef = llvm::dyn_cast_or_null<clang::DeclRefExpr>(
+        utils::ignoreExprWrappers(lhsExpr));
 
     if (declRef) {
       if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(declRef->getDecl())) {

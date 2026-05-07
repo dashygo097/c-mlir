@@ -1,5 +1,5 @@
 #include "../../Converter.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "../Utils/Constant.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
@@ -212,9 +212,12 @@ auto CHWConverter::TraverseForStmt(clang::ForStmt *forStmt) -> bool {
       break;
     }
 
-    mlir::Value mlirValue = mlir::arith::ConstantIntOp::create(
-                                builder, loc, value, intType.getWidth())
-                                .getResult();
+    mlir::Value mlirValue = utils::intConst(builder, loc, loopType, value);
+    if (!mlirValue) {
+      llvm::WithColor::error()
+          << "chwc: failed to create static for-loop induction value\n";
+      break;
+    }
 
     localValueTable[loopVar] = mlirValue;
     localConstIntTable[loopVar] = value;
