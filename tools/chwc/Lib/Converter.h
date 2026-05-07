@@ -58,6 +58,9 @@ private:
 
   // states
   const clang::CXXRecordDecl *currentRecordDecl{nullptr};
+  mlir::Value currentReturnValue{};
+  bool hasCurrentReturnValue{false};
+  unsigned helperInlineDepth{0};
 
   llvm::SmallVector<clang::CXXMethodDecl *, 4> resetMethods;
   llvm::SmallVector<clang::CXXMethodDecl *, 4> clockTickMethods;
@@ -79,10 +82,6 @@ private:
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
-
-  mlir::Value currentReturnValue{};
-  bool hasCurrentReturnValue{false};
-  unsigned helperInlineDepth{0};
 
   void clearHardwareState() {
     currentModuleOp = nullptr;
@@ -137,6 +136,12 @@ private:
   // expr traits
   auto generateExpr(clang::Expr *expr) -> mlir::Value;
 
+  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
+      -> mlir::Value;
+  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
+
+  auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
+
   auto generateExprWithCleanups(clang::ExprWithCleanups *expr) -> mlir::Value;
   auto generateCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr)
       -> mlir::Value;
@@ -144,11 +149,6 @@ private:
       -> mlir::Value;
   auto generateCXXConstructExpr(clang::CXXConstructExpr *expr) -> mlir::Value;
 
-  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
-      -> mlir::Value;
-  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
-
-  auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
   auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
