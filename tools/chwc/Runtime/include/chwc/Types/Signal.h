@@ -205,7 +205,7 @@ public:
   }
 
   template <typename U> constexpr auto operator||(const U &rhs) const -> bool {
-    return value_ && unwrap(rhs);
+    return value_ || unwrap(rhs);
   }
 
 private:
