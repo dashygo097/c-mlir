@@ -3,6 +3,7 @@
 
 #include "chwc/Annotation.h"
 #include "chwc/Hardware.h"
+#include "chwc/Types/Array.h"
 #include "chwc/Types/SInt.h"
 #include "chwc/Types/Signal.h"
 #include "chwc/Types/UInt.h"

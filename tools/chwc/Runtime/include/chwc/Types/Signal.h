@@ -40,7 +40,8 @@ public:
 
   constexpr explicit operator bool() const { return static_cast<bool>(value_); }
 
-  constexpr explicit operator T() const { return value_; }
+  // NOTE: explicit removed for signal unwarpping
+  constexpr operator T() const { return value_; }
 
   constexpr auto operator=(const T &value) -> Signal & {
     value_ = value;
