@@ -20,23 +20,23 @@ public:
 
   constexpr SInt() = default;
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
-  constexpr SInt(T value)
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+  constexpr explicit SInt(T value)
       : value_(normalize(static_cast<storage_type>(value))) {}
 
   template <std::size_t OtherWidth>
-  constexpr SInt(SInt<OtherWidth> value)
+  constexpr explicit SInt(SInt<OtherWidth> value)
       : value_(normalize(static_cast<storage_type>(value.raw()))) {}
 
-  constexpr auto raw() const -> storage_type { return value_; }
+  [[nodiscard]] constexpr auto raw() const -> storage_type { return value_; }
 
-  constexpr auto value() const -> storage_type { return value_; }
+  [[nodiscard]] constexpr auto value() const -> storage_type { return value_; }
 
   constexpr explicit operator bool() const { return value_ != 0; }
 
   constexpr explicit operator storage_type() const { return value_; }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator=(T value) -> SInt & {
     value_ = normalize(static_cast<storage_type>(value));
     return *this;
@@ -58,62 +58,62 @@ public:
     return UInt<1>(!static_cast<bool>(value_));
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator+(T rhs) const -> SInt {
     return *this + SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator-(T rhs) const -> SInt {
     return *this - SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator*(T rhs) const -> SInt {
     return *this * SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator/(T rhs) const -> SInt {
     return *this / SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator%(T rhs) const -> SInt {
     return *this % SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator&(T rhs) const -> SInt {
     return *this & SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator|(T rhs) const -> SInt {
     return *this | SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator^(T rhs) const -> SInt {
     return *this ^ SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator<<(T rhs) const -> SInt {
     return *this << SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator>>(T rhs) const -> SInt {
     return *this >> SInt(rhs);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator&&(T rhs) const -> SInt {
     return UInt<1>(static_cast<bool>(value_) && static_cast<bool>(rhs));
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
   constexpr auto operator||(T rhs) const -> SInt {
     return UInt<1>(static_cast<bool>(value_) || static_cast<bool>(rhs));
   }

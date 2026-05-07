@@ -26,11 +26,11 @@ public:
 
   constexpr Signal() = default;
 
-  constexpr Signal(const T &value) : value_(value) {}
+  constexpr explicit Signal(const T &value) : value_(value) {}
 
-  template <typename U, typename = std::enable_if_t<!std::is_same<
-                            Signal<T, Kind>, std::decay_t<U>>::value>>
-  constexpr Signal(U &&value) : value_(T(std::forward<U>(value))) {}
+  template <typename U, typename = std::enable_if_t<
+                            !std::is_same_v<Signal<T, Kind>, std::decay_t<U>>>>
+  constexpr explicit Signal(U &&value) : value_(T(std::forward<U>(value))) {}
 
   constexpr auto read() const -> T { return value_; }
 
@@ -40,15 +40,15 @@ public:
 
   constexpr explicit operator bool() const { return static_cast<bool>(value_); }
 
-  constexpr operator T() const { return value_; }
+  constexpr explicit operator T() const { return value_; }
 
   constexpr auto operator=(const T &value) -> Signal & {
     value_ = value;
     return *this;
   }
 
-  template <typename U, typename = std::enable_if_t<!std::is_same<
-                            Signal<T, Kind>, std::decay_t<U>>::value>>
+  template <typename U, typename = std::enable_if_t<
+                            !std::is_same_v<Signal<T, Kind>, std::decay_t<U>>>>
   constexpr auto operator=(U &&value) -> Signal & {
     value_ = T(std::forward<U>(value));
     return *this;
