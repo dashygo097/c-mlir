@@ -2,6 +2,7 @@
 #define CHWC_UTILS_MODULE_H
 
 #include "../../Converter.h"
+#include "circt/Dialect/HW/HWAttributes.h"
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/HW/PortImplementation.h"
 #include "circt/Dialect/Seq/SeqTypes.h"
@@ -13,6 +14,30 @@
 
 namespace chwc::utils {
 
+inline auto buildModuleParameterAttr(
+    mlir::OpBuilder &builder,
+    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
+        &paramTable,
+    llvm::ArrayRef<const clang::NonTypeTemplateParmDecl *> paramOrder)
+    -> mlir::ArrayAttr {
+  llvm::SmallVector<mlir::Attribute, 4> params;
+
+  for (const clang::NonTypeTemplateParmDecl *paramDecl : paramOrder) {
+    auto paramIt = paramTable.find(paramDecl);
+    if (paramIt == paramTable.end()) {
+      continue;
+    }
+
+    const HWParamInfo &paramInfo = paramIt->second;
+
+    params.push_back(circt::hw::ParamDeclAttr::get(
+        builder.getContext(), builder.getStringAttr(paramInfo.name),
+        paramInfo.type, paramInfo.defaultValue));
+  }
+
+  return builder.getArrayAttr(params);
+}
+
 inline void beginHWModule(
     circt::hw::HWModuleOp &moduleOp, mlir::Value &clockValue,
     mlir::Value &resetValue,
@@ -23,6 +48,9 @@ inline void beginHWModule(
         &registerNextBackedgeTable,
     mlir::OpBuilder &builder, mlir::Location loc,
     clang::CXXRecordDecl *recordDecl,
+    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
+        &paramTable,
+    llvm::ArrayRef<const clang::NonTypeTemplateParmDecl *> paramOrder,
     llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> &fieldTable,
     llvm::ArrayRef<const clang::FieldDecl *> fieldOrder) {
   moduleOp = nullptr;
@@ -102,6 +130,11 @@ inline void beginHWModule(
   moduleOp = circt::hw::HWModuleOp::create(
       builder, loc, builder.getStringAttr(recordDecl->getNameAsString()),
       ports);
+
+  if (!paramOrder.empty()) {
+    moduleOp->setAttr("parameters", buildModuleParameterAttr(
+                                        builder, paramTable, paramOrder));
+  }
 
   mlir::Block *bodyBlock = moduleOp.getBodyBlock();
 

@@ -1,82 +1,64 @@
 #include "../../Converter.h"
+#include "../Utils/Constant.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
 auto CHWConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef)
     -> mlir::Value {
-  clang::ValueDecl *decl = declRef->getDecl();
+  if (!declRef) {
+    return nullptr;
+  }
 
-  if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(decl)) {
+  clang::ValueDecl *decl = declRef->getDecl();
+  if (!decl) {
+    return nullptr;
+  }
+
+  if (auto *templateParamDecl =
+          llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(decl)) {
+    mlir::Value value = paramValueTable.lookup(templateParamDecl);
+    if (value) {
+      return value;
+    }
+
+    llvm::WithColor::error()
+        << "chwc: template parameter value has not been emitted: "
+        << templateParamDecl->getNameAsString() << "\n";
+    return nullptr;
+  }
+
+  if (auto *fieldDecl = llvm::dyn_cast<clang::FieldDecl>(decl)) {
+    return readFieldValue(fieldDecl);
+  }
+
+  if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(decl)) {
     mlir::Value value = localValueTable.lookup(varDecl);
     if (value) {
       return value;
     }
-  }
-
-  if (auto *fieldDecl = mlir::dyn_cast<clang::FieldDecl>(decl)) {
-    auto fieldIt = fieldTable.find(fieldDecl);
-    if (fieldIt == fieldTable.end()) {
-      llvm::WithColor::error()
-          << "chwc: unknown field ref: " << fieldDecl->getNameAsString()
-          << "\n";
-      return nullptr;
-    }
-
-    HWFieldInfo &fieldInfo = fieldIt->second;
-
-    switch (fieldInfo.kind) {
-    case HWFieldKind::Input: {
-      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-      break;
-    }
-
-    case HWFieldKind::Output: {
-      mlir::Value value = outputValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-
-      value = currentFieldValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-
-      break;
-    }
-
-    case HWFieldKind::Reg: {
-      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-      break;
-    }
-
-    case HWFieldKind::Wire: {
-      mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-
-      value = nextFieldValueTable.lookup(fieldDecl);
-      if (value) {
-        return value;
-      }
-
-      break;
-    }
-    }
 
     llvm::WithColor::error()
-        << "chwc: hardware field has no value: " << fieldInfo.name << "\n";
+        << "chwc: local variable has no value: " << varDecl->getNameAsString()
+        << "\n";
     return nullptr;
   }
 
-  llvm::WithColor::error() << "chwc: unknown decl ref: "
+  if (auto *enumConstantDecl = llvm::dyn_cast<clang::EnumConstantDecl>(decl)) {
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    mlir::Type type = convertType(enumConstantDecl->getType());
+    if (!type) {
+      return nullptr;
+    }
+
+    return utils::signedIntConst(builder, loc, type,
+                                 enumConstantDecl->getInitVal().getSExtValue());
+  }
+
+  llvm::WithColor::error() << "chwc: unsupported DeclRefExpr: "
                            << decl->getNameAsString() << "\n";
   return nullptr;
 }

@@ -35,6 +35,13 @@ struct HWFieldInfo {
   mlir::Type elementType{};
 };
 
+struct HWParamInfo {
+  const clang::NonTypeTemplateParmDecl *paramDecl{nullptr};
+  std::string name;
+  mlir::Type type;
+  mlir::Attribute defaultValue{};
+};
+
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
 public:
   explicit CHWConverter(CHWContextManager &contextManager)
@@ -44,6 +51,9 @@ public:
   // decl traits
   auto TraverseFunctionDecl(clang::FunctionDecl *functionDecl) -> bool;
   auto TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl) -> bool;
+  auto
+  TraverseNonTypeTemplateParmDecl(clang::NonTypeTemplateParmDecl *paramDecl)
+      -> bool;
 
   // stmt traits
   auto TraverseStmt(clang::Stmt *stmt) -> bool;
@@ -84,6 +94,12 @@ private:
   llvm::SmallVector<mlir::Value, 8> outputValues;
 
   llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fieldTable;
+  llvm::SmallVector<const clang::NonTypeTemplateParmDecl *, 4>
+      hardwareParamOrder;
+  llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
+      paramTable;
+  llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, mlir::Value>
+      paramValueTable;
   llvm::SmallVector<const clang::FieldDecl *, 8> hardwareFieldOrder;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentFieldValueTable;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
@@ -106,6 +122,9 @@ private:
     outputValues.clear();
 
     fieldTable.clear();
+    hardwareParamOrder.clear();
+    paramTable.clear();
+    paramValueTable.clear();
     hardwareFieldOrder.clear();
     currentFieldValueTable.clear();
     nextFieldValueTable.clear();
@@ -126,6 +145,7 @@ private:
   // module traits
   auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
   void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
+  void collectTemplateParams(clang::CXXRecordDecl *recordDecl);
   void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
 
   // clock traits
@@ -176,6 +196,7 @@ private:
       -> mlir::Value;
   auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)
       -> mlir::Value;
+  auto generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value;
   auto generateCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr)
       -> mlir::Value;
 

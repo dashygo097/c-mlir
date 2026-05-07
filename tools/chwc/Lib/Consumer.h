@@ -5,7 +5,9 @@
 #include "./Converter.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -49,6 +51,10 @@ private:
 
   auto recordNameMatches(clang::CXXRecordDecl *recordDecl,
                          llvm::StringRef targetModuleName) -> bool {
+    if (!recordDecl) {
+      return false;
+    }
+
     if (targetModuleName.empty()) {
       return true;
     }
@@ -64,6 +70,28 @@ private:
     return false;
   }
 
+  auto templateNameMatches(clang::ClassTemplateDecl *templateDecl,
+                           llvm::StringRef targetModuleName) -> bool {
+    if (!templateDecl) {
+      return false;
+    }
+
+    if (targetModuleName.empty()) {
+      return true;
+    }
+
+    if (templateDecl->getNameAsString() == targetModuleName) {
+      return true;
+    }
+
+    if (templateDecl->getQualifiedNameAsString() == targetModuleName) {
+      return true;
+    }
+
+    clang::CXXRecordDecl *recordDecl = templateDecl->getTemplatedDecl();
+    return recordNameMatches(recordDecl, targetModuleName);
+  }
+
   void scanDeclContext(clang::ASTContext &ctx, clang::DeclContext *declContext,
                        llvm::StringRef targetModuleName, bool &found) {
     if (!declContext) {
@@ -75,14 +103,38 @@ private:
         continue;
       }
 
-      if (auto *namespaceDecl = mlir::dyn_cast<clang::NamespaceDecl>(decl)) {
+      if (auto *namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl)) {
         if (isFromMainFile(ctx, namespaceDecl)) {
           scanDeclContext(ctx, namespaceDecl, targetModuleName, found);
         }
         continue;
       }
 
-      auto *recordDecl = mlir::dyn_cast<clang::CXXRecordDecl>(decl);
+      if (auto *templateDecl = llvm::dyn_cast<clang::ClassTemplateDecl>(decl)) {
+        if (!isFromMainFile(ctx, templateDecl)) {
+          continue;
+        }
+
+        if (!templateNameMatches(templateDecl, targetModuleName)) {
+          continue;
+        }
+
+        clang::CXXRecordDecl *recordDecl = templateDecl->getTemplatedDecl();
+        if (!recordDecl || !recordDecl->isCompleteDefinition()) {
+          continue;
+        }
+
+        visitor.TraverseCXXRecordDecl(recordDecl);
+
+        if (!targetModuleName.empty()) {
+          found = true;
+          return;
+        }
+
+        continue;
+      }
+
+      auto *recordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(decl);
       if (!recordDecl) {
         continue;
       }

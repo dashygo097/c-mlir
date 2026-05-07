@@ -16,6 +16,7 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/ImplicitCast.cpp
   Lib/Conversions/Exprs/ArraySubscript.cpp
   Lib/Conversions/Exprs/Member.cpp
+  Lib/Conversions/Exprs/Call.cpp
   Lib/Conversions/Exprs/CXXMemberCall.cpp
   Lib/Conversions/Exprs/ExprWithCleanups.cpp
   Lib/Conversions/Exprs/CXXBindTemporary.cpp
@@ -34,6 +35,7 @@ add_clang_executable(chwc
 
   Lib/Conversions/Decls/Function.cpp
   Lib/Conversions/Decls/CXXRecord.cpp
+  Lib/Conversions/Decls/NonTypeTemplateParm.cpp
 
   Lib/Conversions/Hal/Module.cpp
   Lib/Conversions/Hal/Clock.cpp
