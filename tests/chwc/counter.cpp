@@ -20,8 +20,8 @@ public:
 };
 
 // CHECK: hw.module @Counter(in %clk : !seq.clock, in %rst : i1, in %en : i1, out out : i16)
-// CHECK-DAG: %[[c1_i16:.+]] = arith.constant 1 : i16
-// CHECK-DAG: %[[c0_i16:.+]] = arith.constant 0 : i16
+// CHECK-DAG: %[[c1_i16:.+]] = hw.constant 1 : i16
+// CHECK-DAG: %[[c0_i16:.+]] = hw.constant 0 : i16
 // CHECK-DAG: %[[V0:.*]] = comb.add %{{.*}}, %[[c1_i16]] : i16
 // CHECK-DAG: %[[V1:.*]] = comb.mux %en, %[[V0]], %{{.*}} : i16
 // CHECK-DAG: %[[value:.*]] = seq.firreg %[[V1]] clock %clk reset sync %rst, %[[c0_i16]] : i16
