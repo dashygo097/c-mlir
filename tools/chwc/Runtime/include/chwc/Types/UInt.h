@@ -53,7 +53,9 @@ public:
 
   constexpr auto operator~() const -> UInt { return UInt(~value_); }
 
-  constexpr auto operator!() const -> UInt { return UInt<1>(!value_); }
+  constexpr auto operator!() const -> UInt {
+    return UInt<1>(!static_cast<bool>(value_));
+  }
 
   template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
   constexpr auto operator+(T rhs) const -> UInt {
@@ -107,12 +109,12 @@ public:
 
   template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
   constexpr auto operator&&(T rhs) const -> UInt {
-    return UInt<1>(value_ && rhs);
+    return UInt<1>(static_cast<bool>(value_) && static_cast<bool>(rhs));
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
   constexpr auto operator||(T rhs) const -> UInt {
-    return UInt<1>(value_ || rhs);
+    return UInt<1>(static_cast<bool>(value_) || static_cast<bool>(rhs));
   }
 
   template <std::size_t OtherWidth>
@@ -257,12 +259,12 @@ public:
 
   template <std::size_t OtherWidth>
   constexpr auto operator&&(UInt<OtherWidth> rhs) const -> bool {
-    return value_ && rhs.raw();
+    return static_cast<bool>(value_) && static_cast<bool>(rhs.raw());
   }
 
   template <std::size_t OtherWidth>
   constexpr auto operator||(UInt<OtherWidth> rhs) const -> bool {
-    return value_ || rhs.raw();
+    return static_cast<bool>(value_) || static_cast<bool>(rhs.raw());
   }
 
   constexpr auto operator++() -> UInt & {

@@ -200,6 +200,14 @@ public:
     return value_ >= unwrap(rhs);
   }
 
+  template <typename U> constexpr auto operator&&(const U &rhs) const -> bool {
+    return value_ && unwrap(rhs);
+  }
+
+  template <typename U> constexpr auto operator||(const U &rhs) const -> bool {
+    return value_ && unwrap(rhs);
+  }
+
 private:
   template <typename U> static constexpr auto unwrap(const U &value) -> T {
     return T(value);
