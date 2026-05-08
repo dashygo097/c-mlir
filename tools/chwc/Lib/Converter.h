@@ -167,6 +167,7 @@ private:
   auto assignArrayElement(const clang::FieldDecl *fieldDecl, mlir::Value index,
                           mlir::Value value) -> mlir::Value;
 
+  // Clang AST generator
   // type traits
   auto convertType(clang::QualType type) -> mlir::Type;
   auto convertBuiltinType(const clang::BuiltinType *type) -> mlir::Type;
