@@ -9,10 +9,9 @@
 #define CHWC_METHOD_ANNOTATE(name)
 #endif
 
-#define HW_INPUT CHWC_ANNOTATE("hw.input")
-#define HW_OUTPUT CHWC_ANNOTATE("hw.output")
-#define HW_REG CHWC_ANNOTATE("hw.reg")
-#define HW_WIRE CHWC_ANNOTATE("hw.wire")
+#define __reset__ CHWC_METHOD_ANNOTATE("hw.reset")
+#define __clock_tick__ CHWC_METHOD_ANNOTATE("hw.clock_tick")
+#define __func__ CHWC_METHOD_ANNOTATE("hw.func")
 
 #define HW_RESET CHWC_METHOD_ANNOTATE("hw.reset")
 #define HW_CLOCK_TICK CHWC_METHOD_ANNOTATE("hw.clock_tick")
