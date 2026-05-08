@@ -2,81 +2,56 @@
 #define CHWC_UTILS_STATE_H
 
 #include "../../Converter.h"
+#include "circt/Dialect/Seq/SeqOps.h"
 #include "circt/Support/BackedgeBuilder.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Operation.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/WithColor.h"
+#include <memory>
 
 namespace chwc::utils {
 
-inline auto
-emitRegister(std::unique_ptr<circt::BackedgeBuilder> &backedgeBuilder,
-             llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
-                 &registerNextBackedgeTable,
-             mlir::Value clockValue, mlir::Value resetValue,
-             mlir::OpBuilder &builder, mlir::Location loc,
-             const HWFieldInfo &fieldInfo, mlir::Value resetInitValue)
+struct RegisterState {
+  std::unique_ptr<circt::BackedgeBuilder> backedgeBuilder;
+  llvm::DenseMap<const clang::FieldDecl *, circt::Backedge> nextBackedges;
+
+  void init(mlir::OpBuilder &builder, mlir::Location loc) {
+    if (!backedgeBuilder) {
+      backedgeBuilder = std::make_unique<circt::BackedgeBuilder>(builder, loc);
+    }
+  }
+};
+
+inline auto emitRegister(RegisterState &state, HWModuleContext &moduleContext,
+                         const clang::FieldDecl *fieldDecl,
+                         mlir::OpBuilder &builder, mlir::Location loc)
     -> mlir::Value {
-  if (!clockValue || !resetValue) {
-    llvm::WithColor::error()
-        << "chwc: register emission requires clk/rst ports\n";
-    return resetInitValue;
-  }
+  HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
 
-  if (!resetInitValue) {
-    llvm::WithColor::error()
-        << "chwc: register reset value is null: " << fieldInfo.name << "\n";
-    return nullptr;
-  }
+  state.init(builder, loc);
 
-  if (!backedgeBuilder) {
-    llvm::WithColor::error()
-        << "chwc: register emission requires active backedge builder\n";
-    return resetInitValue;
-  }
+  circt::Backedge nextBackedge = state.backedgeBuilder->get(fieldInfo.type);
 
-  circt::Backedge nextBackedge = backedgeBuilder->get(fieldInfo.type);
-  registerNextBackedgeTable.insert({fieldInfo.fieldDecl, nextBackedge});
+  state.nextBackedges[fieldDecl] = nextBackedge;
 
-  mlir::Value nextValue = nextBackedge;
+  auto reg = circt::seq::FirRegOp::create(
+      builder, loc, static_cast<mlir::Value>(nextBackedge), moduleContext.clock,
+      builder.getStringAttr(fieldInfo.name), moduleContext.reset,
+      fieldInfo.resetValue);
 
-  mlir::OperationState opState(loc, "seq.firreg");
-  opState.addOperands({nextValue, clockValue, resetValue, resetInitValue});
-  opState.addTypes(fieldInfo.type);
-  opState.addAttribute("name", builder.getStringAttr(fieldInfo.name));
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error()
-        << "chwc: failed to create seq.firreg for " << fieldInfo.name << "\n";
-    return resetInitValue;
-  }
-
-  return op->getResult(0);
+  return reg.getResult();
 }
 
-inline void
-emitRegisterNextAssign(llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
-                           &registerNextBackedgeTable,
-                       mlir::OpBuilder &builder, mlir::Location loc,
-                       const HWFieldInfo &fieldInfo, mlir::Value nextValue) {
-  (void)builder;
-  (void)loc;
-
-  if (!nextValue) {
-    llvm::WithColor::error()
-        << "chwc: null next value for register " << fieldInfo.name << "\n";
+inline void setRegisterNext(RegisterState &state,
+                            const clang::FieldDecl *fieldDecl,
+                            mlir::Value nextValue) {
+  auto it = state.nextBackedges.find(fieldDecl);
+  if (it == state.nextBackedges.end()) {
+    llvm::WithColor::error() << "chwc: missing register next backedge\n";
     return;
   }
 
-  auto backedgeIt = registerNextBackedgeTable.find(fieldInfo.fieldDecl);
-  if (backedgeIt == registerNextBackedgeTable.end()) {
-    llvm::WithColor::error() << "chwc: no next-state backedge for register "
-                             << fieldInfo.name << "\n";
-    return;
-  }
-
-  backedgeIt->second.setValue(nextValue);
+  it->second.setValue(nextValue);
 }
 
 } // namespace chwc::utils

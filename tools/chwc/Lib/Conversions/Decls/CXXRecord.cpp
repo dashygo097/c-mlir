@@ -1,23 +1,181 @@
 #include "../../Converter.h"
+#include "../Utils/Annotation.h"
+#include "../Utils/Array.h"
+#include "../Utils/Constant.h"
+#include "../Utils/Module.h"
+#include "../Utils/State.h"
+#include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
+auto isHardwareClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
+  if (!recordDecl) {
+    return false;
+  }
+
+  for (const clang::CXXBaseSpecifier &base : recordDecl->bases()) {
+    auto *baseRecord = base.getType()->getAsCXXRecordDecl();
+    if (!baseRecord) {
+      continue;
+    }
+
+    if (baseRecord->getNameAsString() == "Hardware") {
+      return true;
+    }
+
+    if (isHardwareClassImpl(baseRecord)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
     -> bool {
-  if (!recordDecl || !recordDecl->isCompleteDefinition()) {
+  if (!recordDecl || !recordDecl->isThisDeclarationADefinition()) {
     return true;
   }
 
-  if (!isHardwareClass(recordDecl)) {
+  if (!isHardwareClassImpl(recordDecl)) {
     return true;
   }
 
-  currentRecordDecl = recordDecl;
+  moduleContext.clear();
+  moduleContext.recordDecl = recordDecl;
 
-  collectHardwareClass(recordDecl);
-  emitHardwareClass(recordDecl);
+  for (clang::FieldDecl *fieldDecl : recordDecl->fields()) {
+    TraverseFieldDecl(fieldDecl);
+  }
 
-  currentRecordDecl = nullptr;
+  for (clang::CXXMethodDecl *methodDecl : recordDecl->methods()) {
+    if (utils::isResetMethod(methodDecl)) {
+      moduleContext.resetMethods.push_back(methodDecl);
+      continue;
+    }
+
+    if (utils::isClockTickMethod(methodDecl)) {
+      moduleContext.clockMethods.push_back(methodDecl);
+      continue;
+    }
+  }
+
+  if (moduleContext.clockMethods.empty()) {
+    llvm::WithColor::error() << "chwc: hardware class requires HW_CLOCK_TICK\n";
+  }
+
+  mlir::OpBuilder &builder = contextManager.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(contextManager.Module().getBody());
+
+  utils::beginHWModule(moduleContext, builder, loc, recordDecl);
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+    if (fieldInfo.kind != HWFieldKind::Reg) {
+      continue;
+    }
+
+    if (fieldInfo.isArray) {
+      fieldInfo.resetValue = utils::zeroArray(builder, loc, fieldInfo.type);
+    } else {
+      fieldInfo.resetValue = utils::zeroValue(builder, loc, fieldInfo.type);
+    }
+  }
+
+  emitMode = HWEmitMode::Reset;
+  functionStack.emplace_back();
+
+  for (const clang::CXXMethodDecl *methodDecl : moduleContext.resetMethods) {
+    if (methodDecl && methodDecl->hasBody()) {
+      TraverseStmt(methodDecl->getBody());
+    }
+  }
+
+  functionStack.pop_back();
+  emitMode = HWEmitMode::Normal;
+  utils::RegisterState registerState;
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+    switch (fieldInfo.kind) {
+    case HWFieldKind::Input:
+      moduleContext.currentValues[fieldDecl] =
+          utils::getInputValue(moduleContext, fieldDecl, builder, loc);
+      break;
+
+    case HWFieldKind::Output:
+      break;
+
+    case HWFieldKind::Wire:
+      if (fieldInfo.isArray) {
+        moduleContext.currentValues[fieldDecl] =
+            utils::zeroArray(builder, loc, fieldInfo.type);
+      }
+      break;
+
+    case HWFieldKind::Reg: {
+      if (!fieldInfo.resetValue) {
+        fieldInfo.resetValue =
+            fieldInfo.isArray ? utils::zeroArray(builder, loc, fieldInfo.type)
+                              : utils::zeroValue(builder, loc, fieldInfo.type);
+      }
+
+      mlir::Value reg = utils::emitRegister(registerState, moduleContext,
+                                            fieldDecl, builder, loc);
+
+      moduleContext.currentValues[fieldDecl] = reg;
+      moduleContext.nextValues[fieldDecl] = reg;
+      break;
+    }
+    }
+  }
+
+  functionStack.emplace_back();
+
+  for (const clang::CXXMethodDecl *methodDecl : moduleContext.clockMethods) {
+    if (methodDecl && methodDecl->hasBody()) {
+      TraverseStmt(methodDecl->getBody());
+    }
+  }
+
+  functionStack.pop_back();
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+    if (fieldInfo.kind == HWFieldKind::Reg) {
+      mlir::Value nextValue = moduleContext.nextValues.lookup(fieldDecl);
+      if (!nextValue) {
+        nextValue = moduleContext.currentValues.lookup(fieldDecl);
+      }
+
+      utils::setRegisterNext(registerState, fieldDecl, nextValue);
+    }
+  }
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+    if (fieldInfo.kind != HWFieldKind::Output) {
+      continue;
+    }
+
+    mlir::Value value = moduleContext.outputValues.lookup(fieldDecl);
+    if (!value) {
+      value = fieldInfo.isArray
+                  ? utils::zeroArray(builder, loc, fieldInfo.type)
+                  : utils::zeroValue(builder, loc, fieldInfo.type);
+    }
+
+    utils::emitOutputValue(moduleContext, fieldDecl, value);
+  }
+
+  utils::endHWModule(moduleContext, builder, loc);
   return true;
 }
 

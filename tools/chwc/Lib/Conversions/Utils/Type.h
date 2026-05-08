@@ -3,12 +3,7 @@
 
 #include "../../Converter.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -18,164 +13,87 @@ struct SignalTypeInfo {
   bool isValue{false};
   bool isSignal{false};
   bool isSigned{false};
-  bool isParametricWidth{false};
-
   std::optional<HWFieldKind> fieldKind;
-
   unsigned width{0};
-  const clang::NonTypeTemplateParmDecl *widthParamDecl{nullptr};
 };
 
-struct ConstantArrayTypeInfo {
-  bool isArray{false};
-  clang::QualType elementType;
-  uint64_t size{0};
-  SignalTypeInfo elementInfo;
-};
-
-struct TemplateTypeInfo {
-  bool valid{false};
-  std::string name;
-  llvm::SmallVector<clang::TemplateArgument, 4> args;
-};
-
-inline auto getTemplateNameString(clang::TemplateName templateName)
-    -> std::string {
-  clang::TemplateDecl *templateDecl = templateName.getAsTemplateDecl();
-  if (!templateDecl) {
-    return "";
-  }
-
-  return templateDecl->getNameAsString();
-}
-
-inline auto getTemplateTypeInfo(clang::QualType type) -> TemplateTypeInfo {
-  TemplateTypeInfo info;
-
+inline auto getTemplateSpec(clang::QualType type)
+    -> const clang::ClassTemplateSpecializationDecl * {
   type = type.getCanonicalType().getUnqualifiedType();
 
   const clang::Type *typePtr = type.getTypePtrOrNull();
   if (!typePtr) {
+    return nullptr;
+  }
+
+  auto *recordType = typePtr->getAs<clang::RecordType>();
+  if (!recordType) {
+    return nullptr;
+  }
+
+  return llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(
+      recordType->getDecl());
+}
+
+inline auto getTemplateName(const clang::ClassTemplateSpecializationDecl *spec)
+    -> std::string {
+  if (!spec || !spec->getSpecializedTemplate()) {
+    return "";
+  }
+
+  return spec->getSpecializedTemplate()->getNameAsString();
+}
+
+inline auto getUIntWidth(clang::QualType type) -> std::optional<unsigned> {
+  const clang::ClassTemplateSpecializationDecl *spec = getTemplateSpec(type);
+  if (!spec || getTemplateName(spec) != "UInt") {
+    return std::nullopt;
+  }
+
+  const clang::TemplateArgumentList &args = spec->getTemplateArgs();
+  if (args.size() != 1 ||
+      args[0].getKind() != clang::TemplateArgument::Integral) {
+    return std::nullopt;
+  }
+
+  return static_cast<unsigned>(args[0].getAsIntegral().getZExtValue());
+}
+
+inline auto getSIntWidth(clang::QualType type) -> std::optional<unsigned> {
+  const clang::ClassTemplateSpecializationDecl *spec = getTemplateSpec(type);
+  if (!spec || getTemplateName(spec) != "SInt") {
+    return std::nullopt;
+  }
+
+  const clang::TemplateArgumentList &args = spec->getTemplateArgs();
+  if (args.size() != 1 ||
+      args[0].getKind() != clang::TemplateArgument::Integral) {
+    return std::nullopt;
+  }
+
+  return static_cast<unsigned>(args[0].getAsIntegral().getZExtValue());
+}
+
+inline auto getValueTypeInfo(clang::QualType type) -> SignalTypeInfo {
+  SignalTypeInfo info;
+
+  if (std::optional<unsigned> width = getUIntWidth(type)) {
+    info.isValue = true;
+    info.isSignal = false;
+    info.isSigned = false;
+    info.width = *width;
     return info;
   }
 
-  if (auto *templateSpecType =
-          llvm::dyn_cast<clang::TemplateSpecializationType>(typePtr)) {
-    info.valid = true;
-    info.name = getTemplateNameString(templateSpecType->getTemplateName());
-
-    for (const clang::TemplateArgument &arg :
-         templateSpecType->template_arguments()) {
-      info.args.push_back(arg);
-    }
-
-    return info;
-  }
-
-  if (auto *recordType = typePtr->getAs<clang::RecordType>()) {
-    auto *recordDecl = recordType->getDecl();
-    auto *specDecl =
-        llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(
-            recordDecl);
-
-    if (!specDecl || !specDecl->getSpecializedTemplate()) {
-      return info;
-    }
-
-    info.valid = true;
-    info.name = specDecl->getSpecializedTemplate()->getNameAsString();
-
-    const clang::TemplateArgumentList &args = specDecl->getTemplateArgs();
-    for (unsigned i = 0, e = args.size(); i < e; ++i) {
-      info.args.push_back(args[i]);
-    }
-
+  if (std::optional<unsigned> width = getSIntWidth(type)) {
+    info.isValue = true;
+    info.isSignal = false;
+    info.isSigned = true;
+    info.width = *width;
     return info;
   }
 
   return info;
-}
-
-inline auto getNonTypeTemplateParamFromExpr(clang::Expr *expr)
-    -> const clang::NonTypeTemplateParmDecl * {
-  if (!expr) {
-    return nullptr;
-  }
-
-  expr = expr->IgnoreParenImpCasts();
-
-  if (auto *constantExpr = llvm::dyn_cast_or_null<clang::ConstantExpr>(expr)) {
-    return getNonTypeTemplateParamFromExpr(constantExpr->getSubExpr());
-  }
-
-  if (auto *implicitCast =
-          llvm::dyn_cast_or_null<clang::ImplicitCastExpr>(expr)) {
-    return getNonTypeTemplateParamFromExpr(implicitCast->getSubExpr());
-  }
-
-  if (auto *declRef = llvm::dyn_cast_or_null<clang::DeclRefExpr>(expr)) {
-    return llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(declRef->getDecl());
-  }
-
-  if (auto *subst =
-          llvm::dyn_cast_or_null<clang::SubstNonTypeTemplateParmExpr>(expr)) {
-    return llvm::dyn_cast_or_null<clang::NonTypeTemplateParmDecl>(
-        subst->getParameter());
-  }
-
-  return nullptr;
-}
-
-inline auto getNonTypeTemplateParamFromArg(const clang::TemplateArgument &arg)
-    -> const clang::NonTypeTemplateParmDecl * {
-  switch (arg.getKind()) {
-  case clang::TemplateArgument::Expression:
-    return getNonTypeTemplateParamFromExpr(arg.getAsExpr());
-
-  case clang::TemplateArgument::Declaration:
-    return llvm::dyn_cast_or_null<clang::NonTypeTemplateParmDecl>(
-        arg.getAsDecl());
-
-  default:
-    return nullptr;
-  }
-}
-
-inline auto getIntTypeInfo(clang::QualType type) -> SignalTypeInfo {
-  SignalTypeInfo info;
-
-  TemplateTypeInfo templateInfo = getTemplateTypeInfo(type);
-  if (!templateInfo.valid) {
-    return info;
-  }
-
-  if (templateInfo.name != "UInt" && templateInfo.name != "SInt") {
-    return info;
-  }
-
-  if (templateInfo.args.size() != 1) {
-    return info;
-  }
-
-  const clang::TemplateArgument &widthArg = templateInfo.args[0];
-
-  info.isValue = true;
-  info.isSignal = false;
-  info.isSigned = templateInfo.name == "SInt";
-
-  if (widthArg.getKind() == clang::TemplateArgument::Integral) {
-    info.width = static_cast<unsigned>(widthArg.getAsIntegral().getZExtValue());
-    return info;
-  }
-
-  if (const clang::NonTypeTemplateParmDecl *widthParam =
-          getNonTypeTemplateParamFromArg(widthArg)) {
-    info.isParametricWidth = true;
-    info.widthParamDecl = widthParam;
-    return info;
-  }
-
-  return SignalTypeInfo{};
 }
 
 inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
@@ -194,39 +112,29 @@ inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
 }
 
 inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
-  SignalTypeInfo valueInfo = getIntTypeInfo(type);
+  SignalTypeInfo valueInfo = getValueTypeInfo(type);
   if (valueInfo.isValue) {
     return valueInfo;
   }
 
-  TemplateTypeInfo templateInfo = getTemplateTypeInfo(type);
-  if (!templateInfo.valid) {
+  const clang::ClassTemplateSpecializationDecl *spec = getTemplateSpec(type);
+  if (!spec || getTemplateName(spec) != "Signal") {
     return SignalTypeInfo{};
   }
 
-  if (templateInfo.name != "Signal") {
+  const clang::TemplateArgumentList &args = spec->getTemplateArgs();
+  if (args.size() != 2 || args[0].getKind() != clang::TemplateArgument::Type ||
+      args[1].getKind() != clang::TemplateArgument::Integral) {
     return SignalTypeInfo{};
   }
 
-  if (templateInfo.args.size() != 2) {
-    return SignalTypeInfo{};
-  }
-
-  const clang::TemplateArgument &valueTypeArg = templateInfo.args[0];
-  const clang::TemplateArgument &kindArg = templateInfo.args[1];
-
-  if (valueTypeArg.getKind() != clang::TemplateArgument::Type ||
-      kindArg.getKind() != clang::TemplateArgument::Integral) {
-    return SignalTypeInfo{};
-  }
-
-  SignalTypeInfo elementInfo = getIntTypeInfo(valueTypeArg.getAsType());
+  SignalTypeInfo elementInfo = getValueTypeInfo(args[0].getAsType());
   if (!elementInfo.isValue || elementInfo.isSignal) {
     return SignalTypeInfo{};
   }
 
   std::optional<HWFieldKind> kind =
-      decodeObjectKind(kindArg.getAsIntegral().getZExtValue());
+      decodeObjectKind(args[1].getAsIntegral().getZExtValue());
   if (!kind) {
     return SignalTypeInfo{};
   }
@@ -235,48 +143,73 @@ inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   info.isValue = true;
   info.isSignal = true;
   info.isSigned = elementInfo.isSigned;
-  info.isParametricWidth = elementInfo.isParametricWidth;
-  info.width = elementInfo.width;
-  info.widthParamDecl = elementInfo.widthParamDecl;
   info.fieldKind = *kind;
+  info.width = elementInfo.width;
   return info;
 }
 
-inline auto getConstantArrayTypeInfo(clang::QualType type)
-    -> ConstantArrayTypeInfo {
-  ConstantArrayTypeInfo info;
-
+inline auto getConstantArraySize(clang::QualType type)
+    -> std::optional<uint64_t> {
   type = type.getCanonicalType().getUnqualifiedType();
 
-  const clang::Type *typePtr = type.getTypePtrOrNull();
-  if (!typePtr) {
-    return info;
-  }
-
-  auto *arrayType = llvm::dyn_cast<clang::ConstantArrayType>(typePtr);
+  auto *arrayType =
+      llvm::dyn_cast_or_null<clang::ConstantArrayType>(type.getTypePtr());
   if (!arrayType) {
-    return info;
+    return std::nullopt;
   }
 
-  info.isArray = true;
-  info.elementType = arrayType->getElementType();
-  info.size = arrayType->getSize().getZExtValue();
-  info.elementInfo = getSignalTypeInfo(info.elementType);
-  return info;
+  return arrayType->getSize().getZExtValue();
+}
+
+inline auto getArrayElementType(clang::QualType type) -> clang::QualType {
+  type = type.getCanonicalType().getUnqualifiedType();
+
+  auto *arrayType = llvm::dyn_cast_or_null<clang::ArrayType>(type.getTypePtr());
+  if (!arrayType) {
+    return type;
+  }
+
+  return arrayType->getElementType();
+}
+
+inline auto getFieldElementType(clang::FieldDecl *fieldDecl)
+    -> clang::QualType {
+  if (!fieldDecl) {
+    return clang::QualType{};
+  }
+
+  return getArrayElementType(fieldDecl->getType());
+}
+
+inline auto getFieldArraySize(clang::FieldDecl *fieldDecl)
+    -> std::optional<uint64_t> {
+  if (!fieldDecl) {
+    return std::nullopt;
+  }
+
+  return getConstantArraySize(fieldDecl->getType());
+}
+
+inline auto getFieldElementTypeInfo(clang::FieldDecl *fieldDecl)
+    -> SignalTypeInfo {
+  if (!fieldDecl) {
+    return SignalTypeInfo{};
+  }
+
+  return getSignalTypeInfo(getFieldElementType(fieldDecl));
 }
 
 inline auto isSignalType(clang::QualType type) -> bool {
   return getSignalTypeInfo(type).isSignal;
 }
 
-inline auto isUIntType(clang::QualType type) -> bool {
+inline auto isValueType(clang::QualType type) -> bool {
   SignalTypeInfo info = getSignalTypeInfo(type);
-  return info.isValue && !info.isSignal && !info.isSigned;
+  return info.isValue && !info.isSignal;
 }
 
-inline auto isSIntType(clang::QualType type) -> bool {
-  SignalTypeInfo info = getSignalTypeInfo(type);
-  return info.isValue && !info.isSignal && info.isSigned;
+inline auto isSignedType(clang::QualType type) -> bool {
+  return getSignalTypeInfo(type).isSigned;
 }
 
 } // namespace chwc::utils

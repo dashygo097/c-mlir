@@ -3,15 +3,10 @@
 
 #include "./Context/ContextManager.h"
 #include "circt/Dialect/HW/HWOps.h"
-#include "circt/Support/BackedgeBuilder.h"
 #include "mlir/IR/Value.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
-#include <cstdint>
-#include <memory>
-#include <optional>
 #include <string>
 
 namespace chwc {
@@ -19,27 +14,65 @@ namespace chwc {
 enum class HWFieldKind {
   Input,
   Output,
-  Reg,
   Wire,
+  Reg,
+};
+
+enum class HWEmitMode {
+  Normal,
+  Reset,
 };
 
 struct HWFieldInfo {
   const clang::FieldDecl *fieldDecl{nullptr};
   std::string name;
-  mlir::Type type;
   HWFieldKind kind{HWFieldKind::Wire};
-  mlir::Value resetValue{};
+
+  mlir::Type type{};
+  mlir::Type elementType{};
 
   bool isArray{false};
-  uint64_t arraySize{0};
-  mlir::Type elementType{};
+  uint64_t arraySize{1};
+
+  mlir::Value resetValue{};
 };
 
-struct HWParamInfo {
-  const clang::NonTypeTemplateParmDecl *paramDecl{nullptr};
-  std::string name;
-  mlir::Type type;
-  mlir::Attribute defaultValue{};
+struct HWModuleContext {
+  const clang::CXXRecordDecl *recordDecl{nullptr};
+  circt::hw::HWModuleOp moduleOp{};
+
+  mlir::Value clock{};
+  mlir::Value reset{};
+
+  llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fields;
+  llvm::SmallVector<const clang::FieldDecl *, 16> fieldOrder;
+
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValues;
+
+  llvm::SmallVector<const clang::CXXMethodDecl *, 4> resetMethods;
+  llvm::SmallVector<const clang::CXXMethodDecl *, 4> clockMethods;
+
+  void clear() {
+    recordDecl = nullptr;
+    moduleOp = nullptr;
+    clock = nullptr;
+    reset = nullptr;
+    fields.clear();
+    fieldOrder.clear();
+    currentValues.clear();
+    nextValues.clear();
+    outputValues.clear();
+    resetMethods.clear();
+    clockMethods.clear();
+  }
+};
+
+struct HWFunctionContext {
+  llvm::DenseMap<const clang::VarDecl *, mlir::Value> locals;
+  mlir::Value returnValue{};
+  bool hasReturnValue{false};
 };
 
 class CHWConverter : public clang::RecursiveASTVisitor<CHWConverter> {
@@ -51,9 +84,7 @@ public:
   // decl traits
   auto TraverseFunctionDecl(clang::FunctionDecl *functionDecl) -> bool;
   auto TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl) -> bool;
-  auto
-  TraverseNonTypeTemplateParmDecl(clang::NonTypeTemplateParmDecl *paramDecl)
-      -> bool;
+  auto TraverseFieldDecl(clang::FieldDecl *fieldDecl) -> bool;
 
   // stmt traits
   auto TraverseStmt(clang::Stmt *stmt) -> bool;
@@ -67,158 +98,52 @@ public:
   // loop
   auto TraverseForStmt(clang::ForStmt *forStmt) -> bool;
 
-  // loop optimizations
-
 private:
   CHWContextManager &contextManager;
 
-  // states
-  const clang::CXXRecordDecl *currentRecordDecl{nullptr};
-  mlir::Value currentReturnValue{};
-  bool hasCurrentReturnValue{false};
-  unsigned helperInlineDepth{0};
-  bool isCollectingReset{false};
+  HWModuleContext moduleContext;
+  llvm::SmallVector<HWFunctionContext, 8> functionStack;
+  HWEmitMode emitMode{HWEmitMode::Normal};
 
-  llvm::SmallVector<clang::CXXMethodDecl *, 4> resetMethods;
-  llvm::SmallVector<clang::CXXMethodDecl *, 4> clockTickMethods;
-
-  circt::hw::HWModuleOp currentModuleOp;
-  mlir::Value clockValue;
-  mlir::Value resetValue;
-
-  std::unique_ptr<circt::BackedgeBuilder> backedgeBuilder;
-  llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
-      registerNextBackedgeTable;
-
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValueTable;
-  llvm::SmallVector<mlir::Value, 8> outputValues;
-
-  llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fieldTable;
-  llvm::SmallVector<const clang::NonTypeTemplateParmDecl *, 4>
-      hardwareParamOrder;
-  llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
-      paramTable;
-  llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, mlir::Value>
-      paramValueTable;
-  llvm::SmallVector<const clang::FieldDecl *, 8> hardwareFieldOrder;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentFieldValueTable;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextFieldValueTable;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValueTable;
-  llvm::DenseMap<const clang::VarDecl *, mlir::Value> localValueTable;
-  llvm::DenseMap<const clang::VarDecl *, int64_t> localConstIntTable;
-
-  void clearHardwareState() {
-    currentModuleOp = nullptr;
-    clockValue = nullptr;
-    resetValue = nullptr;
-
-    if (backedgeBuilder) {
-      backedgeBuilder->abandon();
-    }
-    backedgeBuilder.reset();
-
-    registerNextBackedgeTable.clear();
-    inputValueTable.clear();
-    outputValues.clear();
-
-    fieldTable.clear();
-    hardwareParamOrder.clear();
-    paramTable.clear();
-    paramValueTable.clear();
-    hardwareFieldOrder.clear();
-    currentFieldValueTable.clear();
-    nextFieldValueTable.clear();
-    outputValueTable.clear();
-    localValueTable.clear();
-    localConstIntTable.clear();
-
-    currentReturnValue = nullptr;
-    hasCurrentReturnValue = false;
-    helperInlineDepth = 0;
-    isCollectingReset = false;
-
-    resetMethods.clear();
-    clockTickMethods.clear();
-  }
-
-  // Hardware abstraction layer
-  // module traits
-  auto isHardwareClass(clang::CXXRecordDecl *recordDecl) -> bool;
-  void collectHardwareClass(clang::CXXRecordDecl *recordDecl);
-  void collectTemplateParams(clang::CXXRecordDecl *recordDecl);
-  void emitHardwareClass(clang::CXXRecordDecl *recordDecl);
-
-  // clock traits
-  void emitClockTick();
-
-  // reset traits
-  void collectResetValues();
-
-  // field traits
-  auto classifyField(clang::FieldDecl *fieldDecl) -> std::optional<HWFieldKind>;
-  auto getAssignedField(clang::Expr *expr) -> const clang::FieldDecl *;
-  void emitStateDecls();
-
-  auto readFieldValue(const clang::FieldDecl *fieldDecl) -> mlir::Value;
-  auto assignFieldValue(const clang::FieldDecl *fieldDecl, mlir::Value value)
-      -> mlir::Value;
-  auto readArrayElement(const clang::FieldDecl *fieldDecl, mlir::Value index)
-      -> mlir::Value;
-  auto assignArrayElement(const clang::FieldDecl *fieldDecl, mlir::Value index,
-                          mlir::Value value) -> mlir::Value;
-
-  // Clang AST generator
-  // type traits
+  // type router
   auto convertType(clang::QualType type) -> mlir::Type;
   auto convertBuiltinType(const clang::BuiltinType *type) -> mlir::Type;
 
-  // expr traits
+  // expr router
   auto generateExpr(clang::Expr *expr) -> mlir::Value;
 
-  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
+  // expr dealers
+  auto generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub)
       -> mlir::Value;
-  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
-
-  auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
-
-  auto generateExprWithCleanups(clang::ExprWithCleanups *expr) -> mlir::Value;
+  auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
+  auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp)
+      -> mlir::Value;
+  auto generatePureBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
   auto generateCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr)
       -> mlir::Value;
-  auto generateMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr)
+  auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
       -> mlir::Value;
-  auto generateCXXConstructExpr(clang::CXXConstructExpr *expr) -> mlir::Value;
-
-  auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
+  auto generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr)
       -> mlir::Value;
-  auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
-  auto generateArraySubscriptExpr(clang::ArraySubscriptExpr *arraySub)
+  auto generateCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *castExpr)
       -> mlir::Value;
   auto generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       -> mlir::Value;
   auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)
       -> mlir::Value;
-  auto generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value;
-  auto generateCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr)
+  auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
+  auto generateExprWithCleanups(clang::ExprWithCleanups *expr) -> mlir::Value;
+  auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
-
+  auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
+  auto generateMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr)
+      -> mlir::Value;
+  auto generateMemberExpr(clang::MemberExpr *memberExpr) -> mlir::Value;
   auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
-  auto generateIncDecUnaryOperator(clang::Expr *expr, bool isIncrement,
-                                   bool isPrefix) -> mlir::Value;
-  auto generateAddrOfUnaryOperator(clang::Expr *addrOfExpr) -> mlir::Value;
-
-  auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
-  auto generateAssignmentBinaryOperator(clang::BinaryOperator *assignOp)
-      -> mlir::Value;
-  auto generatePureBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
-  auto generateCompoundAssignmentBinaryOperator(
-      clang::CompoundAssignOperator *compoundOp) -> mlir::Value;
 
   auto generateLAndBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
   auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
-      -> mlir::Value;
-
-  auto generateConditionalOperator(clang::ConditionalOperator *condOp)
       -> mlir::Value;
 };
 

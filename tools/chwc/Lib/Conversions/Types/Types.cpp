@@ -1,72 +1,34 @@
 #include "../../Converter.h"
 #include "../Utils/Type.h"
-#include "circt/Dialect/HW/HWAttributes.h"
 #include "circt/Dialect/HW/HWTypes.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
-auto getParametricWidthAttr(
-    mlir::OpBuilder &builder, const clang::NonTypeTemplateParmDecl *paramDecl,
-    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
-        &paramTable) -> mlir::TypedAttr {
-  if (!paramDecl) {
-    return {};
-  }
-
-  auto paramIt = paramTable.find(paramDecl);
-  if (paramIt == paramTable.end()) {
-    llvm::WithColor::error() << "chwc: unknown width template parameter: "
-                             << paramDecl->getNameAsString() << "\n";
-    return {};
-  }
-
-  const HWParamInfo &paramInfo = paramIt->second;
-
-  return circt::hw::ParamDeclRefAttr::get(builder.getContext(),
-                                          builder.getStringAttr(paramInfo.name),
-                                          paramInfo.type);
-}
-
 auto CHWConverter::convertType(clang::QualType type) -> mlir::Type {
   mlir::OpBuilder &builder = contextManager.Builder();
 
-  utils::ConstantArrayTypeInfo arrayInfo =
-      utils::getConstantArrayTypeInfo(type);
+  type = type.getCanonicalType().getUnqualifiedType();
 
-  if (arrayInfo.isArray) {
-    mlir::Type elementType = convertType(arrayInfo.elementType);
+  if (std::optional<uint64_t> size = utils::getConstantArraySize(type)) {
+    mlir::Type elementType = convertType(utils::getArrayElementType(type));
     if (!elementType) {
-      llvm::WithColor::error()
-          << "chwc: unsupported hardware array element type: "
-          << arrayInfo.elementType.getAsString() << "\n";
       return nullptr;
     }
 
-    return circt::hw::ArrayType::get(elementType, arrayInfo.size);
+    return circt::hw::ArrayType::get(elementType, *size);
   }
 
-  utils::SignalTypeInfo signalType = utils::getSignalTypeInfo(type);
-  if (signalType.isValue) {
-    if (signalType.isParametricWidth) {
-      mlir::TypedAttr widthAttr = getParametricWidthAttr(
-          builder, signalType.widthParamDecl, paramTable);
-      if (!widthAttr) {
-        return nullptr;
-      }
-
-      return circt::hw::IntType::get(widthAttr);
-    }
-
-    return builder.getIntegerType(signalType.width);
+  utils::SignalTypeInfo typeInfo = utils::getSignalTypeInfo(type);
+  if (typeInfo.isValue) {
+    return builder.getIntegerType(typeInfo.width);
   }
 
-  const clang::Type *typePtr = type.getCanonicalType().getTypePtr();
+  const clang::Type *typePtr = type.getTypePtr();
 
 #define REGISTER_TYPE(type)                                                    \
-  if (auto *node = llvm::dyn_cast<clang::type>(typePtr)) {                     \
-    return convert##type(llvm::cast<clang::type>(node));                       \
+  if (auto *node = mlir::dyn_cast<clang::type>(typePtr)) {                     \
+    return convert##type(mlir::cast<clang::type>(node));                       \
   }
 
   REGISTER_TYPE(BuiltinType)

@@ -2,247 +2,140 @@
 #define CHWC_UTILS_MODULE_H
 
 #include "../../Converter.h"
-#include "circt/Dialect/HW/HWAttributes.h"
 #include "circt/Dialect/HW/HWOps.h"
-#include "circt/Dialect/HW/PortImplementation.h"
+#include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/Seq/SeqTypes.h"
-#include "circt/Support/BackedgeBuilder.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallVector.h"
+#include "mlir/IR/Builders.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc::utils {
 
-inline auto buildModuleParameterAttr(
-    mlir::OpBuilder &builder,
-    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
-        &paramTable,
-    llvm::ArrayRef<const clang::NonTypeTemplateParmDecl *> paramOrder)
-    -> mlir::ArrayAttr {
-  llvm::SmallVector<mlir::Attribute, 4> params;
-
-  for (const clang::NonTypeTemplateParmDecl *paramDecl : paramOrder) {
-    auto paramIt = paramTable.find(paramDecl);
-    if (paramIt == paramTable.end()) {
-      continue;
-    }
-
-    const HWParamInfo &paramInfo = paramIt->second;
-
-    params.push_back(circt::hw::ParamDeclAttr::get(
-        builder.getContext(), builder.getStringAttr(paramInfo.name),
-        paramInfo.type, paramInfo.defaultValue));
-  }
-
-  return builder.getArrayAttr(params);
+inline auto makeClockType(mlir::MLIRContext *context) -> mlir::Type {
+  return circt::seq::ClockType::get(context);
 }
 
-inline void beginHWModule(
-    circt::hw::HWModuleOp &moduleOp, mlir::Value &clockValue,
-    mlir::Value &resetValue,
-    std::unique_ptr<circt::BackedgeBuilder> &backedgeBuilder,
-    llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &inputValueTable,
-    llvm::SmallVectorImpl<mlir::Value> &outputValues,
-    llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
-        &registerNextBackedgeTable,
-    mlir::OpBuilder &builder, mlir::Location loc,
-    clang::CXXRecordDecl *recordDecl,
-    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
-        &paramTable,
-    llvm::ArrayRef<const clang::NonTypeTemplateParmDecl *> paramOrder,
-    llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> &fieldTable,
-    llvm::ArrayRef<const clang::FieldDecl *> fieldOrder) {
-  moduleOp = nullptr;
-  clockValue = nullptr;
-  resetValue = nullptr;
+inline auto makePortInfo(mlir::StringAttr name, mlir::Type type,
+                         circt::hw::ModulePort::Direction direction,
+                         size_t argNum, mlir::Location loc)
+    -> circt::hw::PortInfo {
+  return circt::hw::PortInfo{circt::hw::ModulePort{name, type, direction},
+                             argNum, mlir::DictionaryAttr{}, loc};
+}
 
-  if (backedgeBuilder) {
-    backedgeBuilder->abandon();
-  }
-  backedgeBuilder.reset();
-
-  inputValueTable.clear();
-  outputValues.clear();
-  registerNextBackedgeTable.clear();
-
-  llvm::SmallVector<circt::hw::PortInfo, 8> ports;
-
-  size_t inputArgNo = 0;
-  size_t outputArgNo = 0;
-
-  mlir::Type clkType = circt::seq::ClockType::get(builder.getContext());
-  if (!clkType) {
+inline void removeDefaultOutputTerminator(circt::hw::HWModuleOp moduleOp) {
+  mlir::Block *body = moduleOp.getBodyBlock();
+  if (!body || body->empty()) {
     return;
   }
 
-  {
-    circt::hw::PortInfo port;
-    port.name = builder.getStringAttr("clk");
-    port.type = clkType;
-    port.dir = circt::hw::ModulePort::Direction::Input;
-    port.argNum = inputArgNo++;
-    port.loc = loc;
-    ports.push_back(port);
+  mlir::Operation &lastOp = body->back();
+  if (mlir::isa<circt::hw::OutputOp>(lastOp)) {
+    lastOp.erase();
   }
+}
 
-  {
-    circt::hw::PortInfo port;
-    port.name = builder.getStringAttr("rst");
-    port.type = builder.getI1Type();
-    port.dir = circt::hw::ModulePort::Direction::Input;
-    port.argNum = inputArgNo++;
-    port.loc = loc;
-    ports.push_back(port);
-  }
+inline void beginHWModule(HWModuleContext &moduleContext,
+                          mlir::OpBuilder &builder, mlir::Location loc,
+                          clang::CXXRecordDecl *recordDecl) {
+  llvm::SmallVector<circt::hw::PortInfo, 16> ports;
 
-  for (const clang::FieldDecl *fieldDecl : fieldOrder) {
-    auto fieldIt = fieldTable.find(fieldDecl);
-    if (fieldIt == fieldTable.end()) {
-      continue;
-    }
+  size_t inputArgNum = 0;
+  size_t outputArgNum = 0;
 
-    HWFieldInfo &fieldInfo = fieldIt->second;
+  ports.push_back(makePortInfo(
+      builder.getStringAttr("clk"), makeClockType(builder.getContext()),
+      circt::hw::ModulePort::Direction::Input, inputArgNum++, loc));
+
+  ports.push_back(makePortInfo(
+      builder.getStringAttr("rst"), builder.getI1Type(),
+      circt::hw::ModulePort::Direction::Input, inputArgNum++, loc));
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
 
     if (fieldInfo.kind == HWFieldKind::Input) {
-      circt::hw::PortInfo port;
-      port.name = builder.getStringAttr(fieldInfo.name);
-      port.type = fieldInfo.type;
-      port.dir = circt::hw::ModulePort::Direction::Input;
-      port.argNum = inputArgNo++;
-      port.loc = loc;
-      ports.push_back(port);
+      ports.push_back(makePortInfo(
+          builder.getStringAttr(fieldInfo.name), fieldInfo.type,
+          circt::hw::ModulePort::Direction::Input, inputArgNum++, loc));
       continue;
     }
 
     if (fieldInfo.kind == HWFieldKind::Output) {
-      circt::hw::PortInfo port;
-      port.name = builder.getStringAttr(fieldInfo.name);
-      port.type = fieldInfo.type;
-      port.dir = circt::hw::ModulePort::Direction::Output;
-      port.argNum = outputArgNo++;
-      port.loc = loc;
-      ports.push_back(port);
+      ports.push_back(makePortInfo(
+          builder.getStringAttr(fieldInfo.name), fieldInfo.type,
+          circt::hw::ModulePort::Direction::Output, outputArgNum++, loc));
       continue;
     }
   }
 
-  moduleOp = circt::hw::HWModuleOp::create(
+  moduleContext.moduleOp = circt::hw::HWModuleOp::create(
       builder, loc, builder.getStringAttr(recordDecl->getNameAsString()),
       ports);
 
-  if (!paramOrder.empty()) {
-    moduleOp->setAttr("parameters", buildModuleParameterAttr(
-                                        builder, paramTable, paramOrder));
-  }
+  removeDefaultOutputTerminator(moduleContext.moduleOp);
 
-  mlir::Block *bodyBlock = moduleOp.getBodyBlock();
+  mlir::Block *body = moduleContext.moduleOp.getBodyBlock();
+  builder.setInsertionPointToEnd(body);
 
-  if (!bodyBlock->empty()) {
-    if (auto outputOp =
-            mlir::dyn_cast<circt::hw::OutputOp>(bodyBlock->back())) {
-      outputOp.erase();
-    }
-  }
+  unsigned blockArgIndex = 0;
+  moduleContext.clock = body->getArgument(blockArgIndex++);
+  moduleContext.reset = body->getArgument(blockArgIndex++);
 
-  if (bodyBlock->getNumArguments() < 2) {
-    llvm::WithColor::error()
-        << "chwc: internal error: clk/rst block args missing\n";
-    return;
-  }
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
 
-  clockValue = bodyBlock->getArgument(0);
-  resetValue = bodyBlock->getArgument(1);
-
-  size_t argIndex = 2;
-
-  for (const clang::FieldDecl *fieldDecl : fieldOrder) {
-    auto fieldIt = fieldTable.find(fieldDecl);
-    if (fieldIt == fieldTable.end()) {
-      continue;
-    }
-
-    HWFieldInfo &fieldInfo = fieldIt->second;
     if (fieldInfo.kind != HWFieldKind::Input) {
       continue;
     }
 
-    if (argIndex >= bodyBlock->getNumArguments()) {
-      llvm::WithColor::error()
-          << "chwc: internal error: hw.module input block arg missing\n";
-      continue;
-    }
-
-    inputValueTable[fieldDecl] = bodyBlock->getArgument(argIndex++);
+    moduleContext.currentValues[fieldDecl] = body->getArgument(blockArgIndex++);
   }
-
-  builder.setInsertionPointToEnd(bodyBlock);
-
-  backedgeBuilder = std::make_unique<circt::BackedgeBuilder>(builder, loc);
 }
 
-inline void endHWModule(
-    circt::hw::HWModuleOp &moduleOp, mlir::Value &clockValue,
-    mlir::Value &resetValue,
-    std::unique_ptr<circt::BackedgeBuilder> &backedgeBuilder,
-    llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &inputValueTable,
-    llvm::SmallVectorImpl<mlir::Value> &outputValues,
-    llvm::DenseMap<const clang::FieldDecl *, circt::Backedge>
-        &registerNextBackedgeTable,
-    mlir::OpBuilder &builder, mlir::Location loc) {
-  if (!moduleOp) {
-    return;
-  }
-
-  if (backedgeBuilder) {
-    if (mlir::failed(backedgeBuilder->clearOrEmitError())) {
-      llvm::WithColor::error()
-          << "chwc: unresolved register next-state backedge\n";
-    }
-    backedgeBuilder.reset();
-  }
-
-  circt::hw::OutputOp::create(builder, loc, outputValues);
-
-  builder.setInsertionPointAfter(moduleOp);
-
-  moduleOp = nullptr;
-  clockValue = nullptr;
-  resetValue = nullptr;
-  inputValueTable.clear();
-  outputValues.clear();
-  registerNextBackedgeTable.clear();
-}
-
-inline auto getInputValue(
-    llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &inputValueTable,
-    mlir::OpBuilder &builder, mlir::Location loc, const HWFieldInfo &fieldInfo)
+inline auto getInputValue(HWModuleContext &moduleContext,
+                          const clang::FieldDecl *fieldDecl,
+                          mlir::OpBuilder &builder, mlir::Location loc)
     -> mlir::Value {
   (void)builder;
   (void)loc;
 
-  mlir::Value value = inputValueTable.lookup(fieldInfo.fieldDecl);
+  mlir::Value value = moduleContext.currentValues.lookup(fieldDecl);
   if (!value) {
-    llvm::WithColor::error()
-        << "chwc: input port value is not wired: " << fieldInfo.name << "\n";
+    llvm::WithColor::error() << "chwc: input value is not available\n";
   }
 
   return value;
 }
 
-inline void emitOutputAssign(llvm::SmallVectorImpl<mlir::Value> &outputValues,
-                             mlir::OpBuilder &builder, mlir::Location loc,
-                             const HWFieldInfo &fieldInfo, mlir::Value value) {
-  (void)builder;
-  (void)loc;
+inline void emitOutputValue(HWModuleContext &moduleContext,
+                            const clang::FieldDecl *fieldDecl,
+                            mlir::Value value) {
+  moduleContext.outputValues[fieldDecl] = value;
+}
 
-  if (!value) {
-    llvm::WithColor::error()
-        << "chwc: null output value for " << fieldInfo.name << "\n";
-    return;
+inline void endHWModule(HWModuleContext &moduleContext,
+                        mlir::OpBuilder &builder, mlir::Location loc) {
+  llvm::SmallVector<mlir::Value, 8> outputValues;
+
+  for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+    HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+    if (fieldInfo.kind != HWFieldKind::Output) {
+      continue;
+    }
+
+    mlir::Value value = moduleContext.outputValues.lookup(fieldDecl);
+    if (!value) {
+      llvm::WithColor::error()
+          << "chwc: output value is not assigned: " << fieldInfo.name << "\n";
+      continue;
+    }
+
+    outputValues.push_back(value);
   }
 
-  outputValues.push_back(value);
+  builder.setInsertionPointToEnd(moduleContext.moduleOp.getBodyBlock());
+  circt::hw::OutputOp::create(builder, loc, outputValues);
 }
 
 } // namespace chwc::utils

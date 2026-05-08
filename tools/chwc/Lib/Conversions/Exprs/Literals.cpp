@@ -8,8 +8,7 @@ auto CHWConverter::generateCXXBoolLiteralExpr(
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  return utils::intConst(builder, loc, builder.getI1Type(),
-                         boolLit->getValue() ? 1 : 0);
+  return utils::boolConst(builder, loc, boolLit->getValue());
 }
 
 auto CHWConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit)
@@ -17,8 +16,12 @@ auto CHWConverter::generateIntegerLiteral(clang::IntegerLiteral *intLit)
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  return utils::intConst(builder, loc, builder.getI32Type(),
-                         intLit->getValue().getLimitedValue());
+  mlir::Type type = convertType(intLit->getType());
+  if (!type) {
+    type = builder.getIntegerType(32);
+  }
+
+  return utils::intConst(builder, loc, type, intLit->getValue().getSExtValue());
 }
 
 } // namespace chwc

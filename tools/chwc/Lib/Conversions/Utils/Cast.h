@@ -1,90 +1,44 @@
 #ifndef CHWC_UTILS_CAST_H
 #define CHWC_UTILS_CAST_H
 
+#include "./Comb.h"
 #include "./Constant.h"
-#include "circt/Dialect/Comb/CombOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
-#include "llvm/ADT/SmallVector.h"
+#include "mlir/IR/Value.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc::utils {
 
-inline auto createCombExtract(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Value value, mlir::Type targetType,
-                              uint32_t lowBit = 0) -> mlir::Value {
-  if (!value || !targetType) {
-    return nullptr;
-  }
-
-  auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
-  auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-  if (!srcType || !dstType) {
-    llvm::WithColor::error()
-        << "chwc: comb.extract requires fixed integer types\n";
-    return value;
-  }
-
-  if (dstType.getWidth() > srcType.getWidth()) {
-    llvm::WithColor::error()
-        << "chwc: comb.extract result cannot be wider than input\n";
-    return value;
-  }
-
-  if (lowBit + dstType.getWidth() > srcType.getWidth()) {
-    llvm::WithColor::error()
-        << "chwc: comb.extract range exceeds input width\n";
-    return value;
-  }
-
-  if (srcType.getWidth() == dstType.getWidth() && lowBit == 0) {
-    return value;
-  }
-
-  mlir::OperationState opState(loc, "comb.extract");
-  opState.addOperands(value);
-  opState.addTypes(targetType);
-  opState.addAttribute("lowBit", builder.getI32IntegerAttr(lowBit));
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error() << "chwc: failed to create comb.extract\n";
-    return value;
-  }
-
-  return op->getResult(0);
-}
-
-inline auto createCombConcat(mlir::OpBuilder &builder, mlir::Location loc,
-                             llvm::ArrayRef<mlir::Value> operands,
-                             mlir::Type targetType) -> mlir::Value {
-  if (operands.empty() || !targetType) {
-    return nullptr;
-  }
-
-  mlir::OperationState opState(loc, "comb.concat");
-  opState.addOperands(operands);
-  opState.addTypes(targetType);
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error() << "chwc: failed to create comb.concat\n";
-    return nullptr;
-  }
-
-  return op->getResult(0);
-}
-
-inline auto zeroExtendValue(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Value value, mlir::Type targetType)
+inline auto extractLowBits(mlir::OpBuilder &builder, mlir::Location loc,
+                           mlir::Value value, mlir::Type targetType)
     -> mlir::Value {
   if (!value || !targetType) {
     return nullptr;
   }
 
-  if (value.getType() == targetType) {
-    return value;
+  auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
+  auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
+
+  if (!srcType || !dstType) {
+    llvm::WithColor::error() << "chwc: comb.extract requires integer types\n";
+    return nullptr;
+  }
+
+  mlir::OperationState state(loc, "comb.extract");
+  state.addOperands(value);
+  state.addAttribute("lowBit", builder.getI32IntegerAttr(0));
+  state.addTypes(dstType);
+
+  mlir::Operation *op = builder.create(state);
+  return op->getResult(0);
+}
+
+inline auto zeroExtend(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Value value, mlir::Type targetType)
+    -> mlir::Value {
+  if (!value || !targetType) {
+    return nullptr;
   }
 
   auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
@@ -92,66 +46,44 @@ inline auto zeroExtendValue(mlir::OpBuilder &builder, mlir::Location loc,
 
   if (!srcType || !dstType) {
     llvm::WithColor::error()
-        << "chwc: zero extension between parametric hw.int types is "
-           "unsupported unless types are equal\n";
-    return value;
+        << "chwc: comb zero-extension requires integer types\n";
+    return nullptr;
   }
 
-  uint32_t srcWidth = srcType.getWidth();
-  uint32_t dstWidth = dstType.getWidth();
+  unsigned srcWidth = srcType.getWidth();
+  unsigned dstWidth = dstType.getWidth();
+
+  if (srcWidth == dstWidth) {
+    return value;
+  }
 
   if (srcWidth > dstWidth) {
-    return createCombExtract(builder, loc, value, targetType, 0);
+    return extractLowBits(builder, loc, value, dstType);
   }
 
-  mlir::Type padType = builder.getIntegerType(dstWidth - srcWidth);
-  mlir::Value pad = zeroValue(builder, loc, padType);
-  if (!pad) {
+  unsigned padWidth = dstWidth - srcWidth;
+  mlir::Value zero =
+      intConst(builder, loc, builder.getIntegerType(padWidth), 0);
+  if (!zero) {
     return nullptr;
   }
 
-  llvm::SmallVector<mlir::Value, 2> operands;
-  operands.push_back(pad);
-  operands.push_back(value);
+  mlir::OperationState state(loc, "comb.concat");
+  state.addOperands({zero, value});
+  state.addTypes(dstType);
 
-  return createCombConcat(builder, loc, operands, targetType);
-}
-
-inline auto truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
-                          mlir::Value value, mlir::Type targetType)
-    -> mlir::Value {
-  if (!value || !targetType) {
-    return nullptr;
-  }
-
-  if (value.getType() == targetType) {
-    return value;
-  }
-
-  auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
-  auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-  if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: truncation between parametric hw.int "
-                                "types is unsupported unless types are equal\n";
-    return value;
-  }
-
-  if (srcType.getWidth() <= dstType.getWidth()) {
-    return zeroExtendValue(builder, loc, value, targetType);
-  }
-
-  return createCombExtract(builder, loc, value, targetType, 0);
+  mlir::Operation *op = builder.create(state);
+  return op->getResult(0);
 }
 
 inline auto promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
                          mlir::Value value, mlir::Type targetType)
     -> mlir::Value {
-  if (!value || !targetType) {
+  if (!value) {
     return nullptr;
   }
 
-  if (value.getType() == targetType) {
+  if (!targetType || value.getType() == targetType) {
     return value;
   }
 
@@ -159,20 +91,18 @@ inline auto promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: only fixed integer promotion is "
-                                "supported unless types are equal\n";
-    return value;
+    llvm::WithColor::error()
+        << "chwc: only integer cast is supported in hardware path\n";
+    return nullptr;
   }
 
-  if (srcType.getWidth() < dstType.getWidth()) {
-    return zeroExtendValue(builder, loc, value, targetType);
-  }
+  return zeroExtend(builder, loc, value, targetType);
+}
 
-  if (srcType.getWidth() > dstType.getWidth()) {
-    return truncateValue(builder, loc, value, targetType);
-  }
-
-  return value;
+inline auto truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
+                          mlir::Value value, mlir::Type targetType)
+    -> mlir::Value {
+  return promoteValue(builder, loc, value, targetType);
 }
 
 inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
@@ -184,7 +114,7 @@ inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
   auto intType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
   if (!intType) {
     llvm::WithColor::error()
-        << "chwc: only fixed integer value can be converted to bool\n";
+        << "chwc: boolean conversion expects integer value\n";
     return nullptr;
   }
 
@@ -192,14 +122,12 @@ inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
     return value;
   }
 
-  mlir::Value zero = zeroValue(builder, loc, value.getType());
+  mlir::Value zero = intConst(builder, loc, intType, 0);
   if (!zero) {
     return nullptr;
   }
 
-  return circt::comb::ICmpOp::create(
-             builder, loc, circt::comb::ICmpPredicate::ne, value, zero)
-      .getResult();
+  return icmpNe(builder, loc, value, zero);
 }
 
 } // namespace chwc::utils

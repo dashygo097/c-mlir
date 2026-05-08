@@ -3,47 +3,39 @@
 #include "../Utils/Cast.h"
 #include "../Utils/Type.h"
 #include "clang/AST/DeclCXX.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
-auto isMethodOfCurrentRecord(const clang::CXXRecordDecl *currentRecordDecl,
+auto isCurrentHardwareMethod(const clang::CXXRecordDecl *recordDecl,
                              clang::CXXMethodDecl *methodDecl) -> bool {
-  if (!currentRecordDecl || !methodDecl) {
+  if (!recordDecl || !methodDecl || !methodDecl->getParent()) {
     return false;
   }
 
-  const clang::CXXRecordDecl *parent = methodDecl->getParent();
-  if (!parent) {
+  return methodDecl->getParent()->getCanonicalDecl() ==
+         recordDecl->getCanonicalDecl();
+}
+
+auto isSignalReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  if (!methodDecl) {
     return false;
   }
 
-  return parent->getCanonicalDecl() == currentRecordDecl->getCanonicalDecl();
-}
+  std::string name = methodDecl->getNameAsString();
 
-auto isChwcValueOrSignalType(clang::QualType type) -> bool {
-  return utils::getSignalTypeInfo(type).isValue;
-}
-
-auto isValidHelperValueType(clang::QualType type) -> bool {
-  utils::SignalTypeInfo typeInfo = utils::getSignalTypeInfo(type);
-  return typeInfo.isValue && !typeInfo.isSignal;
-}
-
-auto isBoolConversion(clang::CXXConversionDecl *conversionDecl) -> bool {
-  return conversionDecl && conversionDecl->getConversionType()->isBooleanType();
-}
-
-auto isChwcValueConversion(clang::CXXConversionDecl *conversionDecl) -> bool {
-  if (!conversionDecl) {
-    return false;
+  if (name == "read" || name == "value" || name == "raw") {
+    return true;
   }
 
-  utils::SignalTypeInfo typeInfo =
-      utils::getSignalTypeInfo(conversionDecl->getConversionType());
+  return mlir::isa<clang::CXXConversionDecl>(methodDecl);
+}
 
-  return typeInfo.isValue && !typeInfo.isSignal;
+auto isSignalBoolMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  auto *conversion =
+      mlir::dyn_cast_or_null<clang::CXXConversionDecl>(methodDecl);
+
+  return conversion && conversion->getConversionType()->isBooleanType();
 }
 
 auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
@@ -59,23 +51,10 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   clang::QualType objectType =
       objectExpr ? objectExpr->getType() : clang::QualType{};
 
-  if (!objectType.isNull() && isChwcValueOrSignalType(objectType)) {
-    auto *conversionDecl =
-        llvm::dyn_cast_or_null<clang::CXXConversionDecl>(methodDecl);
-
-    if (!conversionDecl) {
-      llvm::WithColor::error()
-          << "chwc: explicit CHWC member call is not part of the hardware DSL: "
-          << methodDecl->getQualifiedNameAsString() << "\n";
-      return nullptr;
-    }
-
-    if (!isBoolConversion(conversionDecl) &&
-        !isChwcValueConversion(conversionDecl)) {
-      llvm::WithColor::error()
-          << "chwc: native integer conversion is unsupported in normal "
-             "expression lowering: "
-          << methodDecl->getQualifiedNameAsString() << "\n";
+  if (!objectType.isNull() && utils::isSignalType(objectType)) {
+    if (!isSignalReadMethod(methodDecl)) {
+      llvm::WithColor::error() << "chwc: unsupported Signal member call: "
+                               << methodDecl->getNameAsString() << "\n";
       return nullptr;
     }
 
@@ -87,32 +66,28 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     mlir::OpBuilder &builder = contextManager.Builder();
     mlir::Location loc = builder.getUnknownLoc();
 
-    if (isBoolConversion(conversionDecl)) {
+    if (isSignalBoolMethod(methodDecl)) {
       return utils::toBool(builder, loc, value);
     }
 
-    mlir::Type targetType = convertType(conversionDecl->getConversionType());
+    mlir::Type targetType = convertType(callExpr->getType());
     if (targetType) {
       value = utils::promoteValue(builder, loc, value, targetType);
-      if (!value) {
-        return nullptr;
-      }
     }
 
     return value;
   }
 
-  if (!isMethodOfCurrentRecord(currentRecordDecl, methodDecl)) {
+  if (!isCurrentHardwareMethod(moduleContext.recordDecl, methodDecl)) {
     llvm::WithColor::error()
         << "chwc: only calls to methods of the current hardware class are "
-           "supported: "
-        << methodDecl->getQualifiedNameAsString() << "\n";
+           "supported\n";
     return nullptr;
   }
 
   if (utils::isLifecycleMethod(methodDecl)) {
     llvm::WithColor::error()
-        << "chwc: direct call to annotated lifecycle method is unsupported\n";
+        << "chwc: direct call to lifecycle method is unsupported\n";
     return nullptr;
   }
 
@@ -124,46 +99,34 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   }
 
   if (!methodDecl->hasBody()) {
-    llvm::WithColor::error() << "chwc: member helper method has no body: "
+    llvm::WithColor::error()
+        << "chwc: HW_FUNC method has no body: " << methodDecl->getNameAsString()
+        << "\n";
+    return nullptr;
+  }
+
+  if (methodDecl->getNumParams() != callExpr->getNumArgs()) {
+    llvm::WithColor::error() << "chwc: HW_FUNC argument count mismatch: "
                              << methodDecl->getNameAsString() << "\n";
     return nullptr;
   }
 
   if (!methodDecl->getReturnType()->isVoidType() &&
-      !isValidHelperValueType(methodDecl->getReturnType())) {
+      !utils::isValueType(methodDecl->getReturnType())) {
     llvm::WithColor::error()
-        << "chwc: HW_FUNC return type must be UInt<W>, SInt<W> or void: "
-        << methodDecl->getNameAsString() << "\n";
-    return nullptr;
-  }
-
-  if (methodDecl->getNumParams() != callExpr->getNumArgs()) {
-    llvm::WithColor::error() << "chwc: member helper argument count mismatch: "
-                             << methodDecl->getNameAsString() << "\n";
+        << "chwc: HW_FUNC return type must be UInt<W>, SInt<W>, or void\n";
     return nullptr;
   }
 
   for (clang::ParmVarDecl *paramDecl : methodDecl->parameters()) {
-    if (!isValidHelperValueType(paramDecl->getType())) {
+    if (!utils::isValueType(paramDecl->getType())) {
       llvm::WithColor::error()
-          << "chwc: HW_FUNC parameter type must be UInt<W> or SInt<W>: "
-          << methodDecl->getNameAsString() << "\n";
+          << "chwc: HW_FUNC parameter type must be UInt<W> or SInt<W>\n";
       return nullptr;
     }
   }
 
-  llvm::DenseMap<const clang::VarDecl *, mlir::Value> savedLocalValueTable =
-      localValueTable;
-
-  llvm::DenseMap<const clang::VarDecl *, int64_t> savedLocalConstIntTable =
-      localConstIntTable;
-
-  mlir::Value savedReturnValue = currentReturnValue;
-  bool savedHasReturnValue = hasCurrentReturnValue;
-
-  currentReturnValue = nullptr;
-  hasCurrentReturnValue = false;
-  ++helperInlineDepth;
+  functionStack.emplace_back();
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -171,59 +134,40 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
     mlir::Value argValue = generateExpr(callExpr->getArg(i));
     if (!argValue) {
-      llvm::WithColor::error()
-          << "chwc: failed to lower member helper argument " << i << "\n";
-
-      --helperInlineDepth;
-      currentReturnValue = savedReturnValue;
-      hasCurrentReturnValue = savedHasReturnValue;
-      localValueTable = std::move(savedLocalValueTable);
-      localConstIntTable = std::move(savedLocalConstIntTable);
+      functionStack.pop_back();
       return nullptr;
     }
 
     clang::ParmVarDecl *paramDecl = methodDecl->getParamDecl(i);
     mlir::Type paramType = convertType(paramDecl->getType());
     if (!paramType) {
-      --helperInlineDepth;
-      currentReturnValue = savedReturnValue;
-      hasCurrentReturnValue = savedHasReturnValue;
-      localValueTable = std::move(savedLocalValueTable);
-      localConstIntTable = std::move(savedLocalConstIntTable);
+      functionStack.pop_back();
       return nullptr;
     }
 
     argValue = utils::promoteValue(builder, loc, argValue, paramType);
     if (!argValue) {
-      --helperInlineDepth;
-      currentReturnValue = savedReturnValue;
-      hasCurrentReturnValue = savedHasReturnValue;
-      localValueTable = std::move(savedLocalValueTable);
-      localConstIntTable = std::move(savedLocalConstIntTable);
+      functionStack.pop_back();
       return nullptr;
     }
 
-    localValueTable[paramDecl] = argValue;
+    functionStack.back().locals[paramDecl] = argValue;
   }
 
   TraverseStmt(methodDecl->getBody());
 
-  mlir::Value returnValue = currentReturnValue;
-  bool hasReturnValue = hasCurrentReturnValue;
+  mlir::Value returnValue = functionStack.back().returnValue;
+  bool hasReturnValue = functionStack.back().hasReturnValue;
 
-  --helperInlineDepth;
-  currentReturnValue = savedReturnValue;
-  hasCurrentReturnValue = savedHasReturnValue;
-  localValueTable = std::move(savedLocalValueTable);
-  localConstIntTable = std::move(savedLocalConstIntTable);
+  functionStack.pop_back();
 
-  if (!hasReturnValue && !methodDecl->getReturnType()->isVoidType()) {
-    llvm::WithColor::error() << "chwc: non-void member helper has no return: "
-                             << methodDecl->getNameAsString() << "\n";
+  if (methodDecl->getReturnType()->isVoidType()) {
     return nullptr;
   }
 
-  if (methodDecl->getReturnType()->isVoidType()) {
+  if (!hasReturnValue || !returnValue) {
+    llvm::WithColor::error() << "chwc: non-void HW_FUNC has no return: "
+                             << methodDecl->getNameAsString() << "\n";
     return nullptr;
   }
 
@@ -232,12 +176,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     return nullptr;
   }
 
-  returnValue = utils::promoteValue(builder, loc, returnValue, returnType);
-  if (!returnValue) {
-    return nullptr;
-  }
-
-  return returnValue;
+  return utils::promoteValue(builder, loc, returnValue, returnType);
 }
 
 } // namespace chwc

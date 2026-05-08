@@ -1,24 +1,14 @@
 #include "../../Converter.h"
-#include "../Utils/Array.h"
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
 
 namespace chwc {
 
-auto changedFrom(llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &after,
-                 llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &before,
-                 const clang::FieldDecl *fieldDecl) -> bool {
-  mlir::Value afterValue = after.lookup(fieldDecl);
-  mlir::Value beforeValue = before.lookup(fieldDecl);
-
-  if (!afterValue) {
-    return false;
+auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
+  if (!ifStmt) {
+    return true;
   }
 
-  return afterValue != beforeValue;
-}
-
-auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -32,85 +22,75 @@ auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
     return true;
   }
 
-  auto savedNextTable = nextFieldValueTable;
-  auto savedOutputTable = outputValueTable;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedNext =
+      moduleContext.nextValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedOutput =
+      moduleContext.outputValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedCurrent =
+      moduleContext.currentValues;
 
   TraverseStmt(ifStmt->getThen());
 
-  auto thenNextTable = nextFieldValueTable;
-  auto thenOutputTable = outputValueTable;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenNext =
+      moduleContext.nextValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenOutput =
+      moduleContext.outputValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenCurrent =
+      moduleContext.currentValues;
 
-  nextFieldValueTable = savedNextTable;
-  outputValueTable = savedOutputTable;
+  moduleContext.nextValues = savedNext;
+  moduleContext.outputValues = savedOutput;
+  moduleContext.currentValues = savedCurrent;
 
   if (ifStmt->getElse()) {
     TraverseStmt(ifStmt->getElse());
   }
 
-  auto elseNextTable = nextFieldValueTable;
-  auto elseOutputTable = outputValueTable;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseNext =
+      moduleContext.nextValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseOutput =
+      moduleContext.outputValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseCurrent =
+      moduleContext.currentValues;
 
-  nextFieldValueTable = savedNextTable;
-  outputValueTable = savedOutputTable;
+  moduleContext.nextValues = savedNext;
+  moduleContext.outputValues = savedOutput;
+  moduleContext.currentValues = savedCurrent;
 
-  for (auto &[fieldDecl, fieldInfo] : fieldTable) {
-    if (fieldInfo.kind == HWFieldKind::Reg) {
-      bool touched = changedFrom(thenNextTable, savedNextTable, fieldDecl) ||
-                     changedFrom(elseNextTable, savedNextTable, fieldDecl);
+  auto mergeMap =
+      [&](llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &dst,
+          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &thenMap,
+          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &elseMap,
+          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value>
+              &baseMap) {
+        for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
+          mlir::Value thenValue = thenMap.lookup(fieldDecl);
+          mlir::Value elseValue = elseMap.lookup(fieldDecl);
+          mlir::Value baseValue = baseMap.lookup(fieldDecl);
 
-      if (!touched) {
-        continue;
-      }
+          if (!thenValue && !elseValue) {
+            continue;
+          }
 
-      mlir::Value baseValue = savedNextTable.lookup(fieldDecl);
-      if (!baseValue) {
-        baseValue = currentFieldValueTable.lookup(fieldDecl);
-      }
+          if (!thenValue) {
+            thenValue = baseValue;
+          }
 
-      mlir::Value thenValue = thenNextTable.lookup(fieldDecl);
-      if (!thenValue) {
-        thenValue = baseValue;
-      }
+          if (!elseValue) {
+            elseValue = baseValue;
+          }
 
-      mlir::Value elseValue = elseNextTable.lookup(fieldDecl);
-      if (!elseValue) {
-        elseValue = baseValue;
-      }
+          if (!thenValue || !elseValue) {
+            continue;
+          }
 
-      nextFieldValueTable[fieldDecl] =
-          utils::mux(builder, loc, cond, thenValue, elseValue);
-      continue;
-    }
+          dst[fieldDecl] = utils::mux(builder, loc, cond, thenValue, elseValue);
+        }
+      };
 
-    if (fieldInfo.kind == HWFieldKind::Output) {
-      bool touched =
-          changedFrom(thenOutputTable, savedOutputTable, fieldDecl) ||
-          changedFrom(elseOutputTable, savedOutputTable, fieldDecl);
-
-      if (!touched) {
-        continue;
-      }
-
-      mlir::Value baseValue = savedOutputTable.lookup(fieldDecl);
-      if (!baseValue) {
-        baseValue = utils::zeroFieldValue(builder, loc, fieldInfo);
-      }
-
-      mlir::Value thenValue = thenOutputTable.lookup(fieldDecl);
-      if (!thenValue) {
-        thenValue = baseValue;
-      }
-
-      mlir::Value elseValue = elseOutputTable.lookup(fieldDecl);
-      if (!elseValue) {
-        elseValue = baseValue;
-      }
-
-      outputValueTable[fieldDecl] =
-          utils::mux(builder, loc, cond, thenValue, elseValue);
-      continue;
-    }
-  }
+  mergeMap(moduleContext.nextValues, thenNext, elseNext, savedNext);
+  mergeMap(moduleContext.outputValues, thenOutput, elseOutput, savedOutput);
+  mergeMap(moduleContext.currentValues, thenCurrent, elseCurrent, savedCurrent);
 
   return true;
 }

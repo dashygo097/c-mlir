@@ -1,143 +1,123 @@
 #ifndef CHWC_UTILS_ARRAY_H
 #define CHWC_UTILS_ARRAY_H
 
-#include "../../Converter.h"
 #include "./Cast.h"
 #include "./Constant.h"
 #include "circt/Dialect/HW/HWTypes.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Operation.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/WithColor.h"
+#include <algorithm>
 
 namespace chwc::utils {
 
 inline auto getArrayIndexWidth(uint64_t size) -> unsigned {
-  if (size <= 1) {
-    return 1;
-  }
-
-  return llvm::Log2_64_Ceil(size);
+  return std::max<unsigned>(1, llvm::Log2_64_Ceil(size));
 }
 
-inline auto getArrayIndexType(mlir::OpBuilder &builder, uint64_t size)
-    -> mlir::IntegerType {
-  return builder.getIntegerType(getArrayIndexWidth(size));
-}
-
-inline auto coerceArrayIndex(mlir::OpBuilder &builder, mlir::Location loc,
-                             mlir::Value index, uint64_t size) -> mlir::Value {
+inline auto castArrayIndex(mlir::OpBuilder &builder, mlir::Location loc,
+                           mlir::Value index, uint64_t arraySize)
+    -> mlir::Value {
   if (!index) {
     return nullptr;
   }
 
-  return promoteValue(builder, loc, index, getArrayIndexType(builder, size));
+  return promoteValue(builder, loc, index,
+                      builder.getIntegerType(getArrayIndexWidth(arraySize)));
 }
 
 inline auto createArray(mlir::OpBuilder &builder, mlir::Location loc,
-                        llvm::ArrayRef<mlir::Value> elements,
-                        mlir::Type arrayType) -> mlir::Value {
-  if (elements.empty()) {
-    llvm::WithColor::error() << "chwc: cannot create empty hw.array\n";
+                        mlir::Type arrayType,
+                        llvm::ArrayRef<mlir::Value> values) -> mlir::Value {
+  auto hwArrayType = mlir::dyn_cast<circt::hw::ArrayType>(arrayType);
+  if (!hwArrayType) {
+    llvm::WithColor::error() << "chwc: expected hw.array type\n";
     return nullptr;
   }
 
-  llvm::SmallVector<mlir::Value, 16> operands;
-  for (auto it = elements.rbegin(); it != elements.rend(); ++it) {
-    operands.push_back(*it);
-  }
-
-  mlir::OperationState opState(loc, "hw.array_create");
-  opState.addOperands(operands);
-  opState.addTypes(arrayType);
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error() << "chwc: failed to create hw.array_create\n";
+  if (values.size() != hwArrayType.getNumElements()) {
+    llvm::WithColor::error() << "chwc: hw.array_create size mismatch\n";
     return nullptr;
   }
 
+  mlir::OperationState state(loc, "hw.array_create");
+  state.addOperands(values);
+  state.addTypes(arrayType);
+
+  mlir::Operation *op = builder.create(state);
   return op->getResult(0);
 }
 
-inline auto zeroAnyValue(mlir::OpBuilder &builder, mlir::Location loc,
-                         mlir::Type type) -> mlir::Value;
-
-inline auto zeroArrayValue(mlir::OpBuilder &builder, mlir::Location loc,
-                           mlir::Type type) -> mlir::Value {
-  auto arrayType = mlir::dyn_cast<circt::hw::ArrayType>(type);
-  if (!arrayType) {
-    llvm::WithColor::error() << "chwc: zeroArrayValue requires hw.array type\n";
+inline auto zeroArray(mlir::OpBuilder &builder, mlir::Location loc,
+                      mlir::Type arrayType) -> mlir::Value {
+  auto hwArrayType = mlir::dyn_cast<circt::hw::ArrayType>(arrayType);
+  if (!hwArrayType) {
+    llvm::WithColor::error() << "chwc: zeroArray expects hw.array type\n";
     return nullptr;
   }
 
-  llvm::SmallVector<mlir::Value, 16> elements;
-  for (uint64_t i = 0, e = arrayType.getNumElements(); i < e; ++i) {
-    mlir::Value element =
-        zeroAnyValue(builder, loc, arrayType.getElementType());
-    if (!element) {
-      return nullptr;
-    }
+  llvm::SmallVector<mlir::Value, 16> values;
 
-    elements.push_back(element);
+  for (uint64_t i = 0; i < hwArrayType.getNumElements(); ++i) {
+    values.push_back(zeroValue(builder, loc, hwArrayType.getElementType()));
   }
 
-  return createArray(builder, loc, elements, type);
-}
-
-inline auto zeroAnyValue(mlir::OpBuilder &builder, mlir::Location loc,
-                         mlir::Type type) -> mlir::Value {
-  if (mlir::isa<circt::hw::ArrayType>(type)) {
-    return zeroArrayValue(builder, loc, type);
-  }
-
-  return zeroValue(builder, loc, type);
-}
-
-inline auto zeroFieldValue(mlir::OpBuilder &builder, mlir::Location loc,
-                           const HWFieldInfo &fieldInfo) -> mlir::Value {
-  return zeroAnyValue(builder, loc, fieldInfo.type);
+  return createArray(builder, loc, arrayType, values);
 }
 
 inline auto arrayGet(mlir::OpBuilder &builder, mlir::Location loc,
-                     mlir::Value arrayValue, mlir::Value index,
-                     mlir::Type elementType) -> mlir::Value {
-  if (!arrayValue || !index || !elementType) {
+                     mlir::Value arrayValue, mlir::Value index) -> mlir::Value {
+  if (!arrayValue || !index) {
     return nullptr;
   }
 
-  mlir::OperationState opState(loc, "hw.array_get");
-  opState.addOperands({arrayValue, index});
-  opState.addTypes(elementType);
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error() << "chwc: failed to create hw.array_get\n";
+  auto arrayType = mlir::dyn_cast<circt::hw::ArrayType>(arrayValue.getType());
+  if (!arrayType) {
+    llvm::WithColor::error() << "chwc: hw.array_get input must be hw.array\n";
     return nullptr;
   }
 
+  index = castArrayIndex(builder, loc, index, arrayType.getNumElements());
+  if (!index) {
+    return nullptr;
+  }
+
+  mlir::OperationState state(loc, "hw.array_get");
+  state.addOperands({arrayValue, index});
+  state.addTypes(arrayType.getElementType());
+
+  mlir::Operation *op = builder.create(state);
   return op->getResult(0);
 }
 
 inline auto arrayInject(mlir::OpBuilder &builder, mlir::Location loc,
                         mlir::Value arrayValue, mlir::Value index,
-                        mlir::Value elementValue, mlir::Type arrayType)
-    -> mlir::Value {
-  if (!arrayValue || !index || !elementValue || !arrayType) {
+                        mlir::Value element) -> mlir::Value {
+  if (!arrayValue || !index || !element) {
     return nullptr;
   }
 
-  mlir::OperationState opState(loc, "hw.array_inject");
-  opState.addOperands({arrayValue, index, elementValue});
-  opState.addTypes(arrayType);
-
-  mlir::Operation *op = builder.create(opState);
-  if (!op || op->getNumResults() == 0) {
-    llvm::WithColor::error() << "chwc: failed to create hw.array_inject\n";
+  auto arrayType = mlir::dyn_cast<circt::hw::ArrayType>(arrayValue.getType());
+  if (!arrayType) {
+    llvm::WithColor::error()
+        << "chwc: hw.array_inject input must be hw.array\n";
     return nullptr;
   }
 
+  index = castArrayIndex(builder, loc, index, arrayType.getNumElements());
+  if (!index) {
+    return nullptr;
+  }
+
+  element = promoteValue(builder, loc, element, arrayType.getElementType());
+  if (!element) {
+    return nullptr;
+  }
+
+  mlir::OperationState state(loc, "hw.array_inject");
+  state.addOperands({arrayValue, index, element});
+  state.addTypes(arrayValue.getType());
+
+  mlir::Operation *op = builder.create(state);
   return op->getResult(0);
 }
 

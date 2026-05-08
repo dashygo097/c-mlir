@@ -1,242 +1,157 @@
 #include "../../Converter.h"
 #include "../Utils/Constant.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
-auto stripExpr(clang::Expr *expr) -> clang::Expr * {
+struct StaticForInfo {
+  const clang::VarDecl *varDecl{nullptr};
+  int64_t begin{0};
+  int64_t end{0};
+  int64_t step{1};
+};
+
+auto getForConstantInt(clang::Expr *expr) -> std::optional<int64_t> {
+  if (!expr) {
+    return std::nullopt;
+  }
+
+  expr = expr->IgnoreParenImpCasts();
+
+  if (auto *lit = mlir::dyn_cast<clang::IntegerLiteral>(expr)) {
+    return lit->getValue().getSExtValue();
+  }
+
+  return std::nullopt;
+}
+
+auto getForDeclRefVar(clang::Expr *expr) -> const clang::VarDecl * {
   if (!expr) {
     return nullptr;
   }
 
-  return expr->IgnoreParenImpCasts();
-}
+  expr = expr->IgnoreParenImpCasts();
 
-auto getDeclRefVar(clang::Expr *expr) -> const clang::VarDecl * {
-  expr = stripExpr(expr);
-
-  auto *declRef = llvm::dyn_cast_or_null<clang::DeclRefExpr>(expr);
-  if (!declRef) {
-    return nullptr;
+  if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(expr)) {
+    return mlir::dyn_cast<clang::VarDecl>(declRef->getDecl());
   }
 
-  return llvm::dyn_cast<clang::VarDecl>(declRef->getDecl());
+  return nullptr;
 }
 
-auto getIntegerLiteralValue(clang::Expr *expr, int64_t &value) -> bool {
-  expr = stripExpr(expr);
-
-  if (auto *intLit = llvm::dyn_cast_or_null<clang::IntegerLiteral>(expr)) {
-    value = intLit->getValue().getSExtValue();
-    return true;
-  }
-
-  if (auto *boolLit = llvm::dyn_cast_or_null<clang::CXXBoolLiteralExpr>(expr)) {
-    value = boolLit->getValue() ? 1 : 0;
-    return true;
-  }
-
-  return false;
-}
-
-auto parseForInit(clang::Stmt *init, const clang::VarDecl *&varDecl,
-                  int64_t &initialValue) -> bool {
-  auto *declStmt = llvm::dyn_cast_or_null<clang::DeclStmt>(init);
+auto analyzeStaticFor(clang::ForStmt *forStmt) -> std::optional<StaticForInfo> {
+  auto *declStmt = mlir::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit());
   if (!declStmt || !declStmt->isSingleDecl()) {
-    return false;
+    return std::nullopt;
   }
 
-  auto *decl = llvm::dyn_cast<clang::VarDecl>(declStmt->getSingleDecl());
-  if (!decl || !decl->getInit()) {
-    return false;
+  auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declStmt->getSingleDecl());
+  if (!varDecl || !varDecl->hasInit()) {
+    return std::nullopt;
   }
 
-  int64_t value = 0;
-  if (!getIntegerLiteralValue(decl->getInit(), value)) {
-    return false;
+  std::optional<int64_t> begin = getForConstantInt(varDecl->getInit());
+  if (!begin) {
+    return std::nullopt;
   }
 
-  varDecl = decl;
-  initialValue = value;
-  return true;
-}
-
-auto parseForCond(clang::Expr *cond, const clang::VarDecl *varDecl,
-                  clang::BinaryOperatorKind &op, int64_t &bound) -> bool {
-  auto *binOp = llvm::dyn_cast_or_null<clang::BinaryOperator>(stripExpr(cond));
-  if (!binOp) {
-    return false;
+  auto *cond =
+      mlir::dyn_cast_or_null<clang::BinaryOperator>(forStmt->getCond());
+  if (!cond) {
+    return std::nullopt;
   }
 
-  const clang::VarDecl *lhsVar = getDeclRefVar(binOp->getLHS());
-  if (!lhsVar || lhsVar->getCanonicalDecl() != varDecl->getCanonicalDecl()) {
-    return false;
+  const clang::VarDecl *condVar = getForDeclRefVar(cond->getLHS());
+  if (!condVar || condVar->getCanonicalDecl() != varDecl->getCanonicalDecl()) {
+    return std::nullopt;
   }
 
-  int64_t rhsValue = 0;
-  if (!getIntegerLiteralValue(binOp->getRHS(), rhsValue)) {
-    return false;
+  std::optional<int64_t> rawEnd = getForConstantInt(cond->getRHS());
+  if (!rawEnd) {
+    return std::nullopt;
   }
 
-  switch (binOp->getOpcode()) {
+  auto *inc = mlir::dyn_cast_or_null<clang::UnaryOperator>(forStmt->getInc());
+  if (!inc) {
+    return std::nullopt;
+  }
+
+  const clang::VarDecl *incVar = getForDeclRefVar(inc->getSubExpr());
+  if (!incVar || incVar->getCanonicalDecl() != varDecl->getCanonicalDecl()) {
+    return std::nullopt;
+  }
+
+  int64_t step = 0;
+
+  if (inc->getOpcode() == clang::UO_PreInc ||
+      inc->getOpcode() == clang::UO_PostInc) {
+    step = 1;
+  } else if (inc->getOpcode() == clang::UO_PreDec ||
+             inc->getOpcode() == clang::UO_PostDec) {
+    step = -1;
+  } else {
+    return std::nullopt;
+  }
+
+  StaticForInfo info;
+  info.varDecl = varDecl;
+  info.begin = *begin;
+  info.step = step;
+
+  switch (cond->getOpcode()) {
   case clang::BO_LT:
+    info.end = *rawEnd;
+    return step > 0 ? std::optional<StaticForInfo>(info) : std::nullopt;
+
   case clang::BO_LE:
+    info.end = *rawEnd + 1;
+    return step > 0 ? std::optional<StaticForInfo>(info) : std::nullopt;
+
   case clang::BO_GT:
+    info.end = *rawEnd;
+    return step < 0 ? std::optional<StaticForInfo>(info) : std::nullopt;
+
   case clang::BO_GE:
-  case clang::BO_NE:
-    op = binOp->getOpcode();
-    bound = rhsValue;
-    return true;
+    info.end = *rawEnd - 1;
+    return step < 0 ? std::optional<StaticForInfo>(info) : std::nullopt;
 
   default:
-    return false;
-  }
-}
-
-auto parseForInc(clang::Stmt *inc, const clang::VarDecl *varDecl, int64_t &step)
-    -> bool {
-  auto *unOp = llvm::dyn_cast_or_null<clang::UnaryOperator>(inc);
-  if (unOp) {
-    const clang::VarDecl *target = getDeclRefVar(unOp->getSubExpr());
-    if (!target || target->getCanonicalDecl() != varDecl->getCanonicalDecl()) {
-      return false;
-    }
-
-    if (unOp->getOpcode() == clang::UO_PreInc ||
-        unOp->getOpcode() == clang::UO_PostInc) {
-      step = 1;
-      return true;
-    }
-
-    if (unOp->getOpcode() == clang::UO_PreDec ||
-        unOp->getOpcode() == clang::UO_PostDec) {
-      step = -1;
-      return true;
-    }
-
-    return false;
-  }
-
-  auto *binOp = llvm::dyn_cast_or_null<clang::BinaryOperator>(inc);
-  if (!binOp) {
-    return false;
-  }
-
-  const clang::VarDecl *lhsVar = getDeclRefVar(binOp->getLHS());
-  if (!lhsVar || lhsVar->getCanonicalDecl() != varDecl->getCanonicalDecl()) {
-    return false;
-  }
-
-  int64_t rhsValue = 0;
-
-  if (binOp->getOpcode() == clang::BO_AddAssign &&
-      getIntegerLiteralValue(binOp->getRHS(), rhsValue)) {
-    step = rhsValue;
-    return step != 0;
-  }
-
-  if (binOp->getOpcode() == clang::BO_SubAssign &&
-      getIntegerLiteralValue(binOp->getRHS(), rhsValue)) {
-    step = -rhsValue;
-    return step != 0;
-  }
-
-  return false;
-}
-
-auto conditionHolds(int64_t value, clang::BinaryOperatorKind op, int64_t bound)
-    -> bool {
-  switch (op) {
-  case clang::BO_LT:
-    return value < bound;
-  case clang::BO_LE:
-    return value <= bound;
-  case clang::BO_GT:
-    return value > bound;
-  case clang::BO_GE:
-    return value >= bound;
-  case clang::BO_NE:
-    return value != bound;
-  default:
-    return false;
+    return std::nullopt;
   }
 }
 
 auto CHWConverter::TraverseForStmt(clang::ForStmt *forStmt) -> bool {
-  if (!forStmt) {
-    return true;
-  }
-
-  const clang::VarDecl *loopVar = nullptr;
-  int64_t initialValue = 0;
-  clang::BinaryOperatorKind condOp = clang::BO_LT;
-  int64_t bound = 0;
-  int64_t step = 0;
-
-  if (!parseForInit(forStmt->getInit(), loopVar, initialValue) ||
-      !parseForCond(forStmt->getCond(), loopVar, condOp, bound) ||
-      !parseForInc(forStmt->getInc(), loopVar, step)) {
+  std::optional<StaticForInfo> info = analyzeStaticFor(forStmt);
+  if (!info) {
     llvm::WithColor::error()
-        << "chwc: only static canonical for-loops are supported\n";
+        << "chwc: only statically-bounded for loops are supported for now\n";
     return true;
   }
+
+  if (functionStack.empty()) {
+    functionStack.emplace_back();
+  }
+
+  HWFunctionContext &frame = functionStack.back();
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  mlir::Type loopType = convertType(loopVar->getType());
-  auto intType = mlir::dyn_cast_or_null<mlir::IntegerType>(loopType);
-  if (!intType) {
-    llvm::WithColor::error()
-        << "chwc: static for-loop variable must lower to integer type\n";
-    return true;
-  }
+  mlir::Type ivType = builder.getIntegerType(32);
 
-  auto oldValueIt = localValueTable.find(loopVar);
-  bool hadOldValue = oldValueIt != localValueTable.end();
-  mlir::Value oldValue = hadOldValue ? oldValueIt->second : mlir::Value{};
-
-  auto oldConstIt = localConstIntTable.find(loopVar);
-  bool hadOldConst = oldConstIt != localConstIntTable.end();
-  int64_t oldConst = hadOldConst ? oldConstIt->second : 0;
-
-  constexpr uint64_t maxStaticIterations = 1048576;
-  uint64_t iterations = 0;
-
-  for (int64_t value = initialValue; conditionHolds(value, condOp, bound);
-       value += step) {
-    if (++iterations > maxStaticIterations) {
-      llvm::WithColor::error()
-          << "chwc: static for-loop iteration limit exceeded\n";
-      break;
+  if (info->step > 0) {
+    for (int64_t i = info->begin; i < info->end; i += info->step) {
+      frame.locals[info->varDecl] = utils::intConst(builder, loc, ivType, i);
+      TraverseStmt(forStmt->getBody());
     }
-
-    mlir::Value mlirValue = utils::intConst(builder, loc, loopType, value);
-    if (!mlirValue) {
-      llvm::WithColor::error()
-          << "chwc: failed to create static for-loop induction value\n";
-      break;
+  } else {
+    for (int64_t i = info->begin; i > info->end; i += info->step) {
+      frame.locals[info->varDecl] = utils::intConst(builder, loc, ivType, i);
+      TraverseStmt(forStmt->getBody());
     }
-
-    localValueTable[loopVar] = mlirValue;
-    localConstIntTable[loopVar] = value;
-
-    TraverseStmt(forStmt->getBody());
   }
 
-  if (hadOldValue) {
-    localValueTable[loopVar] = oldValue;
-  } else {
-    localValueTable.erase(loopVar);
-  }
-
-  if (hadOldConst) {
-    localConstIntTable[loopVar] = oldConst;
-  } else {
-    localConstIntTable.erase(loopVar);
-  }
-
+  frame.locals.erase(info->varDecl);
   return true;
 }
 

@@ -5,73 +5,40 @@ namespace chwc {
 
 auto CHWConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
     -> mlir::Value {
-  auto *fieldDecl =
-      mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
-
-  if (!fieldDecl) {
-    llvm::WithColor::error() << "chwc: member expr is not a field\n";
+  if (!memberExpr) {
     return nullptr;
   }
 
-  auto fieldIt = fieldTable.find(fieldDecl);
-  if (fieldIt == fieldTable.end()) {
+  auto *fieldDecl =
+      mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
+  if (!fieldDecl) {
+    llvm::WithColor::error() << "chwc: unsupported member expr\n";
+    return nullptr;
+  }
+
+  auto fieldIt = moduleContext.fields.find(fieldDecl);
+  if (fieldIt == moduleContext.fields.end()) {
     llvm::WithColor::error()
         << "chwc: unknown hardware field: " << fieldDecl->getNameAsString()
         << "\n";
     return nullptr;
   }
 
-  HWFieldInfo &fieldInfo = fieldIt->second;
-
-  switch (fieldInfo.kind) {
-  case HWFieldKind::Input: {
-    mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-    break;
+  if (fieldIt->second.kind == HWFieldKind::Output) {
+    llvm::WithColor::error() << "chwc: reading output field is not supported: "
+                             << fieldIt->second.name << "\n";
+    return nullptr;
   }
 
-  case HWFieldKind::Output: {
-    mlir::Value value = outputValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-
-    value = currentFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-
-    break;
+  mlir::Value value = moduleContext.currentValues.lookup(fieldDecl);
+  if (!value) {
+    llvm::WithColor::error()
+        << "chwc: hardware field is not wired yet: " << fieldIt->second.name
+        << "\n";
+    return nullptr;
   }
 
-  case HWFieldKind::Reg: {
-    mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-    break;
-  }
-
-  case HWFieldKind::Wire: {
-    mlir::Value value = currentFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-
-    value = nextFieldValueTable.lookup(fieldDecl);
-    if (value) {
-      return value;
-    }
-
-    break;
-  }
-  }
-
-  llvm::WithColor::error() << "chwc: hardware field has no value: "
-                           << fieldInfo.name << "\n";
-  return nullptr;
+  return value;
 }
 
 } // namespace chwc

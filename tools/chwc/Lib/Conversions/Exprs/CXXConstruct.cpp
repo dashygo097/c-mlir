@@ -5,35 +5,43 @@
 
 namespace chwc {
 
-auto CHWConverter::generateCXXConstructExpr(clang::CXXConstructExpr *expr)
-    -> mlir::Value {
-  if (!expr) {
+auto CHWConverter::generateCXXConstructExpr(
+    clang::CXXConstructExpr *constructExpr) -> mlir::Value {
+  if (!constructExpr) {
     return nullptr;
   }
 
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
+  if (constructExpr->getNumArgs() == 0) {
+    mlir::Type type = convertType(constructExpr->getType());
+    if (!type) {
+      return nullptr;
+    }
 
-  mlir::Type targetType = convertType(expr->getType());
-  if (!targetType) {
-    return nullptr;
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    return utils::zeroValue(builder, loc, type);
   }
 
-  if (expr->getNumArgs() == 0) {
-    return utils::zeroValue(builder, loc, targetType);
-  }
-
-  if (expr->getNumArgs() == 1) {
-    mlir::Value value = generateExpr(expr->getArg(0));
+  if (constructExpr->getNumArgs() == 1) {
+    mlir::Value value = generateExpr(constructExpr->getArg(0));
     if (!value) {
       return nullptr;
     }
 
-    return utils::promoteValue(builder, loc, value, targetType);
+    mlir::Type type = convertType(constructExpr->getType());
+    if (!type) {
+      return value;
+    }
+
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    return utils::promoteValue(builder, loc, value, type);
   }
 
   llvm::WithColor::error() << "chwc: unsupported CXXConstructExpr with "
-                           << expr->getNumArgs() << " args\n";
+                           << constructExpr->getNumArgs() << " args\n";
   return nullptr;
 }
 

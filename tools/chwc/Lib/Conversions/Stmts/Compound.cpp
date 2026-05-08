@@ -9,9 +9,7 @@ auto CHWConverter::TraverseCompoundStmt(clang::CompoundStmt *compoundStmt)
   }
 
   for (clang::Stmt *stmt : compoundStmt->body()) {
-    if (!TraverseStmt(stmt)) {
-      return false;
-    }
+    TraverseStmt(stmt);
   }
 
   return true;

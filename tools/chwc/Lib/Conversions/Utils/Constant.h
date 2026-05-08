@@ -1,111 +1,46 @@
 #ifndef CHWC_UTILS_CONSTANT_H
 #define CHWC_UTILS_CONSTANT_H
 
-#include "circt/Dialect/HW/HWOps.h"
-#include "circt/Dialect/HW/HWTypes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/Support/WithColor.h"
-#include <cstdint>
-#include <limits>
 
 namespace chwc::utils {
 
-inline auto isConstantCompatibleIntType(mlir::Type type) -> bool {
-  if (mlir::isa<mlir::IntegerType>(type)) {
-    return true;
-  }
-
-  if (mlir::isa<circt::hw::IntType>(type)) {
-    return true;
-  }
-
-  return false;
-}
-
-inline auto normalizeUIntToWidth(mlir::Type type, uint64_t value) -> uint64_t {
+inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
+                     mlir::Type type, int64_t value) -> mlir::Value {
   auto intType = mlir::dyn_cast<mlir::IntegerType>(type);
   if (!intType) {
-    return value;
-  }
-
-  unsigned width = intType.getWidth();
-  if (width >= 64) {
-    return value;
-  }
-
-  if (width == 0) {
-    return 0;
-  }
-
-  return value & ((uint64_t{1} << width) - 1);
-}
-
-inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
-                     mlir::Type type, uint64_t value) -> mlir::Value {
-  if (!isConstantCompatibleIntType(type)) {
     llvm::WithColor::error()
-        << "chwc: hw.constant requires integer or hw.int result type\n";
+        << "chwc: hw.constant requires integer result type\n";
     return nullptr;
   }
 
-  value = normalizeUIntToWidth(type, value);
+  mlir::OperationState state(loc, "hw.constant");
+  state.addAttribute("value", mlir::IntegerAttr::get(intType, value));
+  state.addTypes(intType);
 
-  mlir::Block *block = builder.getInsertionBlock();
-  if (block) {
-    for (mlir::Operation &op : *block) {
-      auto constantOp = mlir::dyn_cast<circt::hw::ConstantOp>(&op);
-      if (!constantOp) {
-        continue;
-      }
-
-      if (constantOp.getType() != type) {
-        continue;
-      }
-
-      if (constantOp.getValue().getZExtValue() != value) {
-        continue;
-      }
-
-      return constantOp.getResult();
-    }
-  }
-
-  return circt::hw::ConstantOp::create(builder, loc, type, value).getResult();
+  mlir::Operation *op = builder.create(state);
+  return op->getResult(0);
 }
 
-inline auto signedIntConst(mlir::OpBuilder &builder, mlir::Location loc,
-                           mlir::Type type, int64_t value) -> mlir::Value {
-  return intConst(builder, loc, type, static_cast<uint64_t>(value));
+inline auto boolConst(mlir::OpBuilder &builder, mlir::Location loc, bool value)
+    -> mlir::Value {
+  return intConst(builder, loc, builder.getI1Type(), value ? 1 : 0);
 }
 
 inline auto zeroValue(mlir::OpBuilder &builder, mlir::Location loc,
                       mlir::Type type) -> mlir::Value {
-  return intConst(builder, loc, type, 0);
-}
-
-inline auto oneValue(mlir::OpBuilder &builder, mlir::Location loc,
-                     mlir::Type type) -> mlir::Value {
-  return intConst(builder, loc, type, 1);
-}
-
-inline auto allOnesValue(mlir::OpBuilder &builder, mlir::Location loc,
-                         mlir::Type type) -> mlir::Value {
   auto intType = mlir::dyn_cast<mlir::IntegerType>(type);
-  if (!intType) {
-    return intConst(builder, loc, type, std::numeric_limits<uint64_t>::max());
+  if (intType) {
+    return intConst(builder, loc, intType, 0);
   }
 
-  unsigned width = intType.getWidth();
-  uint64_t value = 0;
-
-  if (width >= 64) {
-    value = std::numeric_limits<uint64_t>::max();
-  } else {
-    value = (uint64_t{1} << width) - 1;
-  }
-
-  return intConst(builder, loc, type, value);
+  llvm::WithColor::error()
+      << "chwc: zeroValue only supports integer type here\n";
+  return nullptr;
 }
 
 } // namespace chwc::utils

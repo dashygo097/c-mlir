@@ -1,34 +1,42 @@
 #include "../../Converter.h"
 #include "../Utils/Constant.h"
-#include "llvm/Support/WithColor.h"
 
 namespace chwc {
 
 auto CHWConverter::TraverseDeclStmt(clang::DeclStmt *declStmt) -> bool {
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
+  if (!declStmt) {
+    return true;
+  }
+
+  if (functionStack.empty()) {
+    functionStack.emplace_back();
+  }
 
   for (clang::Decl *decl : declStmt->decls()) {
     auto *varDecl = mlir::dyn_cast<clang::VarDecl>(decl);
     if (!varDecl) {
-      llvm::WithColor::error()
-          << "chwc: only local var decl is supported in clock_tick()\n";
       continue;
     }
 
-    mlir::Type type = convertType(varDecl->getType());
-    if (!type) {
-      continue;
-    }
+    mlir::Value value = nullptr;
 
-    mlir::Value value{};
     if (varDecl->hasInit()) {
       value = generateExpr(varDecl->getInit());
-    } else {
+    }
+
+    if (!value) {
+      mlir::Type type = convertType(varDecl->getType());
+      if (!type) {
+        continue;
+      }
+
+      mlir::OpBuilder &builder = contextManager.Builder();
+      mlir::Location loc = builder.getUnknownLoc();
+
       value = utils::zeroValue(builder, loc, type);
     }
 
-    localValueTable[varDecl] = value;
+    functionStack.back().locals[varDecl] = value;
   }
 
   return true;
