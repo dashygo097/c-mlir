@@ -54,6 +54,9 @@ struct HWModuleContext {
   llvm::SmallVector<const clang::CXXMethodDecl *, 4> resetMethods;
   llvm::SmallVector<const clang::CXXMethodDecl *, 4> clockMethods;
 
+  llvm::SmallVector<mlir::Attribute, 4> parameters;
+  llvm::StringMap<mlir::TypedAttr> parameterRefs;
+
   void clear() {
     recordDecl = nullptr;
     moduleOp = nullptr;
@@ -66,6 +69,8 @@ struct HWModuleContext {
     outputValues.clear();
     resetMethods.clear();
     clockMethods.clear();
+    parameters.clear();
+    parameterRefs.clear();
   }
 };
 
@@ -131,6 +136,7 @@ private:
       -> mlir::Value;
   auto generateCXXOperatorCallExpr(clang::CXXOperatorCallExpr *callExpr)
       -> mlir::Value;
+  auto generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value;
   auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
   auto generateExprWithCleanups(clang::ExprWithCleanups *expr) -> mlir::Value;
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)

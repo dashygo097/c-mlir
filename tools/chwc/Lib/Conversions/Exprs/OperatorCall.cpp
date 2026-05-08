@@ -2,6 +2,7 @@
 #include "../Utils/Array.h"
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
+#include "../Utils/Constant.h"
 #include "../Utils/Expr.h"
 #include "../Utils/Type.h"
 #include "llvm/Support/WithColor.h"
@@ -16,30 +17,27 @@ auto CHWConverter::generateCXXOperatorCallExpr(
 
   clang::OverloadedOperatorKind op = callExpr->getOperator();
 
-  if (op == clang::OO_Equal) {
-    if (callExpr->getNumArgs() != 2) {
-      llvm::WithColor::error()
-          << "chwc: overloaded operator= expects 2 operands\n";
-      return nullptr;
-    }
+  struct AssignTarget {
+    enum class Kind {
+      Invalid,
+      Local,
+      Field,
+      ArrayElement,
+    };
 
-    clang::Expr *lhsExpr = callExpr->getArg(0);
-    clang::Expr *rhsExpr = callExpr->getArg(1);
+    Kind kind{Kind::Invalid};
+    const clang::VarDecl *localDecl{nullptr};
+    const clang::FieldDecl *fieldDecl{nullptr};
+    mlir::Value index{};
 
-    mlir::Value rhsValue = generateExpr(rhsExpr);
-    if (!rhsValue) {
-      llvm::WithColor::error()
-          << "chwc: failed to generate RHS for overloaded assignment\n";
-      return nullptr;
-    }
+    explicit operator bool() const { return kind != Kind::Invalid; }
+  };
 
-    mlir::OpBuilder &builder = contextManager.Builder();
-    mlir::Location loc = builder.getUnknownLoc();
-
-    clang::Expr *lhs = utils::ignoreCasts(lhsExpr);
+  auto resolveTarget = [&](clang::Expr *expr) -> std::optional<AssignTarget> {
+    expr = utils::ignoreCasts(expr);
 
     if (auto *arraySub =
-            mlir::dyn_cast_or_null<clang::ArraySubscriptExpr>(lhs)) {
+            mlir::dyn_cast_or_null<clang::ArraySubscriptExpr>(expr)) {
       clang::Expr *base = utils::ignoreCasts(arraySub->getBase());
 
       const clang::FieldDecl *fieldDecl = nullptr;
@@ -53,36 +51,263 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       }
 
       if (!fieldDecl) {
-        llvm::WithColor::error()
-            << "chwc: unsupported overloaded assignment array lhs\n";
-        return rhsValue;
+        return std::nullopt;
       }
 
       auto fieldIt = moduleContext.fields.find(fieldDecl);
       if (fieldIt == moduleContext.fields.end() || !fieldIt->second.isArray) {
+        return std::nullopt;
+      }
+
+      mlir::Value index = generateExpr(arraySub->getIdx());
+      if (!index) {
+        return std::nullopt;
+      }
+
+      AssignTarget target;
+      target.kind = AssignTarget::Kind::ArrayElement;
+      target.fieldDecl = fieldDecl;
+      target.index = index;
+      return target;
+    }
+
+    if (auto *memberExpr = mlir::dyn_cast_or_null<clang::MemberExpr>(expr)) {
+      if (auto *fieldDecl =
+              mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl())) {
+        AssignTarget target;
+        target.kind = AssignTarget::Kind::Field;
+        target.fieldDecl = fieldDecl;
+        return target;
+      }
+    }
+
+    if (auto *declRef = mlir::dyn_cast_or_null<clang::DeclRefExpr>(expr)) {
+      if (auto *fieldDecl =
+              mlir::dyn_cast<clang::FieldDecl>(declRef->getDecl())) {
+        AssignTarget target;
+        target.kind = AssignTarget::Kind::Field;
+        target.fieldDecl = fieldDecl;
+        return target;
+      }
+
+      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+        AssignTarget target;
+        target.kind = AssignTarget::Kind::Local;
+        target.localDecl = varDecl;
+        return target;
+      }
+    }
+
+    return std::nullopt;
+  };
+
+  auto getTargetType = [&](const AssignTarget &target) -> mlir::Type {
+    switch (target.kind) {
+    case AssignTarget::Kind::Local:
+      return convertType(target.localDecl->getType());
+
+    case AssignTarget::Kind::Field: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      return fieldIt->second.type;
+    }
+
+    case AssignTarget::Kind::ArrayElement: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      return fieldIt->second.elementType;
+    }
+
+    case AssignTarget::Kind::Invalid:
+      return nullptr;
+    }
+
+    return nullptr;
+  };
+
+  auto generateRHSForTarget = [&](clang::Expr *rhsExpr,
+                                  mlir::Type targetType) -> mlir::Value {
+    if (!rhsExpr || !targetType) {
+      return nullptr;
+    }
+
+    rhsExpr = rhsExpr->IgnoreParenImpCasts();
+
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    if (auto *intLit = mlir::dyn_cast<clang::IntegerLiteral>(rhsExpr)) {
+      return utils::intConst(builder, loc, targetType,
+                             intLit->getValue().getSExtValue());
+    }
+
+    mlir::Value value = generateExpr(rhsExpr);
+    if (!value) {
+      return nullptr;
+    }
+
+    if (value.getType() == targetType) {
+      return value;
+    }
+
+    return utils::promoteValue(builder, loc, value, targetType);
+  };
+
+  auto readTarget = [&](const AssignTarget &target) -> mlir::Value {
+    switch (target.kind) {
+    case AssignTarget::Kind::Local:
+      if (functionStack.empty()) {
+        return nullptr;
+      }
+
+      return functionStack.back().locals.lookup(target.localDecl);
+
+    case AssignTarget::Kind::Field: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      if (fieldIt->second.kind == HWFieldKind::Output) {
+        return moduleContext.outputValues.lookup(target.fieldDecl);
+      }
+
+      return moduleContext.currentValues.lookup(target.fieldDecl);
+    }
+
+    case AssignTarget::Kind::ArrayElement: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      mlir::Value arrayValue =
+          moduleContext.currentValues.lookup(target.fieldDecl);
+      if (!arrayValue) {
+        return nullptr;
+      }
+
+      mlir::OpBuilder &builder = contextManager.Builder();
+      mlir::Location loc = builder.getUnknownLoc();
+
+      return utils::arrayGet(builder, loc, arrayValue, target.index);
+    }
+
+    case AssignTarget::Kind::Invalid:
+      return nullptr;
+    }
+
+    return nullptr;
+  };
+
+  auto writeTarget = [&](const AssignTarget &target,
+                         mlir::Value value) -> mlir::Value {
+    if (!value) {
+      return nullptr;
+    }
+
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    switch (target.kind) {
+    case AssignTarget::Kind::Local: {
+      if (functionStack.empty()) {
+        functionStack.emplace_back();
+      }
+
+      mlir::Type targetType = convertType(target.localDecl->getType());
+      if (targetType && value.getType() != targetType) {
+        value = utils::promoteValue(builder, loc, value, targetType);
+        if (!value) {
+          return nullptr;
+        }
+      }
+
+      functionStack.back().locals[target.localDecl] = value;
+      return value;
+    }
+
+    case AssignTarget::Kind::Field: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
         llvm::WithColor::error()
-            << "chwc: overloaded assignment lhs is not hardware array field\n";
-        return rhsValue;
+            << "chwc: assignment lhs is not hardware field\n";
+        return value;
       }
 
       HWFieldInfo &fieldInfo = fieldIt->second;
 
-      mlir::Value index = generateExpr(arraySub->getIdx());
-      if (!index) {
-        return rhsValue;
+      if (value.getType() != fieldInfo.type) {
+        value = utils::promoteValue(builder, loc, value, fieldInfo.type);
+        if (!value) {
+          return nullptr;
+        }
       }
 
-      rhsValue =
-          utils::promoteValue(builder, loc, rhsValue, fieldInfo.elementType);
-      if (!rhsValue) {
-        return nullptr;
+      if (emitMode == HWEmitMode::Reset) {
+        if (fieldInfo.kind != HWFieldKind::Reg) {
+          llvm::WithColor::error()
+              << "chwc: reset assignment only supports Reg field\n";
+          return value;
+        }
+
+        fieldInfo.resetValue = value;
+        return value;
+      }
+
+      switch (fieldInfo.kind) {
+      case HWFieldKind::Input:
+        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
+        break;
+
+      case HWFieldKind::Output:
+        moduleContext.outputValues[target.fieldDecl] = value;
+        break;
+
+      case HWFieldKind::Wire:
+        moduleContext.currentValues[target.fieldDecl] = value;
+        break;
+
+      case HWFieldKind::Reg:
+        moduleContext.nextValues[target.fieldDecl] = value;
+        break;
+      }
+
+      return value;
+    }
+
+    case AssignTarget::Kind::ArrayElement: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        llvm::WithColor::error() << "chwc: unknown hardware array field\n";
+        return value;
+      }
+
+      HWFieldInfo &fieldInfo = fieldIt->second;
+      if (!fieldInfo.isArray) {
+        llvm::WithColor::error()
+            << "chwc: overloaded assignment lhs is not hardware array field\n";
+        return value;
+      }
+
+      if (value.getType() != fieldInfo.elementType) {
+        value = utils::promoteValue(builder, loc, value, fieldInfo.elementType);
+        if (!value) {
+          return nullptr;
+        }
       }
 
       if (emitMode == HWEmitMode::Reset) {
         if (fieldInfo.kind != HWFieldKind::Reg) {
           llvm::WithColor::error()
               << "chwc: reset assignment only supports Reg array\n";
-          return rhsValue;
+          return value;
         }
 
         if (!fieldInfo.resetValue) {
@@ -90,8 +315,8 @@ auto CHWConverter::generateCXXOperatorCallExpr(
         }
 
         fieldInfo.resetValue = utils::arrayInject(
-            builder, loc, fieldInfo.resetValue, index, rhsValue);
-        return rhsValue;
+            builder, loc, fieldInfo.resetValue, target.index, value);
+        return value;
       }
 
       mlir::Value oldArray = nullptr;
@@ -100,159 +325,160 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       case HWFieldKind::Input:
         llvm::WithColor::error()
             << "chwc: cannot assign to hardware input array\n";
-        return rhsValue;
+        return value;
 
       case HWFieldKind::Output:
-        oldArray = moduleContext.outputValues.lookup(fieldDecl);
+        oldArray = moduleContext.outputValues.lookup(target.fieldDecl);
         if (!oldArray) {
           oldArray = utils::zeroArray(builder, loc, fieldInfo.type);
         }
 
-        moduleContext.outputValues[fieldDecl] =
-            utils::arrayInject(builder, loc, oldArray, index, rhsValue);
-        return rhsValue;
+        moduleContext.outputValues[target.fieldDecl] =
+            utils::arrayInject(builder, loc, oldArray, target.index, value);
+        return value;
 
       case HWFieldKind::Wire:
-        oldArray = moduleContext.currentValues.lookup(fieldDecl);
+        oldArray = moduleContext.currentValues.lookup(target.fieldDecl);
         if (!oldArray) {
           oldArray = utils::zeroArray(builder, loc, fieldInfo.type);
         }
 
-        moduleContext.currentValues[fieldDecl] =
-            utils::arrayInject(builder, loc, oldArray, index, rhsValue);
-        return rhsValue;
+        moduleContext.currentValues[target.fieldDecl] =
+            utils::arrayInject(builder, loc, oldArray, target.index, value);
+        return value;
 
       case HWFieldKind::Reg:
-        oldArray = moduleContext.nextValues.lookup(fieldDecl);
+        oldArray = moduleContext.nextValues.lookup(target.fieldDecl);
         if (!oldArray) {
-          oldArray = moduleContext.currentValues.lookup(fieldDecl);
+          oldArray = moduleContext.currentValues.lookup(target.fieldDecl);
         }
 
-        moduleContext.nextValues[fieldDecl] =
-            utils::arrayInject(builder, loc, oldArray, index, rhsValue);
-        return rhsValue;
+        moduleContext.nextValues[target.fieldDecl] =
+            utils::arrayInject(builder, loc, oldArray, target.index, value);
+        return value;
       }
+
+      return value;
     }
 
-    if (auto *memberExpr = mlir::dyn_cast_or_null<clang::MemberExpr>(lhs)) {
-      if (auto *fieldDecl =
-              mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl())) {
-        auto fieldIt = moduleContext.fields.find(fieldDecl);
-        if (fieldIt == moduleContext.fields.end()) {
-          llvm::WithColor::error()
-              << "chwc: assignment lhs is not hardware field\n";
-          return rhsValue;
-        }
-
-        HWFieldInfo &fieldInfo = fieldIt->second;
-
-        rhsValue = utils::promoteValue(builder, loc, rhsValue, fieldInfo.type);
-        if (!rhsValue) {
-          return nullptr;
-        }
-
-        if (emitMode == HWEmitMode::Reset) {
-          if (fieldInfo.kind != HWFieldKind::Reg) {
-            llvm::WithColor::error()
-                << "chwc: reset assignment only supports Reg field\n";
-            return rhsValue;
-          }
-
-          fieldInfo.resetValue = rhsValue;
-          return rhsValue;
-        }
-
-        switch (fieldInfo.kind) {
-        case HWFieldKind::Input:
-          llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
-          break;
-
-        case HWFieldKind::Output:
-          moduleContext.outputValues[fieldDecl] = rhsValue;
-          break;
-
-        case HWFieldKind::Wire:
-          moduleContext.currentValues[fieldDecl] = rhsValue;
-          break;
-
-        case HWFieldKind::Reg:
-          moduleContext.nextValues[fieldDecl] = rhsValue;
-          break;
-        }
-
-        return rhsValue;
-      }
+    case AssignTarget::Kind::Invalid:
+      llvm::WithColor::error()
+          << "chwc: unsupported overloaded assignment lhs\n";
+      return value;
     }
 
-    if (auto *declRef = mlir::dyn_cast_or_null<clang::DeclRefExpr>(lhs)) {
-      if (auto *fieldDecl =
-              mlir::dyn_cast<clang::FieldDecl>(declRef->getDecl())) {
-        auto fieldIt = moduleContext.fields.find(fieldDecl);
-        if (fieldIt == moduleContext.fields.end()) {
-          llvm::WithColor::error()
-              << "chwc: assignment lhs is not hardware field\n";
-          return rhsValue;
-        }
+    return value;
+  };
 
-        HWFieldInfo &fieldInfo = fieldIt->second;
+  auto emitCompound = [&](clang::OverloadedOperatorKind compoundOp,
+                          mlir::Value lhs, mlir::Value rhs,
+                          bool isSigned) -> mlir::Value {
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
 
-        rhsValue = utils::promoteValue(builder, loc, rhsValue, fieldInfo.type);
-        if (!rhsValue) {
-          return nullptr;
-        }
+    switch (compoundOp) {
+    case clang::OO_PlusEqual:
+      return utils::add(builder, loc, lhs, rhs);
+    case clang::OO_MinusEqual:
+      return utils::sub(builder, loc, lhs, rhs);
+    case clang::OO_StarEqual:
+      return utils::mul(builder, loc, lhs, rhs);
+    case clang::OO_SlashEqual:
+      return isSigned ? utils::divS(builder, loc, lhs, rhs)
+                      : utils::divU(builder, loc, lhs, rhs);
+    case clang::OO_PercentEqual:
+      return isSigned ? utils::modS(builder, loc, lhs, rhs)
+                      : utils::modU(builder, loc, lhs, rhs);
+    case clang::OO_AmpEqual:
+      return utils::bitAnd(builder, loc, lhs, rhs);
+    case clang::OO_PipeEqual:
+      return utils::bitOr(builder, loc, lhs, rhs);
+    case clang::OO_CaretEqual:
+      return utils::bitXor(builder, loc, lhs, rhs);
+    case clang::OO_LessLessEqual:
+      return utils::shl(builder, loc, lhs, rhs);
+    case clang::OO_GreaterGreaterEqual:
+      return isSigned ? utils::shrS(builder, loc, lhs, rhs)
+                      : utils::shrU(builder, loc, lhs, rhs);
+    default:
+      llvm::WithColor::error()
+          << "chwc: unsupported overloaded compound assignment\n";
+      return nullptr;
+    }
+  };
 
-        if (emitMode == HWEmitMode::Reset) {
-          if (fieldInfo.kind != HWFieldKind::Reg) {
-            llvm::WithColor::error()
-                << "chwc: reset assignment only supports Reg field\n";
-            return rhsValue;
-          }
+  auto isCompoundAssignOp = [](clang::OverloadedOperatorKind op) -> bool {
+    switch (op) {
+    case clang::OO_PlusEqual:
+    case clang::OO_MinusEqual:
+    case clang::OO_StarEqual:
+    case clang::OO_SlashEqual:
+    case clang::OO_PercentEqual:
+    case clang::OO_AmpEqual:
+    case clang::OO_PipeEqual:
+    case clang::OO_CaretEqual:
+    case clang::OO_LessLessEqual:
+    case clang::OO_GreaterGreaterEqual:
+      return true;
+    default:
+      return false;
+    }
+  };
 
-          fieldInfo.resetValue = rhsValue;
-          return rhsValue;
-        }
-
-        switch (fieldInfo.kind) {
-        case HWFieldKind::Input:
-          llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
-          break;
-
-        case HWFieldKind::Output:
-          moduleContext.outputValues[fieldDecl] = rhsValue;
-          break;
-
-        case HWFieldKind::Wire:
-          moduleContext.currentValues[fieldDecl] = rhsValue;
-          break;
-
-        case HWFieldKind::Reg:
-          moduleContext.nextValues[fieldDecl] = rhsValue;
-          break;
-        }
-
-        return rhsValue;
-      }
-
-      if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
-        if (functionStack.empty()) {
-          functionStack.emplace_back();
-        }
-
-        mlir::Type targetType = convertType(varDecl->getType());
-        if (targetType) {
-          rhsValue = utils::promoteValue(builder, loc, rhsValue, targetType);
-          if (!rhsValue) {
-            return nullptr;
-          }
-        }
-
-        functionStack.back().locals[varDecl] = rhsValue;
-        return rhsValue;
-      }
+  if (op == clang::OO_Equal || isCompoundAssignOp(op)) {
+    if (callExpr->getNumArgs() != 2) {
+      llvm::WithColor::error()
+          << "chwc: overloaded assignment expects 2 operands\n";
+      return nullptr;
     }
 
-    llvm::WithColor::error() << "chwc: unsupported overloaded assignment lhs\n";
-    return rhsValue;
+    std::optional<AssignTarget> target = resolveTarget(callExpr->getArg(0));
+    if (!target) {
+      llvm::WithColor::error()
+          << "chwc: unsupported overloaded assignment lhs\n";
+      return nullptr;
+    }
+
+    if (op == clang::OO_Equal) {
+      mlir::Type targetType = getTargetType(*target);
+      if (!targetType) {
+        return nullptr;
+      }
+
+      mlir::Value rhs = generateRHSForTarget(callExpr->getArg(1), targetType);
+      if (!rhs) {
+        llvm::WithColor::error()
+            << "chwc: failed to generate RHS for overloaded assignment\n";
+        return nullptr;
+      }
+
+      return writeTarget(*target, rhs);
+    }
+
+    mlir::Value oldValue = readTarget(*target);
+    if (!oldValue) {
+      llvm::WithColor::error()
+          << "chwc: failed to read overloaded compound assignment lhs\n";
+      return nullptr;
+    }
+
+    mlir::Value rhs =
+        generateRHSForTarget(callExpr->getArg(1), oldValue.getType());
+    if (!rhs) {
+      llvm::WithColor::error()
+          << "chwc: failed to generate overloaded compound assignment rhs\n";
+      return nullptr;
+    }
+
+    bool isSigned = utils::isSignedType(callExpr->getArg(0)->getType()) ||
+                    utils::isSignedType(callExpr->getArg(1)->getType());
+
+    mlir::Value result = emitCompound(op, oldValue, rhs, isSigned);
+    if (!result) {
+      return nullptr;
+    }
+
+    return writeTarget(*target, result);
   }
 
   if (callExpr->getNumArgs() == 1) {
@@ -290,23 +516,22 @@ auto CHWConverter::generateCXXOperatorCallExpr(
   }
 
   mlir::Value lhsValue = generateExpr(callExpr->getArg(0));
-  mlir::Value rhsValue = generateExpr(callExpr->getArg(1));
-
-  if (!lhsValue || !rhsValue) {
+  if (!lhsValue) {
     llvm::WithColor::error()
-        << "chwc: failed to generate overloaded operator operands\n";
+        << "chwc: failed to generate overloaded operator lhs\n";
+    return nullptr;
+  }
+
+  mlir::Value rhsValue =
+      generateRHSForTarget(callExpr->getArg(1), lhsValue.getType());
+  if (!rhsValue) {
+    llvm::WithColor::error()
+        << "chwc: failed to generate overloaded operator rhs\n";
     return nullptr;
   }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
-
-  if (lhsValue.getType() != rhsValue.getType()) {
-    rhsValue = utils::promoteValue(builder, loc, rhsValue, lhsValue.getType());
-    if (!rhsValue) {
-      return nullptr;
-    }
-  }
 
   bool isSigned = utils::isSignedType(callExpr->getArg(0)->getType()) ||
                   utils::isSignedType(callExpr->getArg(1)->getType());

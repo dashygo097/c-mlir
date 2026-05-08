@@ -69,8 +69,8 @@ inline void beginHWModule(HWModuleContext &moduleContext,
   }
 
   moduleContext.moduleOp = circt::hw::HWModuleOp::create(
-      builder, loc, builder.getStringAttr(recordDecl->getNameAsString()),
-      ports);
+      builder, loc, builder.getStringAttr(recordDecl->getNameAsString()), ports,
+      mlir::ArrayAttr::get(builder.getContext(), moduleContext.parameters));
 
   removeDefaultOutputTerminator(moduleContext.moduleOp);
 

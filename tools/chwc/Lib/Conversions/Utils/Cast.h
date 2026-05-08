@@ -3,12 +3,21 @@
 
 #include "./Comb.h"
 #include "./Constant.h"
+#include "circt/Dialect/HW/HWTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc::utils {
+
+inline auto isBuiltinInteger(mlir::Type type) -> bool {
+  return mlir::isa<mlir::IntegerType>(type);
+}
+
+inline auto isParameterizedInteger(mlir::Type type) -> bool {
+  return mlir::isa<circt::hw::IntType>(type);
+}
 
 inline auto extractLowBits(mlir::OpBuilder &builder, mlir::Location loc,
                            mlir::Value value, mlir::Type targetType)
@@ -21,7 +30,8 @@ inline auto extractLowBits(mlir::OpBuilder &builder, mlir::Location loc,
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: comb.extract requires integer types\n";
+    llvm::WithColor::error()
+        << "chwc: comb.extract requires builtin integer types\n";
     return nullptr;
   }
 
@@ -34,9 +44,9 @@ inline auto extractLowBits(mlir::OpBuilder &builder, mlir::Location loc,
   return op->getResult(0);
 }
 
-inline auto zeroExtend(mlir::OpBuilder &builder, mlir::Location loc,
-                       mlir::Value value, mlir::Type targetType)
-    -> mlir::Value {
+inline auto zeroExtendBuiltinInteger(mlir::OpBuilder &builder,
+                                     mlir::Location loc, mlir::Value value,
+                                     mlir::Type targetType) -> mlir::Value {
   if (!value || !targetType) {
     return nullptr;
   }
@@ -46,7 +56,7 @@ inline auto zeroExtend(mlir::OpBuilder &builder, mlir::Location loc,
 
   if (!srcType || !dstType) {
     llvm::WithColor::error()
-        << "chwc: comb zero-extension requires integer types\n";
+        << "chwc: builtin integer cast requires builtin integer types\n";
     return nullptr;
   }
 
@@ -87,16 +97,20 @@ inline auto promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
     return value;
   }
 
-  auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
-  auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
-
-  if (!srcType || !dstType) {
+  if (isParameterizedInteger(value.getType()) ||
+      isParameterizedInteger(targetType)) {
     llvm::WithColor::error()
-        << "chwc: only integer cast is supported in hardware path\n";
+        << "chwc: cannot cast to/from parameterized hw integer; "
+           "emit the value directly with the target type\n";
     return nullptr;
   }
 
-  return zeroExtend(builder, loc, value, targetType);
+  if (isBuiltinInteger(value.getType()) && isBuiltinInteger(targetType)) {
+    return zeroExtendBuiltinInteger(builder, loc, value, targetType);
+  }
+
+  llvm::WithColor::error() << "chwc: unsupported hardware cast\n";
+  return nullptr;
 }
 
 inline auto truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
@@ -111,23 +125,31 @@ inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
     return nullptr;
   }
 
-  auto intType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
-  if (!intType) {
-    llvm::WithColor::error()
-        << "chwc: boolean conversion expects integer value\n";
-    return nullptr;
+  if (auto intType = mlir::dyn_cast<mlir::IntegerType>(value.getType())) {
+    if (intType.getWidth() == 1) {
+      return value;
+    }
+
+    mlir::Value zero = intConst(builder, loc, intType, 0);
+    if (!zero) {
+      return nullptr;
+    }
+
+    return icmpNe(builder, loc, value, zero);
   }
 
-  if (intType.getWidth() == 1) {
-    return value;
+  if (mlir::isa<circt::hw::IntType>(value.getType())) {
+    mlir::Value zero = intConst(builder, loc, value.getType(), 0);
+    if (!zero) {
+      return nullptr;
+    }
+
+    return icmpNe(builder, loc, value, zero);
   }
 
-  mlir::Value zero = intConst(builder, loc, intType, 0);
-  if (!zero) {
-    return nullptr;
-  }
-
-  return icmpNe(builder, loc, value, zero);
+  llvm::WithColor::error()
+      << "chwc: boolean conversion expects integer-like value\n";
+  return nullptr;
 }
 
 } // namespace chwc::utils

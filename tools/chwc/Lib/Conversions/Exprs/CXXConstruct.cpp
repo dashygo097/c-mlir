@@ -11,33 +11,36 @@ auto CHWConverter::generateCXXConstructExpr(
     return nullptr;
   }
 
+  mlir::OpBuilder &builder = contextManager.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  mlir::Type targetType = convertType(constructExpr->getType());
+  if (!targetType) {
+    return nullptr;
+  }
+
   if (constructExpr->getNumArgs() == 0) {
-    mlir::Type type = convertType(constructExpr->getType());
-    if (!type) {
-      return nullptr;
-    }
-
-    mlir::OpBuilder &builder = contextManager.Builder();
-    mlir::Location loc = builder.getUnknownLoc();
-
-    return utils::zeroValue(builder, loc, type);
+    return utils::zeroValue(builder, loc, targetType);
   }
 
   if (constructExpr->getNumArgs() == 1) {
-    mlir::Value value = generateExpr(constructExpr->getArg(0));
+    clang::Expr *arg = constructExpr->getArg(0)->IgnoreParenImpCasts();
+
+    if (auto *intLit = mlir::dyn_cast<clang::IntegerLiteral>(arg)) {
+      return utils::intConst(builder, loc, targetType,
+                             intLit->getValue().getSExtValue());
+    }
+
+    mlir::Value value = generateExpr(arg);
     if (!value) {
       return nullptr;
     }
 
-    mlir::Type type = convertType(constructExpr->getType());
-    if (!type) {
+    if (value.getType() == targetType) {
       return value;
     }
 
-    mlir::OpBuilder &builder = contextManager.Builder();
-    mlir::Location loc = builder.getUnknownLoc();
-
-    return utils::promoteValue(builder, loc, value, type);
+    return utils::promoteValue(builder, loc, value, targetType);
   }
 
   llvm::WithColor::error() << "chwc: unsupported CXXConstructExpr with "

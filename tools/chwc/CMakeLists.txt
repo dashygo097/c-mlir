@@ -12,6 +12,7 @@ add_clang_executable(chwc
   Lib/Conversions/Exprs/CXXFunctionalCast.cpp
   Lib/Conversions/Exprs/CXXMemberCall.cpp
   Lib/Conversions/Exprs/OperatorCall.cpp
+  Lib/Conversions/Exprs/Call.cpp
   Lib/Conversions/Exprs/DeclRef.cpp
   Lib/Conversions/Exprs/ExprWithCleanups.cpp
   Lib/Conversions/Exprs/Exprs.cpp

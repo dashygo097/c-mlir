@@ -1,5 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Cast.h"
+#include "../Utils/Constant.h"
 
 namespace chwc {
 
@@ -9,18 +10,29 @@ auto CHWConverter::generateCXXFunctionalCastExpr(
     return nullptr;
   }
 
-  mlir::Value value = generateExpr(castExpr->getSubExpr());
+  mlir::OpBuilder &builder = contextManager.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  mlir::Type targetType = convertType(castExpr->getType());
+  if (!targetType) {
+    return nullptr;
+  }
+
+  clang::Expr *subExpr = castExpr->getSubExpr()->IgnoreParenImpCasts();
+
+  if (auto *intLit = mlir::dyn_cast<clang::IntegerLiteral>(subExpr)) {
+    return utils::intConst(builder, loc, targetType,
+                           intLit->getValue().getSExtValue());
+  }
+
+  mlir::Value value = generateExpr(subExpr);
   if (!value) {
     return nullptr;
   }
 
-  mlir::Type targetType = convertType(castExpr->getType());
-  if (!targetType) {
+  if (value.getType() == targetType) {
     return value;
   }
-
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
 
   return utils::promoteValue(builder, loc, value, targetType);
 }

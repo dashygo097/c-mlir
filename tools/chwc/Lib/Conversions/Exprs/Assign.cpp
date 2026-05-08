@@ -2,8 +2,10 @@
 #include "../Utils/Array.h"
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
+#include "../Utils/Constant.h"
 #include "../Utils/Expr.h"
 #include "../Utils/Type.h"
+#include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -94,6 +96,64 @@ auto CHWConverter::generateAssignmentBinaryOperator(
     return std::nullopt;
   };
 
+  auto getTargetType = [&](const AssignTarget &target) -> mlir::Type {
+    switch (target.kind) {
+    case AssignTarget::Kind::Local:
+      return convertType(target.localDecl->getType());
+
+    case AssignTarget::Kind::Field: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      return fieldIt->second.type;
+    }
+
+    case AssignTarget::Kind::ArrayElement: {
+      auto fieldIt = moduleContext.fields.find(target.fieldDecl);
+      if (fieldIt == moduleContext.fields.end()) {
+        return nullptr;
+      }
+
+      return fieldIt->second.elementType;
+    }
+
+    case AssignTarget::Kind::Invalid:
+      return nullptr;
+    }
+
+    return nullptr;
+  };
+
+  auto generateRHSForTarget = [&](clang::Expr *rhsExpr,
+                                  mlir::Type targetType) -> mlir::Value {
+    if (!rhsExpr || !targetType) {
+      return nullptr;
+    }
+
+    rhsExpr = rhsExpr->IgnoreParenImpCasts();
+
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    if (auto *intLit = mlir::dyn_cast<clang::IntegerLiteral>(rhsExpr)) {
+      return utils::intConst(builder, loc, targetType,
+                             intLit->getValue().getSExtValue());
+    }
+
+    mlir::Value value = generateExpr(rhsExpr);
+    if (!value) {
+      return nullptr;
+    }
+
+    if (value.getType() == targetType) {
+      return value;
+    }
+
+    return utils::promoteValue(builder, loc, value, targetType);
+  };
+
   auto readTarget = [&](const AssignTarget &target) -> mlir::Value {
     switch (target.kind) {
     case AssignTarget::Kind::Local:
@@ -110,9 +170,14 @@ auto CHWConverter::generateAssignmentBinaryOperator(
       }
 
       if (fieldIt->second.kind == HWFieldKind::Output) {
-        llvm::WithColor::error()
-            << "chwc: reading output field is not supported\n";
-        return nullptr;
+        mlir::Value value = moduleContext.outputValues.lookup(target.fieldDecl);
+        if (!value) {
+          llvm::WithColor::error()
+              << "chwc: output field is read before assignment: "
+              << fieldIt->second.name << "\n";
+        }
+
+        return value;
       }
 
       return moduleContext.currentValues.lookup(target.fieldDecl);
@@ -159,7 +224,7 @@ auto CHWConverter::generateAssignmentBinaryOperator(
       }
 
       mlir::Type targetType = convertType(target.localDecl->getType());
-      if (targetType) {
+      if (targetType && value.getType() != targetType) {
         value = utils::promoteValue(builder, loc, value, targetType);
         if (!value) {
           return nullptr;
@@ -179,9 +244,11 @@ auto CHWConverter::generateAssignmentBinaryOperator(
 
       HWFieldInfo &fieldInfo = fieldIt->second;
 
-      value = utils::promoteValue(builder, loc, value, fieldInfo.type);
-      if (!value) {
-        return nullptr;
+      if (value.getType() != fieldInfo.type) {
+        value = utils::promoteValue(builder, loc, value, fieldInfo.type);
+        if (!value) {
+          return nullptr;
+        }
       }
 
       if (emitMode == HWEmitMode::Reset) {
@@ -224,16 +291,17 @@ auto CHWConverter::generateAssignmentBinaryOperator(
       }
 
       HWFieldInfo &fieldInfo = fieldIt->second;
-
       if (!fieldInfo.isArray) {
         llvm::WithColor::error()
             << "chwc: array assignment target is not array field\n";
         return value;
       }
 
-      value = utils::promoteValue(builder, loc, value, fieldInfo.elementType);
-      if (!value) {
-        return nullptr;
+      if (value.getType() != fieldInfo.elementType) {
+        value = utils::promoteValue(builder, loc, value, fieldInfo.elementType);
+        if (!value) {
+          return nullptr;
+        }
       }
 
       if (emitMode == HWEmitMode::Reset) {
@@ -343,13 +411,18 @@ auto CHWConverter::generateAssignmentBinaryOperator(
     return nullptr;
   }
 
-  mlir::Value rhs = generateExpr(assignOp->getRHS());
-  if (!rhs) {
-    llvm::WithColor::error() << "chwc: failed to generate RHS\n";
-    return nullptr;
-  }
-
   if (assignOp->getOpcode() == clang::BO_Assign) {
+    mlir::Type targetType = getTargetType(*target);
+    if (!targetType) {
+      return nullptr;
+    }
+
+    mlir::Value rhs = generateRHSForTarget(assignOp->getRHS(), targetType);
+    if (!rhs) {
+      llvm::WithColor::error() << "chwc: failed to generate RHS\n";
+      return nullptr;
+    }
+
     return writeTarget(*target, rhs);
   }
 
@@ -360,11 +433,11 @@ auto CHWConverter::generateAssignmentBinaryOperator(
     return nullptr;
   }
 
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
-
-  rhs = utils::promoteValue(builder, loc, rhs, oldValue.getType());
+  mlir::Value rhs =
+      generateRHSForTarget(assignOp->getRHS(), oldValue.getType());
   if (!rhs) {
+    llvm::WithColor::error()
+        << "chwc: failed to generate compound assignment RHS\n";
     return nullptr;
   }
 
