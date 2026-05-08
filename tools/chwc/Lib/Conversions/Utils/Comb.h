@@ -1,7 +1,6 @@
 #ifndef CHWC_UTILS_COMB_H
 #define CHWC_UTILS_COMB_H
 
-#include "./Constant.h"
 #include "circt/Dialect/Comb/CombOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
@@ -30,9 +29,35 @@ inline auto sameTypeBinaryOp(mlir::OpBuilder &builder, mlir::Location loc,
   return op->getResult(0);
 }
 
+inline auto variadicSameTypeOp(mlir::OpBuilder &builder, mlir::Location loc,
+                               llvm::StringRef opName,
+                               llvm::ArrayRef<mlir::Value> values)
+    -> mlir::Value {
+  if (values.empty()) {
+    return nullptr;
+  }
+
+  mlir::Type type = values.front().getType();
+
+  for (mlir::Value value : values) {
+    if (!value || value.getType() != type) {
+      llvm::WithColor::error()
+          << "chwc: variadic operands must have the same type\n";
+      return nullptr;
+    }
+  }
+
+  mlir::OperationState state(loc, opName);
+  state.addOperands(values);
+  state.addTypes(type);
+
+  mlir::Operation *op = builder.create(state);
+  return op->getResult(0);
+}
+
 inline auto add(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                 mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinaryOp(builder, loc, "comb.add", lhs, rhs);
+  return variadicSameTypeOp(builder, loc, "comb.add", {lhs, rhs});
 }
 
 inline auto sub(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
@@ -42,7 +67,7 @@ inline auto sub(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
 
 inline auto mul(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                 mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinaryOp(builder, loc, "comb.mul", lhs, rhs);
+  return variadicSameTypeOp(builder, loc, "comb.mul", {lhs, rhs});
 }
 
 inline auto divU(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
@@ -67,17 +92,17 @@ inline auto modS(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
 
 inline auto bitAnd(mlir::OpBuilder &builder, mlir::Location loc,
                    mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinaryOp(builder, loc, "comb.and", lhs, rhs);
+  return variadicSameTypeOp(builder, loc, "comb.and", {lhs, rhs});
 }
 
 inline auto bitOr(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                   mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinaryOp(builder, loc, "comb.or", lhs, rhs);
+  return variadicSameTypeOp(builder, loc, "comb.or", {lhs, rhs});
 }
 
 inline auto bitXor(mlir::OpBuilder &builder, mlir::Location loc,
                    mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return sameTypeBinaryOp(builder, loc, "comb.xor", lhs, rhs);
+  return variadicSameTypeOp(builder, loc, "comb.xor", {lhs, rhs});
 }
 
 inline auto shl(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
@@ -96,8 +121,8 @@ inline auto shrS(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
 }
 
 inline auto icmp(mlir::OpBuilder &builder, mlir::Location loc,
-                 llvm::StringRef predicate, mlir::Value lhs, mlir::Value rhs)
-    -> mlir::Value {
+                 circt::comb::ICmpPredicate predicate, mlir::Value lhs,
+                 mlir::Value rhs) -> mlir::Value {
   if (!lhs || !rhs) {
     return nullptr;
   }
@@ -109,7 +134,8 @@ inline auto icmp(mlir::OpBuilder &builder, mlir::Location loc,
 
   mlir::OperationState state(loc, "comb.icmp");
   state.addOperands({lhs, rhs});
-  state.addAttribute("predicate", builder.getStringAttr(predicate));
+  state.addAttribute("predicate", circt::comb::ICmpPredicateAttr::get(
+                                      builder.getContext(), predicate));
   state.addTypes(builder.getI1Type());
 
   mlir::Operation *op = builder.create(state);
@@ -118,52 +144,52 @@ inline auto icmp(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline auto icmpEq(mlir::OpBuilder &builder, mlir::Location loc,
                    mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "eq", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::eq, lhs, rhs);
 }
 
 inline auto icmpNe(mlir::OpBuilder &builder, mlir::Location loc,
                    mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "ne", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::ne, lhs, rhs);
 }
 
 inline auto icmpSlt(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "slt", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::slt, lhs, rhs);
 }
 
 inline auto icmpSle(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "sle", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::sle, lhs, rhs);
 }
 
 inline auto icmpSgt(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "sgt", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::sgt, lhs, rhs);
 }
 
 inline auto icmpSge(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "sge", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::sge, lhs, rhs);
 }
 
 inline auto icmpUlt(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "ult", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::ult, lhs, rhs);
 }
 
 inline auto icmpUle(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "ule", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::ule, lhs, rhs);
 }
 
 inline auto icmpUgt(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "ugt", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::ugt, lhs, rhs);
 }
 
 inline auto icmpUge(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value lhs, mlir::Value rhs) -> mlir::Value {
-  return icmp(builder, loc, "uge", lhs, rhs);
+  return icmp(builder, loc, circt::comb::ICmpPredicate::uge, lhs, rhs);
 }
 
 inline auto mux(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value cond,
@@ -172,15 +198,15 @@ inline auto mux(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value cond,
     return nullptr;
   }
 
-  if (trueValue.getType() != falseValue.getType()) {
-    llvm::WithColor::error()
-        << "chwc: mux true/false values must have the same type\n";
-    return nullptr;
-  }
-
   auto condType = mlir::dyn_cast<mlir::IntegerType>(cond.getType());
   if (!condType || condType.getWidth() != 1) {
     llvm::WithColor::error() << "chwc: mux condition must be i1\n";
+    return nullptr;
+  }
+
+  if (trueValue.getType() != falseValue.getType()) {
+    llvm::WithColor::error()
+        << "chwc: mux true/false values must have the same type\n";
     return nullptr;
   }
 

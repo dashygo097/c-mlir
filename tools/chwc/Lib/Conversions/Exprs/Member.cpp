@@ -24,21 +24,37 @@ auto CHWConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
     return nullptr;
   }
 
-  if (fieldIt->second.kind == HWFieldKind::Output) {
-    llvm::WithColor::error() << "chwc: reading output field is not supported: "
-                             << fieldIt->second.name << "\n";
-    return nullptr;
+  HWFieldInfo &fieldInfo = fieldIt->second;
+
+  switch (fieldInfo.kind) {
+  case HWFieldKind::Input:
+  case HWFieldKind::Wire:
+  case HWFieldKind::Reg: {
+    mlir::Value value = moduleContext.currentValues.lookup(fieldDecl);
+    if (!value) {
+      llvm::WithColor::error()
+          << "chwc: hardware field is not wired yet: " << fieldInfo.name
+          << "\n";
+      return nullptr;
+    }
+
+    return value;
   }
 
-  mlir::Value value = moduleContext.currentValues.lookup(fieldDecl);
-  if (!value) {
-    llvm::WithColor::error()
-        << "chwc: hardware field is not wired yet: " << fieldIt->second.name
-        << "\n";
-    return nullptr;
+  case HWFieldKind::Output: {
+    mlir::Value value = moduleContext.outputValues.lookup(fieldDecl);
+    if (!value) {
+      llvm::WithColor::error()
+          << "chwc: output field is read before assignment: " << fieldInfo.name
+          << "\n";
+      return nullptr;
+    }
+
+    return value;
+  }
   }
 
-  return value;
+  return nullptr;
 }
 
 } // namespace chwc
