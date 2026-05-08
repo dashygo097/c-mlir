@@ -1,11 +1,12 @@
 #ifndef CHWC_UTILS_CONSTANT_H
 #define CHWC_UTILS_CONSTANT_H
 
+#include "circt/Dialect/HW/HWAttributes.h"
+#include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Operation.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc::utils {
@@ -18,25 +19,22 @@ inline auto isIntegerLikeType(mlir::Type type) -> bool {
 inline auto builtinIntConst(mlir::OpBuilder &builder, mlir::Location loc,
                             mlir::IntegerType type, int64_t value)
     -> mlir::Value {
-  mlir::OperationState state(loc, "hw.constant");
-  state.addAttribute("value", mlir::IntegerAttr::get(type, value));
-  state.addTypes(type);
+  auto valueAttr = mlir::IntegerAttr::get(type, value);
 
-  mlir::Operation *op = builder.create(state);
-  return op->getResult(0);
+  auto op = circt::hw::ConstantOp::create(builder, loc, type, valueAttr);
+  return op.getResult();
 }
 
 inline auto paramIntConst(mlir::OpBuilder &builder, mlir::Location loc,
                           circt::hw::IntType type, int64_t value)
     -> mlir::Value {
-  mlir::OperationState state(loc, "hw.param.value");
+  auto text = builder.getStringAttr(std::to_string(value));
 
-  state.addAttribute("value",
-                     mlir::IntegerAttr::get(builder.getIntegerType(64), value));
-  state.addTypes(type);
+  auto valueAttr =
+      circt::hw::ParamVerbatimAttr::get(builder.getContext(), text, type);
 
-  mlir::Operation *op = builder.create(state);
-  return op->getResult(0);
+  auto op = circt::hw::ParamValueOp::create(builder, loc, type, valueAttr);
+  return op.getResult();
 }
 
 inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
