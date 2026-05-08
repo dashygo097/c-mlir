@@ -17,6 +17,7 @@ set(CMLIR_TEST_DEPS
   # MLIR 
   mlir-opt
   mlir-translate
+  lli
   
   cmlirc
   chwc
