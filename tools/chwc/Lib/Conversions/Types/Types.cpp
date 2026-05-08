@@ -1,10 +1,33 @@
 #include "../../Converter.h"
 #include "../Utils/Type.h"
+#include "circt/Dialect/HW/HWAttributes.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
+
+auto getParametricWidthAttr(
+    mlir::OpBuilder &builder, const clang::NonTypeTemplateParmDecl *paramDecl,
+    llvm::DenseMap<const clang::NonTypeTemplateParmDecl *, HWParamInfo>
+        &paramTable) -> mlir::TypedAttr {
+  if (!paramDecl) {
+    return {};
+  }
+
+  auto paramIt = paramTable.find(paramDecl);
+  if (paramIt == paramTable.end()) {
+    llvm::WithColor::error() << "chwc: unknown width template parameter: "
+                             << paramDecl->getNameAsString() << "\n";
+    return {};
+  }
+
+  const HWParamInfo &paramInfo = paramIt->second;
+
+  return circt::hw::ParamDeclRefAttr::get(builder.getContext(),
+                                          builder.getStringAttr(paramInfo.name),
+                                          paramInfo.type);
+}
 
 auto CHWConverter::convertType(clang::QualType type) -> mlir::Type {
   mlir::OpBuilder &builder = contextManager.Builder();
@@ -26,6 +49,16 @@ auto CHWConverter::convertType(clang::QualType type) -> mlir::Type {
 
   utils::SignalTypeInfo signalType = utils::getSignalTypeInfo(type);
   if (signalType.isValue) {
+    if (signalType.isParametricWidth) {
+      mlir::TypedAttr widthAttr = getParametricWidthAttr(
+          builder, signalType.widthParamDecl, paramTable);
+      if (!widthAttr) {
+        return nullptr;
+      }
+
+      return circt::hw::IntType::get(widthAttr);
+    }
+
     return builder.getIntegerType(signalType.width);
   }
 

@@ -21,7 +21,8 @@ inline auto createCombExtract(mlir::OpBuilder &builder, mlir::Location loc,
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: comb.extract requires integer types\n";
+    llvm::WithColor::error()
+        << "chwc: comb.extract requires fixed integer types\n";
     return value;
   }
 
@@ -82,20 +83,22 @@ inline auto zeroExtendValue(mlir::OpBuilder &builder, mlir::Location loc,
     return nullptr;
   }
 
+  if (value.getType() == targetType) {
+    return value;
+  }
+
   auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: zero extension requires integer types\n";
+    llvm::WithColor::error()
+        << "chwc: zero extension between parametric hw.int types is "
+           "unsupported unless types are equal\n";
     return value;
   }
 
   uint32_t srcWidth = srcType.getWidth();
   uint32_t dstWidth = dstType.getWidth();
-
-  if (srcWidth == dstWidth) {
-    return value;
-  }
 
   if (srcWidth > dstWidth) {
     return createCombExtract(builder, loc, value, targetType, 0);
@@ -121,11 +124,16 @@ inline auto truncateValue(mlir::OpBuilder &builder, mlir::Location loc,
     return nullptr;
   }
 
+  if (value.getType() == targetType) {
+    return value;
+  }
+
   auto srcType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: truncation requires integer types\n";
+    llvm::WithColor::error() << "chwc: truncation between parametric hw.int "
+                                "types is unsupported unless types are equal\n";
     return value;
   }
 
@@ -151,7 +159,8 @@ inline auto promoteValue(mlir::OpBuilder &builder, mlir::Location loc,
   auto dstType = mlir::dyn_cast<mlir::IntegerType>(targetType);
 
   if (!srcType || !dstType) {
-    llvm::WithColor::error() << "chwc: only integer promotion is supported\n";
+    llvm::WithColor::error() << "chwc: only fixed integer promotion is "
+                                "supported unless types are equal\n";
     return value;
   }
 
@@ -175,7 +184,7 @@ inline auto toBool(mlir::OpBuilder &builder, mlir::Location loc,
   auto intType = mlir::dyn_cast<mlir::IntegerType>(value.getType());
   if (!intType) {
     llvm::WithColor::error()
-        << "chwc: only integer value can be converted to bool\n";
+        << "chwc: only fixed integer value can be converted to bool\n";
     return nullptr;
   }
 
