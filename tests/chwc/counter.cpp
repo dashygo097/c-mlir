@@ -4,7 +4,7 @@
 
 class Counter final : public Hardware {
 public:
-  Input<UInt<1>> en;
+  Input<Bool> en;
   Output<UInt<16>> out;
   Reg<UInt<16>> value;
 
