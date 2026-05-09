@@ -4,6 +4,8 @@
 #include "chwc/Signal.h"
 #include "chwc/Types/UInt.h"
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 
 namespace chwc {
 
@@ -13,6 +15,7 @@ public:
   static_assert(Width <= 64, "SInt currently supports width <= 64");
 
   using storage_type = std::int64_t;
+  using index_type = storage_type;
 
   static constexpr std::size_t width = Width;
   static constexpr bool is_signed = true;
@@ -34,7 +37,6 @@ public:
 
   constexpr explicit operator bool() const { return value_ != 0; }
 
-  // NOTE: explicit removed for signal unwarpping and debugging
   constexpr operator storage_type() const { return value_; }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
@@ -55,7 +57,7 @@ public:
 
   constexpr auto operator~() const -> SInt { return SInt(~value_); }
 
-  constexpr auto operator!() const -> SInt {
+  constexpr auto operator!() const -> UInt<1> {
     return UInt<1>(!static_cast<bool>(value_));
   }
 
@@ -110,12 +112,12 @@ public:
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator&&(T rhs) const -> SInt {
+  constexpr auto operator&&(T rhs) const -> UInt<1> {
     return UInt<1>(static_cast<bool>(value_) && static_cast<bool>(rhs));
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator||(T rhs) const -> SInt {
+  constexpr auto operator||(T rhs) const -> UInt<1> {
     return UInt<1>(static_cast<bool>(value_) || static_cast<bool>(rhs));
   }
 
@@ -260,6 +262,16 @@ public:
   }
 
   template <std::size_t OtherWidth>
+  constexpr auto operator&&(SInt<OtherWidth> rhs) const -> bool {
+    return static_cast<bool>(value_) && static_cast<bool>(rhs.raw());
+  }
+
+  template <std::size_t OtherWidth>
+  constexpr auto operator||(SInt<OtherWidth> rhs) const -> bool {
+    return static_cast<bool>(value_) || static_cast<bool>(rhs.raw());
+  }
+
+  template <std::size_t OtherWidth>
   constexpr auto operator&&(UInt<OtherWidth> rhs) const -> bool {
     return static_cast<bool>(value_) && static_cast<bool>(rhs.raw());
   }
@@ -293,7 +305,7 @@ public:
 
   static constexpr auto mask() -> storage_type {
     if constexpr (Width == 64) {
-      return ~storage_type{0};
+      return std::numeric_limits<storage_type>::max();
     } else {
       return (storage_type{1} << Width) - 1;
     }
@@ -320,6 +332,8 @@ template <std::size_t Width> struct TypeTraits<SInt<Width>> {
   static constexpr ObjectKind kind = ObjectKind::Value;
 
   using value_type = SInt<Width>;
+  using storage_type = typename SInt<Width>::storage_type;
+  using index_type = typename SInt<Width>::index_type;
 };
 
 } // namespace chwc

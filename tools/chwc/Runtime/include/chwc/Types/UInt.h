@@ -4,14 +4,17 @@
 #include "chwc/Signal.h"
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 namespace chwc {
+
 template <std::size_t Width> class UInt {
 public:
   static_assert(Width >= 1, "UInt width must be positive");
   static_assert(Width <= 64, "UInt currently supports width <= 64");
 
   using storage_type = std::uint64_t;
+  using index_type = storage_type;
 
   static constexpr std::size_t width = Width;
   static constexpr bool is_signed = false;
@@ -33,7 +36,6 @@ public:
 
   constexpr explicit operator bool() const { return value_ != 0; }
 
-  // NOTE: explicit removed for signal unwarpping and debugging
   constexpr operator storage_type() const { return value_; }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
@@ -54,7 +56,7 @@ public:
 
   constexpr auto operator~() const -> UInt { return UInt(~value_); }
 
-  constexpr auto operator!() const -> UInt {
+  constexpr auto operator!() const -> UInt<1> {
     return UInt<1>(!static_cast<bool>(value_));
   }
 
@@ -109,12 +111,12 @@ public:
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator&&(T rhs) const -> UInt {
+  constexpr auto operator&&(T rhs) const -> UInt<1> {
     return UInt<1>(static_cast<bool>(value_) && static_cast<bool>(rhs));
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator||(T rhs) const -> UInt {
+  constexpr auto operator||(T rhs) const -> UInt<1> {
     return UInt<1>(static_cast<bool>(value_) || static_cast<bool>(rhs));
   }
 
@@ -314,6 +316,8 @@ template <std::size_t Width> struct TypeTraits<UInt<Width>> {
   static constexpr ObjectKind kind = ObjectKind::Value;
 
   using value_type = UInt<Width>;
+  using storage_type = typename UInt<Width>::storage_type;
+  using index_type = typename UInt<Width>::index_type;
 };
 
 } // namespace chwc

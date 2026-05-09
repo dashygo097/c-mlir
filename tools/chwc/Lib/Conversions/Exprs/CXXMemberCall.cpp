@@ -1,6 +1,8 @@
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
 #include "../Utils/Cast.h"
+#include "../Utils/Comb.h"
+#include "../Utils/Constant.h"
 #include "../Utils/Type.h"
 #include "clang/AST/DeclCXX.h"
 #include "llvm/Support/WithColor.h"
@@ -17,29 +19,48 @@ auto isCurrentModuleMethod(const clang::CXXRecordDecl *recordDecl,
          recordDecl->getCanonicalDecl();
 }
 
-auto isSignalReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+auto isRuntimeReadMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   if (!methodDecl) {
     return false;
   }
 
   std::string name = methodDecl->getNameAsString();
+  return name == "read" || name == "value" || name == "raw";
+}
 
-  if (name == "read" || name == "value" || name == "raw") {
-    return true;
-  }
-
+auto isRuntimeConversionMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   return mlir::isa<clang::CXXConversionDecl>(methodDecl);
 }
 
-auto isSignalBoolMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+auto isRuntimeBoolConversionMethod(clang::CXXMethodDecl *methodDecl) -> bool {
   auto *conversion =
       mlir::dyn_cast_or_null<clang::CXXConversionDecl>(methodDecl);
 
   return conversion && conversion->getConversionType()->isBooleanType();
 }
 
+auto isRuntimeLogicalNotMethod(clang::CXXMethodDecl *methodDecl) -> bool {
+  if (!methodDecl || !methodDecl->isOverloadedOperator()) {
+    return false;
+  }
+
+  return methodDecl->getOverloadedOperator() == clang::OO_Exclaim;
+}
+
+auto isCHWCRuntimeObjectType(clang::QualType type) -> bool {
+  if (type.isNull()) {
+    return false;
+  }
+
+  return utils::isSignalType(type) || utils::isValueType(type);
+}
+
 auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     -> mlir::Value {
+  if (!callExpr) {
+    return nullptr;
+  }
+
   clang::CXXMethodDecl *methodDecl = callExpr->getMethodDecl();
   if (!methodDecl) {
     llvm::WithColor::error()
@@ -51,13 +72,7 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
   clang::QualType objectType =
       objectExpr ? objectExpr->getType() : clang::QualType{};
 
-  if (!objectType.isNull() && utils::isSignalType(objectType)) {
-    if (!isSignalReadMethod(methodDecl)) {
-      llvm::WithColor::error() << "chwc: unsupported Signal member call: "
-                               << methodDecl->getNameAsString() << "\n";
-      return nullptr;
-    }
-
+  if (isCHWCRuntimeObjectType(objectType)) {
     mlir::Value value = generateExpr(objectExpr);
     if (!value) {
       return nullptr;
@@ -66,22 +81,48 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     mlir::OpBuilder &builder = contextManager.Builder();
     mlir::Location loc = builder.getUnknownLoc();
 
-    if (isSignalBoolMethod(methodDecl)) {
+    if (isRuntimeLogicalNotMethod(methodDecl)) {
+      mlir::Value boolValue = utils::toBool(builder, loc, value);
+      if (!boolValue) {
+        return nullptr;
+      }
+
+      return utils::icmpEq(builder, loc, boolValue,
+                           utils::boolConst(builder, loc, false));
+    }
+
+    if (isRuntimeBoolConversionMethod(methodDecl)) {
       return utils::toBool(builder, loc, value);
     }
 
-    mlir::Type targetType = convertType(callExpr->getType());
-    if (targetType) {
-      value = utils::promoteValue(builder, loc, value, targetType);
+    if (isRuntimeReadMethod(methodDecl)) {
+      return value;
     }
 
-    return value;
+    if (isRuntimeConversionMethod(methodDecl)) {
+      mlir::Type targetType = convertType(callExpr->getType());
+
+      if (!targetType) {
+        return value;
+      }
+
+      if (value.getType() == targetType) {
+        return value;
+      }
+
+      return utils::promoteValue(builder, loc, value, targetType);
+    }
+
+    llvm::WithColor::error() << "chwc: unsupported CHWC runtime member call: "
+                             << methodDecl->getQualifiedNameAsString() << "\n";
+    return nullptr;
   }
 
   if (!isCurrentModuleMethod(moduleContext.recordDecl, methodDecl)) {
     llvm::WithColor::error()
         << "chwc: only calls to methods of the current module class are "
-           "supported\n";
+           "supported: "
+        << methodDecl->getQualifiedNameAsString() << "\n";
     return nullptr;
   }
 
@@ -113,15 +154,15 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
 
   if (!methodDecl->getReturnType()->isVoidType() &&
       !utils::isValueType(methodDecl->getReturnType())) {
-    llvm::WithColor::error()
-        << "chwc: HW_FUNC return type must be UInt<W>, SInt<W>, or void\n";
+    llvm::WithColor::error() << "chwc: HW_FUNC return type must be UInt<W>, "
+                                "SInt<W>, Bool, or void\n";
     return nullptr;
   }
 
   for (clang::ParmVarDecl *paramDecl : methodDecl->parameters()) {
     if (!utils::isValueType(paramDecl->getType())) {
       llvm::WithColor::error()
-          << "chwc: HW_FUNC parameter type must be UInt<W> or SInt<W>\n";
+          << "chwc: HW_FUNC parameter type must be UInt<W>, SInt<W>, or Bool\n";
       return nullptr;
     }
   }
@@ -145,10 +186,12 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
       return nullptr;
     }
 
-    argValue = utils::promoteValue(builder, loc, argValue, paramType);
-    if (!argValue) {
-      functionStack.pop_back();
-      return nullptr;
+    if (argValue.getType() != paramType) {
+      argValue = utils::promoteValue(builder, loc, argValue, paramType);
+      if (!argValue) {
+        functionStack.pop_back();
+        return nullptr;
+      }
     }
 
     functionStack.back().locals[paramDecl] = argValue;
@@ -176,7 +219,11 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     return nullptr;
   }
 
-  return utils::promoteValue(builder, loc, returnValue, returnType);
+  if (returnValue.getType() != returnType) {
+    returnValue = utils::promoteValue(builder, loc, returnValue, returnType);
+  }
+
+  return returnValue;
 }
 
 } // namespace chwc

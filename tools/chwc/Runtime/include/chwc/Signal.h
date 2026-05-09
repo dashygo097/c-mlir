@@ -19,9 +19,10 @@ template <typename T, ObjectKind Kind> class Signal {
 public:
   using value_type = T;
   using storage_type = typename T::storage_type;
+  using index_type = typename T::index_type;
 
   static constexpr std::size_t width = T::width;
-  static constexpr bool is_signed = false;
+  static constexpr bool is_signed = T::is_signed;
   static constexpr ObjectKind kind = Kind;
 
   constexpr Signal() = default;
@@ -32,16 +33,21 @@ public:
                             !std::is_same_v<Signal<T, Kind>, std::decay_t<U>>>>
   constexpr explicit Signal(U &&value) : value_(T(std::forward<U>(value))) {}
 
-  constexpr auto read() const -> T { return value_; }
+  [[nodiscard]] constexpr auto read() const -> T { return value_; }
 
-  constexpr auto raw() const -> storage_type { return value_.raw(); }
+  [[nodiscard]] constexpr auto raw() const -> storage_type {
+    return value_.raw();
+  }
 
-  constexpr auto value() const -> T { return value_; }
+  [[nodiscard]] constexpr auto value() const -> T { return value_; }
 
   constexpr explicit operator bool() const { return static_cast<bool>(value_); }
 
-  // NOTE: explicit removed for signal unwarpping
   constexpr operator T() const { return value_; }
+
+  constexpr operator index_type() const {
+    return static_cast<index_type>(value_.raw());
+  }
 
   constexpr auto operator=(const T &value) -> Signal & {
     value_ = value;
@@ -202,11 +208,11 @@ public:
   }
 
   template <typename U> constexpr auto operator&&(const U &rhs) const -> bool {
-    return value_ && unwrap(rhs);
+    return static_cast<bool>(value_) && static_cast<bool>(unwrap(rhs));
   }
 
   template <typename U> constexpr auto operator||(const U &rhs) const -> bool {
-    return value_ || unwrap(rhs);
+    return static_cast<bool>(value_) || static_cast<bool>(unwrap(rhs));
   }
 
 private:
@@ -234,11 +240,13 @@ template <typename T> struct TypeTraits {
 template <typename T, ObjectKind Kind> struct TypeTraits<Signal<T, Kind>> {
   static constexpr bool is_chwc_type = true;
   static constexpr bool is_signal = true;
-  static constexpr bool is_signed = false;
+  static constexpr bool is_signed = T::is_signed;
   static constexpr std::size_t width = T::width;
   static constexpr ObjectKind kind = Kind;
 
   using value_type = T;
+  using storage_type = typename T::storage_type;
+  using index_type = typename T::index_type;
 };
 
 } // namespace chwc
