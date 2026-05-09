@@ -63,6 +63,8 @@ struct HWModuleContext {
   mlir::Value clock{};
   mlir::Value reset{};
 
+  uint64_t anonymousRegIndex{0};
+
   llvm::DenseMap<const clang::FieldDecl *, HWFieldInfo> fields;
   llvm::SmallVector<const clang::FieldDecl *, 16> fieldOrder;
 

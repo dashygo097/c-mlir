@@ -1,7 +1,8 @@
 #include "../../Converter.h"
 #include "../Utils/Annotation.h"
 #include "../Utils/Cast.h"
-#include "../Utils/Type.h"
+#include "../Utils/Comb.h"
+#include "../Utils/State.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -35,16 +36,139 @@ auto getCallName(clang::CallExpr *callExpr) -> std::string {
   return "";
 }
 
+auto getFirstIntegralTemplateArg(clang::CallExpr *callExpr)
+    -> std::optional<uint64_t> {
+  if (!callExpr) {
+    return std::nullopt;
+  }
+
+  clang::FunctionDecl *callee = callExpr->getDirectCallee();
+  if (!callee) {
+    return std::nullopt;
+  }
+
+  clang::FunctionTemplateSpecializationInfo *specInfo =
+      callee->getTemplateSpecializationInfo();
+
+  if (!specInfo || !specInfo->TemplateArguments) {
+    return std::nullopt;
+  }
+
+  llvm::ArrayRef<clang::TemplateArgument> args =
+      specInfo->TemplateArguments->asArray();
+
+  if (args.empty()) {
+    return std::nullopt;
+  }
+
+  const clang::TemplateArgument &arg = args.front();
+  if (arg.getKind() != clang::TemplateArgument::Integral) {
+    return std::nullopt;
+  }
+
+  return arg.getAsIntegral().getZExtValue();
+}
+
 auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
-  std::string name = getCallName(callExpr);
-  if (name.empty()) {
-    llvm::WithColor::error() << "chwc: unsupported CallExpr callee\n";
+  if (!callExpr) {
     return nullptr;
+  }
+
+  std::string name = getCallName(callExpr);
+
+  mlir::OpBuilder &builder = contextManager.Builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  if (name == "Mux") {
+    if (callExpr->getNumArgs() != 3) {
+      llvm::WithColor::error() << "chwc: Mux expects 3 arguments\n";
+      return nullptr;
+    }
+
+    mlir::Value cond = generateExpr(callExpr->getArg(0));
+    mlir::Value trueValue = generateExpr(callExpr->getArg(1));
+    mlir::Value falseValue = generateExpr(callExpr->getArg(2));
+
+    if (!cond || !trueValue || !falseValue) {
+      llvm::WithColor::error() << "chwc: failed to generate Mux operands\n";
+      return nullptr;
+    }
+
+    cond = utils::toBool(builder, loc, cond);
+    if (!cond) {
+      return nullptr;
+    }
+
+    if (trueValue.getType() != falseValue.getType()) {
+      falseValue =
+          utils::promoteValue(builder, loc, falseValue, trueValue.getType());
+      if (!falseValue) {
+        return nullptr;
+      }
+    }
+
+    return utils::mux(builder, loc, cond, trueValue, falseValue);
+  }
+
+  if (name == "RegNext") {
+    if (callExpr->getNumArgs() != 1) {
+      llvm::WithColor::error() << "chwc: RegNext expects 1 argument\n";
+      return nullptr;
+    }
+
+    mlir::Value nextValue = generateExpr(callExpr->getArg(0));
+    if (!nextValue) {
+      llvm::WithColor::error() << "chwc: failed to generate RegNext input\n";
+      return nullptr;
+    }
+
+    return utils::emitRegNext(moduleContext, builder, loc, nextValue);
+  }
+
+  if (name == "Delay") {
+    if (callExpr->getNumArgs() != 1) {
+      llvm::WithColor::error() << "chwc: Delay expects 1 argument\n";
+      return nullptr;
+    }
+
+    std::optional<uint64_t> cycles = getFirstIntegralTemplateArg(callExpr);
+    if (!cycles) {
+      llvm::WithColor::error()
+          << "chwc: Delay requires an integer template cycle count\n";
+      return nullptr;
+    }
+
+    if (*cycles == 0) {
+      llvm::WithColor::error() << "chwc: Delay cycle count must be >= 1\n";
+      return nullptr;
+    }
+
+    if (*cycles > 1024) {
+      llvm::WithColor::error() << "chwc: Delay cycle count is too large\n";
+      return nullptr;
+    }
+
+    mlir::Value value = generateExpr(callExpr->getArg(0));
+    if (!value) {
+      llvm::WithColor::error() << "chwc: failed to generate Delay input\n";
+      return nullptr;
+    }
+
+    return utils::emitDelay(moduleContext, builder, loc, value,
+                            static_cast<unsigned>(*cycles));
   }
 
   clang::CXXMethodDecl *methodDecl = nullptr;
 
-  for (clang::CXXMethodDecl *method : moduleContext.recordDecl->methods()) {
+  if (!moduleContext.recordDecl) {
+    llvm::WithColor::error()
+        << "chwc: unsupported CallExpr outside module: " << name << "\n";
+    return nullptr;
+  }
+
+  for (clang::CXXMethodDecl *method :
+       const_cast<clang::CXXRecordDecl *>(moduleContext.recordDecl)
+           ->methods()) {
     if (method->getNameAsString() == name && utils::isFuncMethod(method)) {
       methodDecl = method;
       break;
@@ -70,9 +194,6 @@ auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
   }
 
   functionStack.emplace_back();
-
-  mlir::OpBuilder &builder = contextManager.Builder();
-  mlir::Location loc = builder.getUnknownLoc();
 
   for (unsigned i = 0; i < callExpr->getNumArgs(); ++i) {
     mlir::Value argValue = generateExpr(callExpr->getArg(i));

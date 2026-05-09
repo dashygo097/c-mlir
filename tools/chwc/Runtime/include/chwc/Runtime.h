@@ -2,9 +2,11 @@
 #define CHWC_RUNTIME_RUNTIME_H
 
 #include "chwc/Annotation.h"
-#include "chwc/Instance.h"
 #include "chwc/Module.h"
+#include "chwc/Ops/Delay.h"
+#include "chwc/Ops/Mux.h"
 #include "chwc/Signal.h"
+#include "chwc/Types/Enum.h"
 #include "chwc/Types/SInt.h"
 #include "chwc/Types/UInt.h"
 
@@ -19,10 +21,16 @@ using ::chwc::Output;
 using ::chwc::Reg;
 using ::chwc::Wire;
 
+using ::chwc::Bool;
+using ::chwc::Enum;
 using ::chwc::SInt;
 using ::chwc::UInt;
+#endif
 
-using Bool = UInt<1>;
+#ifndef CHWC_NO_GLOBAL_OPS_ALIAS
+using ::chwc::Delay;
+using ::chwc::Mux;
+using ::chwc::RegNext;
 #endif
 
 #endif // CHWC_RUNTIME_RUNTIME_H

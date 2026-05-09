@@ -1,8 +1,8 @@
-// RUN: chwc %s -module=Adder32 | FileCheck %s
+// RUN: chwc %s -module=Adder | FileCheck %s
 
 #include <chwc/Runtime.h>
 
-class Adder32 final : public Module {
+class Adder final : public Module {
 public:
   Input<UInt<32>> in1;
   Input<UInt<32>> in2;
@@ -13,6 +13,6 @@ public:
   HW_CLOCK_TICK void tick() { out = in1 + in2; }
 };
 
-// CHECK: hw.module @Adder32(in %clk : !seq.clock, in %rst : i1, in %in1 : i32, in %in2 : i32, out out : i32)
+// CHECK: hw.module @Adder(in %clk : !seq.clock, in %rst : i1, in %in1 : i32, in %in2 : i32, out out : i32)
 // CHECK: %[[OUT:.*]] = comb.add %in1, %in2 : i32
 // CHECK: hw.output %[[OUT]] : i32

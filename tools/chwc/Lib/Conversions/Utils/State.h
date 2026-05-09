@@ -2,6 +2,7 @@
 #define CHWC_UTILS_STATE_H
 
 #include "../../Converter.h"
+#include "./Array.h"
 #include "circt/Dialect/Seq/SeqOps.h"
 #include "circt/Support/BackedgeBuilder.h"
 #include "mlir/IR/Builders.h"
@@ -52,6 +53,66 @@ inline void setRegisterNext(RegisterState &state,
   }
 
   it->second.setValue(nextValue);
+}
+
+inline auto resetValueForType(mlir::OpBuilder &builder, mlir::Location loc,
+                              mlir::Type type) -> mlir::Value {
+  if (mlir::isa<circt::hw::ArrayType>(type)) {
+    return zeroArray(builder, loc, type);
+  }
+
+  return zeroValue(builder, loc, type);
+}
+
+inline auto emitRegNext(HWModuleContext &moduleContext,
+                        mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Value nextValue) -> mlir::Value {
+  if (!nextValue) {
+    return nullptr;
+  }
+
+  if (!moduleContext.clock || !moduleContext.reset) {
+    llvm::WithColor::error() << "chwc: RegNext requires module clock/reset\n";
+    return nullptr;
+  }
+
+  mlir::Value resetValue = resetValueForType(builder, loc, nextValue.getType());
+  if (!resetValue) {
+    llvm::WithColor::error() << "chwc: failed to create RegNext reset value\n";
+    return nullptr;
+  }
+
+  std::string name = "__r_" + std::to_string(moduleContext.anonymousRegIndex++);
+
+  auto reg = circt::seq::FirRegOp::create(
+      builder, loc, nextValue, moduleContext.clock, builder.getStringAttr(name),
+      moduleContext.reset, resetValue);
+
+  return reg.getResult();
+}
+
+inline auto emitDelay(HWModuleContext &moduleContext, mlir::OpBuilder &builder,
+                      mlir::Location loc, mlir::Value value, unsigned cycles)
+    -> mlir::Value {
+  if (!value) {
+    return nullptr;
+  }
+
+  if (cycles == 0) {
+    llvm::WithColor::error() << "chwc: Delay cycle count must be >= 1\n";
+    return nullptr;
+  }
+
+  mlir::Value delayed = value;
+
+  for (unsigned i = 0; i < cycles; ++i) {
+    delayed = emitRegNext(moduleContext, builder, loc, delayed);
+    if (!delayed) {
+      return nullptr;
+    }
+  }
+
+  return delayed;
 }
 
 } // namespace chwc::utils

@@ -1,5 +1,5 @@
-#ifndef CHWC_RUNTIME_UINT_H
-#define CHWC_RUNTIME_UINT_H
+#ifndef CHWC_RUNTIME_TYPES_UINT_H
+#define CHWC_RUNTIME_TYPES_UINT_H
 
 #include "chwc/Signal.h"
 #include <cstdint>
@@ -322,4 +322,4 @@ template <std::size_t Width> struct TypeTraits<UInt<Width>> {
 
 } // namespace chwc
 
-#endif // CHWC_RUNTIME_UINT_H
+#endif // CHWC_RUNTIME_TYPES_UINT_H
