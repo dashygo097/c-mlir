@@ -9,6 +9,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/WithColor.h"
+#include <string>
 
 namespace chwc {
 
@@ -21,10 +22,10 @@ public:
     clang::TranslationUnitDecl *tuDecl = ctx.getTranslationUnitDecl();
     std::string targetModuleName = options::moduleName;
 
-    bool found = false;
-    scanDeclContext(ctx, tuDecl, targetModuleName, found);
+    bool foundTarget = targetModuleName.empty();
+    scanDeclContext(ctx, tuDecl, targetModuleName, foundTarget);
 
-    if (!targetModuleName.empty() && !found) {
+    if (!targetModuleName.empty() && !foundTarget) {
       llvm::WithColor::error()
           << "chwc: module '" << targetModuleName << "' not found\n";
     }
@@ -51,12 +52,8 @@ private:
 
   auto recordNameMatches(clang::CXXRecordDecl *recordDecl,
                          llvm::StringRef targetModuleName) -> bool {
-    if (!recordDecl) {
+    if (!recordDecl || targetModuleName.empty()) {
       return false;
-    }
-
-    if (targetModuleName.empty()) {
-      return true;
     }
 
     if (recordDecl->getNameAsString() == targetModuleName) {
@@ -72,12 +69,8 @@ private:
 
   auto templateNameMatches(clang::ClassTemplateDecl *templateDecl,
                            llvm::StringRef targetModuleName) -> bool {
-    if (!templateDecl) {
+    if (!templateDecl || targetModuleName.empty()) {
       return false;
-    }
-
-    if (targetModuleName.empty()) {
-      return true;
     }
 
     if (templateDecl->getNameAsString() == targetModuleName) {
@@ -93,7 +86,7 @@ private:
   }
 
   void scanDeclContext(clang::ASTContext &ctx, clang::DeclContext *declContext,
-                       llvm::StringRef targetModuleName, bool &found) {
+                       llvm::StringRef targetModuleName, bool &foundTarget) {
     if (!declContext) {
       return;
     }
@@ -105,7 +98,7 @@ private:
 
       if (auto *namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(decl)) {
         if (isFromMainFile(ctx, namespaceDecl)) {
-          scanDeclContext(ctx, namespaceDecl, targetModuleName, found);
+          scanDeclContext(ctx, namespaceDecl, targetModuleName, foundTarget);
         }
         continue;
       }
@@ -115,22 +108,16 @@ private:
           continue;
         }
 
-        if (!templateNameMatches(templateDecl, targetModuleName)) {
-          continue;
-        }
-
         clang::CXXRecordDecl *recordDecl = templateDecl->getTemplatedDecl();
         if (!recordDecl || !recordDecl->isCompleteDefinition()) {
           continue;
         }
 
-        visitor.TraverseCXXRecordDecl(recordDecl);
-
-        if (!targetModuleName.empty()) {
-          found = true;
-          return;
+        if (templateNameMatches(templateDecl, targetModuleName)) {
+          foundTarget = true;
         }
 
+        visitor.TraverseCXXRecordDecl(recordDecl);
         continue;
       }
 
@@ -147,16 +134,11 @@ private:
         continue;
       }
 
-      if (!recordNameMatches(recordDecl, targetModuleName)) {
-        continue;
+      if (recordNameMatches(recordDecl, targetModuleName)) {
+        foundTarget = true;
       }
 
       visitor.TraverseCXXRecordDecl(recordDecl);
-
-      if (!targetModuleName.empty()) {
-        found = true;
-        return;
-      }
     }
   }
 };
