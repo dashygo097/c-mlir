@@ -1,30 +1,31 @@
-#ifndef CHWC_RUNTIME_UINT_H
-#define CHWC_RUNTIME_UINT_H
+#ifndef CHWC_RUNTIME_SINT_H
+#define CHWC_RUNTIME_SINT_H
 
-#include "chwc/Signals/Signal.h"
+#include "chwc/Signal.h"
+#include "chwc/Types/UInt.h"
 #include <cstdint>
-#include <limits>
 
 namespace chwc {
-template <std::size_t Width> class UInt {
-public:
-  static_assert(Width >= 1, "UInt width must be positive");
-  static_assert(Width <= 64, "UInt currently supports width <= 64");
 
-  using storage_type = std::uint64_t;
+template <std::size_t Width> class SInt {
+public:
+  static_assert(Width >= 1, "SInt width must be positive");
+  static_assert(Width <= 64, "SInt currently supports width <= 64");
+
+  using storage_type = std::int64_t;
 
   static constexpr std::size_t width = Width;
-  static constexpr bool is_signed = false;
+  static constexpr bool is_signed = true;
   static constexpr ObjectKind kind = ObjectKind::Value;
 
-  constexpr UInt() = default;
+  constexpr SInt() = default;
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr explicit UInt(T value)
+  constexpr explicit SInt(T value)
       : value_(normalize(static_cast<storage_type>(value))) {}
 
   template <std::size_t OtherWidth>
-  constexpr explicit UInt(UInt<OtherWidth> value)
+  constexpr explicit SInt(SInt<OtherWidth> value)
       : value_(normalize(static_cast<storage_type>(value.raw()))) {}
 
   [[nodiscard]] constexpr auto raw() const -> storage_type { return value_; }
@@ -37,224 +38,224 @@ public:
   constexpr operator storage_type() const { return value_; }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator=(T value) -> UInt & {
+  constexpr auto operator=(T value) -> SInt & {
     value_ = normalize(static_cast<storage_type>(value));
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator=(UInt<OtherWidth> value) -> UInt & {
+  constexpr auto operator=(SInt<OtherWidth> value) -> SInt & {
     value_ = normalize(value.raw());
     return *this;
   }
 
-  constexpr auto operator+() const -> UInt { return *this; }
+  constexpr auto operator+() const -> SInt { return *this; }
 
-  constexpr auto operator-() const -> UInt { return UInt(0 - value_); }
+  constexpr auto operator-() const -> SInt { return SInt(0 - value_); }
 
-  constexpr auto operator~() const -> UInt { return UInt(~value_); }
+  constexpr auto operator~() const -> SInt { return SInt(~value_); }
 
-  constexpr auto operator!() const -> UInt {
+  constexpr auto operator!() const -> SInt {
     return UInt<1>(!static_cast<bool>(value_));
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator+(T rhs) const -> UInt {
-    return *this + UInt(rhs);
+  constexpr auto operator+(T rhs) const -> SInt {
+    return *this + SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator-(T rhs) const -> UInt {
-    return *this - UInt(rhs);
+  constexpr auto operator-(T rhs) const -> SInt {
+    return *this - SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator*(T rhs) const -> UInt {
-    return *this * UInt(rhs);
+  constexpr auto operator*(T rhs) const -> SInt {
+    return *this * SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator/(T rhs) const -> UInt {
-    return *this / UInt(rhs);
+  constexpr auto operator/(T rhs) const -> SInt {
+    return *this / SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator%(T rhs) const -> UInt {
-    return *this % UInt(rhs);
+  constexpr auto operator%(T rhs) const -> SInt {
+    return *this % SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator&(T rhs) const -> UInt {
-    return *this & UInt(rhs);
+  constexpr auto operator&(T rhs) const -> SInt {
+    return *this & SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator|(T rhs) const -> UInt {
-    return *this | UInt(rhs);
+  constexpr auto operator|(T rhs) const -> SInt {
+    return *this | SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator^(T rhs) const -> UInt {
-    return *this ^ UInt(rhs);
+  constexpr auto operator^(T rhs) const -> SInt {
+    return *this ^ SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator<<(T rhs) const -> UInt {
-    return *this << UInt(rhs);
+  constexpr auto operator<<(T rhs) const -> SInt {
+    return *this << SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator>>(T rhs) const -> UInt {
-    return *this >> UInt(rhs);
+  constexpr auto operator>>(T rhs) const -> SInt {
+    return *this >> SInt(rhs);
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator&&(T rhs) const -> UInt {
+  constexpr auto operator&&(T rhs) const -> SInt {
     return UInt<1>(static_cast<bool>(value_) && static_cast<bool>(rhs));
   }
 
   template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  constexpr auto operator||(T rhs) const -> UInt {
+  constexpr auto operator||(T rhs) const -> SInt {
     return UInt<1>(static_cast<bool>(value_) || static_cast<bool>(rhs));
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator+(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ + rhs.raw());
+  constexpr auto operator+(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ + rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator-(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ - rhs.raw());
+  constexpr auto operator-(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ - rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator*(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ * rhs.raw());
+  constexpr auto operator*(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ * rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator/(UInt<OtherWidth> rhs) const -> UInt {
-    return rhs.raw() == 0 ? UInt(0) : UInt(value_ / rhs.raw());
+  constexpr auto operator/(SInt<OtherWidth> rhs) const -> SInt {
+    return rhs.raw() == 0 ? SInt(0) : SInt(value_ / rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator%(UInt<OtherWidth> rhs) const -> UInt {
-    return rhs.raw() == 0 ? UInt(0) : UInt(value_ % rhs.raw());
+  constexpr auto operator%(SInt<OtherWidth> rhs) const -> SInt {
+    return rhs.raw() == 0 ? SInt(0) : SInt(value_ % rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator&(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ & rhs.raw());
+  constexpr auto operator&(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ & rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator|(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ | rhs.raw());
+  constexpr auto operator|(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ | rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator^(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ ^ rhs.raw());
+  constexpr auto operator^(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ ^ rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator<<(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ << rhs.raw());
+  constexpr auto operator<<(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ << rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator>>(UInt<OtherWidth> rhs) const -> UInt {
-    return UInt(value_ >> rhs.raw());
+  constexpr auto operator>>(SInt<OtherWidth> rhs) const -> SInt {
+    return SInt(value_ >> rhs.raw());
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator+=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator+=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ + rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator-=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator-=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ - rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator*=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator*=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ * rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator/=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator/=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = rhs.raw() == 0 ? 0 : normalize(value_ / rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator%=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator%=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = rhs.raw() == 0 ? 0 : normalize(value_ % rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator&=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator&=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ & rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator|=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator|=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ | rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator^=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator^=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ ^ rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator<<=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator<<=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ << rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator>>=(UInt<OtherWidth> rhs) -> UInt & {
+  constexpr auto operator>>=(SInt<OtherWidth> rhs) -> SInt & {
     value_ = normalize(value_ >> rhs.raw());
     return *this;
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator==(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator==(SInt<OtherWidth> rhs) const -> bool {
     return value_ == rhs.raw();
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator!=(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator!=(SInt<OtherWidth> rhs) const -> bool {
     return value_ != rhs.raw();
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator<(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator<(SInt<OtherWidth> rhs) const -> bool {
     return value_ < rhs.raw();
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator<=(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator<=(SInt<OtherWidth> rhs) const -> bool {
     return value_ <= rhs.raw();
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator>(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator>(SInt<OtherWidth> rhs) const -> bool {
     return value_ > rhs.raw();
   }
 
   template <std::size_t OtherWidth>
-  constexpr auto operator>=(UInt<OtherWidth> rhs) const -> bool {
+  constexpr auto operator>=(SInt<OtherWidth> rhs) const -> bool {
     return value_ >= rhs.raw();
   }
 
@@ -268,54 +269,59 @@ public:
     return static_cast<bool>(value_) || static_cast<bool>(rhs.raw());
   }
 
-  constexpr auto operator++() -> UInt & {
-    *this += UInt(1);
+  constexpr auto operator++() -> SInt & {
+    *this += SInt(1);
     return *this;
   }
 
-  constexpr auto operator++(int) -> UInt {
-    UInt old = *this;
+  constexpr auto operator++(int) -> SInt {
+    SInt old = *this;
     ++(*this);
     return old;
   }
 
-  constexpr auto operator--() -> UInt & {
-    *this -= UInt(1);
+  constexpr auto operator--() -> SInt & {
+    *this -= SInt(1);
     return *this;
   }
 
-  constexpr auto operator--(int) -> UInt {
-    UInt old = *this;
+  constexpr auto operator--(int) -> SInt {
+    SInt old = *this;
     --(*this);
     return old;
   }
 
   static constexpr auto mask() -> storage_type {
     if constexpr (Width == 64) {
-      return std::numeric_limits<storage_type>::max();
+      return ~storage_type{0};
     } else {
       return (storage_type{1} << Width) - 1;
     }
   }
 
   static constexpr auto normalize(storage_type value) -> storage_type {
-    return value & mask();
+    if constexpr (Width == 64) {
+      return value;
+    } else {
+      constexpr int shift = 64 - Width;
+      return (value << shift) >> shift;
+    }
   }
 
 private:
   storage_type value_{0};
 };
 
-template <std::size_t Width> struct TypeTraits<UInt<Width>> {
+template <std::size_t Width> struct TypeTraits<SInt<Width>> {
   static constexpr bool is_chwc_type = true;
   static constexpr bool is_signal = false;
-  static constexpr bool is_signed = false;
+  static constexpr bool is_signed = true;
   static constexpr std::size_t width = Width;
   static constexpr ObjectKind kind = ObjectKind::Value;
 
-  using value_type = UInt<Width>;
+  using value_type = SInt<Width>;
 };
 
 } // namespace chwc
 
-#endif // CHWC_RUNTIME_UINT_H
+#endif // CHWC_RUNTIME_SINT_H

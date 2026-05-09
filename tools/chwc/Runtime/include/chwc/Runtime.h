@@ -4,9 +4,9 @@
 #include "chwc/Annotation.h"
 #include "chwc/Instance.h"
 #include "chwc/Module.h"
-#include "chwc/Signals/SInt.h"
-#include "chwc/Signals/Signal.h"
-#include "chwc/Signals/UInt.h"
+#include "chwc/Signal.h"
+#include "chwc/Types/SInt.h"
+#include "chwc/Types/UInt.h"
 
 #ifndef CHWC_NO_GLOBAL_MODULE_ALIAS
 using ::chwc::Instance;
