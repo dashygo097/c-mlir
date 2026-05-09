@@ -1,5 +1,5 @@
-#ifndef CHWC_RUNTIME_SUBMODULE_H
-#define CHWC_RUNTIME_SUBMODULE_H
+#ifndef CHWC_RUNTIME_INSTANCE_H
+#define CHWC_RUNTIME_INSTANCE_H
 
 #include "chwc/Module.h"
 #include <type_traits>
@@ -16,4 +16,4 @@ public:
 
 } // namespace chwc
 
-#endif // CHWC_RUNTIME_SUBMODULE_H
+#endif // CHWC_RUNTIME_INSTANCE_H

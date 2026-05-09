@@ -4,6 +4,7 @@
 #include "../Utils/Comb.h"
 #include "../Utils/Constant.h"
 #include "../Utils/Expr.h"
+#include "../Utils/Instance.h"
 #include "../Utils/Type.h"
 #include "llvm/Support/WithColor.h"
 
@@ -424,6 +425,41 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       return false;
     }
   };
+
+  if (op == clang::OO_Equal) {
+    if (callExpr->getNumArgs() != 2) {
+      llvm::WithColor::error()
+          << "chwc: overloaded assignment expects 2 operands\n";
+      return nullptr;
+    }
+
+    if (std::optional<utils::InstancePortAccess> access =
+            utils::parseInstancePortAccess(moduleContext,
+                                           callExpr->getArg(0))) {
+      if (!utils::isInstanceInputPort(*access->instanceInfo,
+                                      access->portDecl)) {
+        llvm::WithColor::error()
+            << "chwc: cannot assign to submodule output port\n";
+        return nullptr;
+      }
+
+      mlir::Type targetType =
+          utils::getInstanceInputType(*access->instanceInfo, access->portDecl);
+      if (!targetType) {
+        return nullptr;
+      }
+
+      mlir::Value rhs = generateRHSForTarget(callExpr->getArg(1), targetType);
+      if (!rhs) {
+        llvm::WithColor::error()
+            << "chwc: failed to generate RHS for submodule input assignment\n";
+        return nullptr;
+      }
+
+      utils::writeInstanceInput(*access, rhs);
+      return rhs;
+    }
+  }
 
   if (op == clang::OO_Equal || isCompoundAssignOp(op)) {
     if (callExpr->getNumArgs() != 2) {

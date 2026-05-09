@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Instance.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -7,6 +8,14 @@ auto CHWConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
     -> mlir::Value {
   if (!memberExpr) {
     return nullptr;
+  }
+
+  if (std::optional<utils::InstancePortAccess> access =
+          utils::parseInstancePortAccess(moduleContext, memberExpr)) {
+    mlir::OpBuilder &builder = contextManager.Builder();
+    mlir::Location loc = builder.getUnknownLoc();
+
+    return utils::readInstanceOutput(moduleContext, *access, builder, loc);
   }
 
   auto *fieldDecl =

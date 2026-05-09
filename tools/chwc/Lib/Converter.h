@@ -37,6 +37,25 @@ struct HWFieldInfo {
   mlir::Value resetValue{};
 };
 
+struct HWInstanceInfo {
+  const clang::FieldDecl *fieldDecl{nullptr};
+  std::string name;
+
+  const clang::CXXRecordDecl *moduleDecl{nullptr};
+  std::string moduleName;
+
+  llvm::SmallVector<const clang::FieldDecl *, 8> inputPorts;
+  llvm::SmallVector<const clang::FieldDecl *, 8> outputPorts;
+
+  llvm::SmallVector<mlir::Type, 8> inputTypes;
+  llvm::SmallVector<mlir::Type, 8> outputTypes;
+
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> inputValues;
+  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValues;
+
+  mlir::Operation *instanceOp{nullptr};
+};
+
 struct HWModuleContext {
   const clang::CXXRecordDecl *recordDecl{nullptr};
   circt::hw::HWModuleOp moduleOp{};
@@ -50,6 +69,9 @@ struct HWModuleContext {
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> currentValues;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> nextValues;
   llvm::DenseMap<const clang::FieldDecl *, mlir::Value> outputValues;
+
+  llvm::DenseMap<const clang::FieldDecl *, HWInstanceInfo> instances;
+  llvm::SmallVector<const clang::FieldDecl *, 8> instanceOrder;
 
   llvm::SmallVector<const clang::CXXMethodDecl *, 4> resetMethods;
   llvm::SmallVector<const clang::CXXMethodDecl *, 4> clockMethods;
@@ -67,6 +89,8 @@ struct HWModuleContext {
     currentValues.clear();
     nextValues.clear();
     outputValues.clear();
+    instances.clear();
+    instanceOrder.clear();
     resetMethods.clear();
     clockMethods.clear();
     parameters.clear();

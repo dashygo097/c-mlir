@@ -1,4 +1,5 @@
 #include "../../Converter.h"
+#include "../Utils/Annotation.h"
 #include "../Utils/Type.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "llvm/Support/WithColor.h"
@@ -10,12 +11,74 @@ auto CHWConverter::TraverseFieldDecl(clang::FieldDecl *fieldDecl) -> bool {
     return true;
   }
 
+  if (const clang::CXXRecordDecl *submoduleDecl =
+          utils::getInstanceModuleDecl(fieldDecl->getType())) {
+    HWInstanceInfo instanceInfo;
+    instanceInfo.fieldDecl = fieldDecl;
+    instanceInfo.name = fieldDecl->getNameAsString();
+    instanceInfo.moduleDecl = submoduleDecl;
+    instanceInfo.moduleName = submoduleDecl->getNameAsString();
+
+    for (clang::FieldDecl *portDecl :
+         const_cast<clang::CXXRecordDecl *>(submoduleDecl)->fields()) {
+      utils::SignalTypeInfo portTypeInfo =
+          utils::getFieldElementTypeInfo(portDecl);
+
+      if (!portTypeInfo.isSignal || !portTypeInfo.fieldKind) {
+        continue;
+      }
+
+      if (*portTypeInfo.fieldKind == HWFieldKind::Input) {
+        mlir::Type type = convertType(portDecl->getType());
+        if (!type) {
+          llvm::WithColor::error()
+              << "chwc: failed to lower submodule input type: "
+              << portDecl->getNameAsString() << "\n";
+          continue;
+        }
+
+        instanceInfo.inputPorts.push_back(portDecl);
+        instanceInfo.inputTypes.push_back(type);
+        continue;
+      }
+
+      if (*portTypeInfo.fieldKind == HWFieldKind::Output) {
+        mlir::Type type = convertType(portDecl->getType());
+        if (!type) {
+          llvm::WithColor::error()
+              << "chwc: failed to lower submodule output type: "
+              << portDecl->getNameAsString() << "\n";
+          continue;
+        }
+
+        instanceInfo.outputPorts.push_back(portDecl);
+        instanceInfo.outputTypes.push_back(type);
+        continue;
+      }
+    }
+
+    moduleContext.instanceOrder.push_back(fieldDecl);
+    moduleContext.instances[fieldDecl] = std::move(instanceInfo);
+    return true;
+  }
+
   utils::SignalTypeInfo elemInfo = utils::getFieldElementTypeInfo(fieldDecl);
 
   std::optional<HWFieldKind> kind;
 
   if (elemInfo.isSignal && elemInfo.fieldKind) {
     kind = elemInfo.fieldKind;
+  } else if (std::optional<std::string> anno =
+                 utils::getAnnotation(fieldDecl)) {
+    if (*anno == "hw.input") {
+      kind = HWFieldKind::Input;
+    } else if (*anno == "hw.output") {
+      kind = HWFieldKind::Output;
+    } else if (*anno == "hw.wire") {
+      kind = HWFieldKind::Wire;
+    } else if (*anno == "hw.reg") {
+      kind = HWFieldKind::Reg;
+    }
   }
 
   if (!kind) {

@@ -269,6 +269,27 @@ inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   return info;
 }
 
+inline auto getInstanceModuleDecl(clang::QualType type)
+    -> const clang::CXXRecordDecl * {
+  if (getTemplateSpecializationName(type) != "Instance") {
+    return nullptr;
+  }
+
+  if (getTemplateArgCount(type) != 1) {
+    return nullptr;
+  }
+
+  std::optional<clang::TemplateArgument> arg = getTemplateArg(type, 0);
+  if (!arg || arg->getKind() != clang::TemplateArgument::Type) {
+    return nullptr;
+  }
+
+  clang::QualType moduleType = arg->getAsType();
+  moduleType = moduleType.getCanonicalType().getUnqualifiedType();
+
+  return moduleType->getAsCXXRecordDecl();
+}
+
 inline auto getConstantArraySize(clang::QualType type)
     -> std::optional<uint64_t> {
   type = type.getCanonicalType().getUnqualifiedType();
@@ -332,6 +353,10 @@ inline auto isValueType(clang::QualType type) -> bool {
 
 inline auto isSignedType(clang::QualType type) -> bool {
   return getSignalTypeInfo(type).isSigned;
+}
+
+inline auto isInstanceType(clang::QualType type) -> bool {
+  return getInstanceModuleDecl(type) != nullptr;
 }
 
 } // namespace chwc::utils

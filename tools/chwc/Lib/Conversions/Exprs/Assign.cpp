@@ -4,6 +4,7 @@
 #include "../Utils/Comb.h"
 #include "../Utils/Constant.h"
 #include "../Utils/Expr.h"
+#include "../Utils/Instance.h"
 #include "../Utils/Type.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
@@ -404,6 +405,34 @@ auto CHWConverter::generateAssignmentBinaryOperator(
       return nullptr;
     }
   };
+
+  if (assignOp->getOpcode() == clang::BO_Assign) {
+    if (std::optional<utils::InstancePortAccess> access =
+            utils::parseInstancePortAccess(moduleContext, assignOp->getLHS())) {
+      if (!utils::isInstanceInputPort(*access->instanceInfo,
+                                      access->portDecl)) {
+        llvm::WithColor::error()
+            << "chwc: cannot assign to submodule output port\n";
+        return nullptr;
+      }
+
+      mlir::Type targetType =
+          utils::getInstanceInputType(*access->instanceInfo, access->portDecl);
+      if (!targetType) {
+        return nullptr;
+      }
+
+      mlir::Value rhs = generateRHSForTarget(assignOp->getRHS(), targetType);
+      if (!rhs) {
+        llvm::WithColor::error()
+            << "chwc: failed to generate RHS for submodule input assignment\n";
+        return nullptr;
+      }
+
+      utils::writeInstanceInput(*access, rhs);
+      return rhs;
+    }
+  }
 
   std::optional<AssignTarget> target = resolveTarget(assignOp->getLHS());
   if (!target) {
