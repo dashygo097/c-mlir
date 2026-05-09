@@ -172,7 +172,7 @@ inline auto decodeWidthArg(const clang::TemplateArgument &arg,
 inline auto decodeValueType(clang::QualType type, SignalTypeInfo &info)
     -> bool {
   std::string name = getTemplateSpecializationName(type);
-  if (name != "UInt" && name != "SInt" && name != "Bool") {
+  if (name != "UInt" && name != "SInt" && name != "Bool" && name != "Enum") {
     return false;
   }
 
@@ -222,6 +222,10 @@ inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
   default:
     return std::nullopt;
   }
+}
+
+inline auto isRegInitType(clang::QualType type) -> bool {
+  return getTemplateSpecializationName(type) == "RegInit";
 }
 
 inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {

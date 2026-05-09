@@ -36,4 +36,7 @@ using ::chwc::RegNext;
 using ::chwc::WireDefault;
 #endif
 
+#ifndef CHWC_NO_GLOBAL_SIGNAL_ALIAS
+#endif
+
 #endif // CHWC_RUNTIME_RUNTIME_H
