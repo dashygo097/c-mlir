@@ -143,11 +143,6 @@ auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
       return nullptr;
     }
 
-    if (*cycles > 1024) {
-      llvm::WithColor::error() << "chwc: Delay cycle count is too large\n";
-      return nullptr;
-    }
-
     mlir::Value value = generateExpr(callExpr->getArg(0));
     if (!value) {
       llvm::WithColor::error() << "chwc: failed to generate Delay input\n";
@@ -156,6 +151,46 @@ auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
 
     return utils::emitDelay(moduleContext, builder, loc, value,
                             static_cast<unsigned>(*cycles));
+  }
+
+  if (name == "WireDefault") {
+    if (callExpr->getNumArgs() != 1) {
+      llvm::WithColor::error() << "chwc: WireDefault expects 1 argument\n";
+      return nullptr;
+    }
+
+    mlir::Type targetType = convertType(callExpr->getType());
+    if (!targetType) {
+      llvm::WithColor::error()
+          << "chwc: failed to lower WireDefault result type\n";
+      return nullptr;
+    }
+
+    clang::Expr *valueExpr = callExpr->getArg(0)->IgnoreParenImpCasts();
+
+    mlir::Value value = nullptr;
+
+    if (auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(valueExpr)) {
+      value = utils::intConst(builder, loc, targetType,
+                              intLit->getValue().getSExtValue());
+    } else {
+      value = generateExpr(valueExpr);
+    }
+
+    if (!value) {
+      llvm::WithColor::error()
+          << "chwc: failed to generate WireDefault value\n";
+      return nullptr;
+    }
+
+    if (value.getType() != targetType) {
+      value = utils::promoteValue(builder, loc, value, targetType);
+      if (!value) {
+        return nullptr;
+      }
+    }
+
+    return value;
   }
 
   clang::CXXMethodDecl *methodDecl = nullptr;

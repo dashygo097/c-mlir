@@ -1,8 +1,132 @@
 #include "../../Converter.h"
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/WithColor.h"
 
 namespace chwc {
+
+template <typename K>
+static void pushUnique(llvm::SmallVectorImpl<K> &keys, K key) {
+  for (K existing : keys) {
+    if (existing == key) {
+      return;
+    }
+  }
+
+  keys.push_back(key);
+}
+
+static auto mergeValue(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Value cond, mlir::Value trueValue,
+                       mlir::Value falseValue) -> mlir::Value {
+  if (!trueValue && !falseValue) {
+    return nullptr;
+  }
+
+  if (!trueValue) {
+    return falseValue;
+  }
+
+  if (!falseValue) {
+    return trueValue;
+  }
+
+  if (trueValue == falseValue) {
+    return trueValue;
+  }
+
+  if (trueValue.getType() != falseValue.getType()) {
+    falseValue =
+        utils::promoteValue(builder, loc, falseValue, trueValue.getType());
+    if (!falseValue) {
+      return nullptr;
+    }
+  }
+
+  return utils::mux(builder, loc, cond, trueValue, falseValue);
+}
+
+template <typename K>
+static void mergeMap(mlir::OpBuilder &builder, mlir::Location loc,
+                     mlir::Value cond,
+                     const llvm::DenseMap<K, mlir::Value> &before,
+                     const llvm::DenseMap<K, mlir::Value> &thenMap,
+                     const llvm::DenseMap<K, mlir::Value> &elseMap,
+                     llvm::DenseMap<K, mlir::Value> &outMap) {
+  llvm::SmallVector<K, 32> keys;
+
+  for (auto &it : thenMap) {
+    pushUnique(keys, it.first);
+  }
+
+  for (auto &it : elseMap) {
+    pushUnique(keys, it.first);
+  }
+
+  for (K key : keys) {
+    mlir::Value beforeValue = before.lookup(key);
+    mlir::Value thenValue = thenMap.lookup(key);
+    mlir::Value elseValue = elseMap.lookup(key);
+
+    if (!thenValue) {
+      thenValue = beforeValue;
+    }
+
+    if (!elseValue) {
+      elseValue = beforeValue;
+    }
+
+    mlir::Value merged = mergeValue(builder, loc, cond, thenValue, elseValue);
+
+    if (merged) {
+      outMap[key] = merged;
+    }
+  }
+}
+
+static void mergeLocalMap(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value cond,
+    const llvm::DenseMap<const clang::VarDecl *, mlir::Value> &before,
+    const llvm::DenseMap<const clang::VarDecl *, mlir::Value> &thenMap,
+    const llvm::DenseMap<const clang::VarDecl *, mlir::Value> &elseMap,
+    llvm::DenseMap<const clang::VarDecl *, mlir::Value> &outMap) {
+  llvm::SmallVector<const clang::VarDecl *, 32> keys;
+
+  for (auto &it : thenMap) {
+    pushUnique(keys, it.first);
+  }
+
+  for (auto &it : elseMap) {
+    pushUnique(keys, it.first);
+  }
+
+  for (const clang::VarDecl *key : keys) {
+    mlir::Value beforeValue = before.lookup(key);
+
+    if (!beforeValue) {
+      continue;
+    }
+
+    mlir::Value thenValue = thenMap.lookup(key);
+    mlir::Value elseValue = elseMap.lookup(key);
+
+    if (!thenValue) {
+      thenValue = beforeValue;
+    }
+
+    if (!elseValue) {
+      elseValue = beforeValue;
+    }
+
+    mlir::Value merged = mergeValue(builder, loc, cond, thenValue, elseValue);
+
+    if (merged) {
+      outMap[key] = merged;
+    }
+  }
+}
 
 auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
   if (!ifStmt) {
@@ -14,6 +138,7 @@ auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
 
   mlir::Value cond = generateExpr(ifStmt->getCond());
   if (!cond) {
+    llvm::WithColor::error() << "chwc: failed to generate if condition\n";
     return true;
   }
 
@@ -22,75 +147,95 @@ auto CHWConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
     return true;
   }
 
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedNext =
-      moduleContext.nextValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedOutput =
-      moduleContext.outputValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> savedCurrent =
-      moduleContext.currentValues;
+  auto beforeCurrentValues = moduleContext.currentValues;
+  auto beforeNextValues = moduleContext.nextValues;
+  auto beforeOutputValues = moduleContext.outputValues;
+
+  llvm::DenseMap<const clang::VarDecl *, mlir::Value> beforeLocals;
+  mlir::Value beforeReturnValue = nullptr;
+  bool beforeHasReturnValue = false;
+
+  if (!functionStack.empty()) {
+    beforeLocals = functionStack.back().locals;
+    beforeReturnValue = functionStack.back().returnValue;
+    beforeHasReturnValue = functionStack.back().hasReturnValue;
+  }
 
   TraverseStmt(ifStmt->getThen());
 
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenNext =
-      moduleContext.nextValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenOutput =
-      moduleContext.outputValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> thenCurrent =
-      moduleContext.currentValues;
+  auto thenCurrentValues = moduleContext.currentValues;
+  auto thenNextValues = moduleContext.nextValues;
+  auto thenOutputValues = moduleContext.outputValues;
 
-  moduleContext.nextValues = savedNext;
-  moduleContext.outputValues = savedOutput;
-  moduleContext.currentValues = savedCurrent;
+  llvm::DenseMap<const clang::VarDecl *, mlir::Value> thenLocals;
+  mlir::Value thenReturnValue = nullptr;
+  bool thenHasReturnValue = false;
 
-  if (ifStmt->getElse()) {
-    TraverseStmt(ifStmt->getElse());
+  if (!functionStack.empty()) {
+    thenLocals = functionStack.back().locals;
+    thenReturnValue = functionStack.back().returnValue;
+    thenHasReturnValue = functionStack.back().hasReturnValue;
   }
 
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseNext =
-      moduleContext.nextValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseOutput =
-      moduleContext.outputValues;
-  llvm::DenseMap<const clang::FieldDecl *, mlir::Value> elseCurrent =
-      moduleContext.currentValues;
+  moduleContext.currentValues = beforeCurrentValues;
+  moduleContext.nextValues = beforeNextValues;
+  moduleContext.outputValues = beforeOutputValues;
 
-  moduleContext.nextValues = savedNext;
-  moduleContext.outputValues = savedOutput;
-  moduleContext.currentValues = savedCurrent;
+  if (!functionStack.empty()) {
+    functionStack.back().locals = beforeLocals;
+    functionStack.back().returnValue = beforeReturnValue;
+    functionStack.back().hasReturnValue = beforeHasReturnValue;
+  }
 
-  auto mergeMap =
-      [&](llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &dst,
-          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &thenMap,
-          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value> &elseMap,
-          const llvm::DenseMap<const clang::FieldDecl *, mlir::Value>
-              &baseMap) {
-        for (const clang::FieldDecl *fieldDecl : moduleContext.fieldOrder) {
-          mlir::Value thenValue = thenMap.lookup(fieldDecl);
-          mlir::Value elseValue = elseMap.lookup(fieldDecl);
-          mlir::Value baseValue = baseMap.lookup(fieldDecl);
+  if (clang::Stmt *elseStmt = ifStmt->getElse()) {
+    TraverseStmt(elseStmt);
+  }
 
-          if (!thenValue && !elseValue) {
-            continue;
-          }
+  auto elseCurrentValues = moduleContext.currentValues;
+  auto elseNextValues = moduleContext.nextValues;
+  auto elseOutputValues = moduleContext.outputValues;
 
-          if (!thenValue) {
-            thenValue = baseValue;
-          }
+  llvm::DenseMap<const clang::VarDecl *, mlir::Value> elseLocals;
+  mlir::Value elseReturnValue = nullptr;
+  bool elseHasReturnValue = false;
 
-          if (!elseValue) {
-            elseValue = baseValue;
-          }
+  if (!functionStack.empty()) {
+    elseLocals = functionStack.back().locals;
+    elseReturnValue = functionStack.back().returnValue;
+    elseHasReturnValue = functionStack.back().hasReturnValue;
+  }
 
-          if (!thenValue || !elseValue) {
-            continue;
-          }
+  moduleContext.currentValues = beforeCurrentValues;
+  moduleContext.nextValues = beforeNextValues;
+  moduleContext.outputValues = beforeOutputValues;
 
-          dst[fieldDecl] = utils::mux(builder, loc, cond, thenValue, elseValue);
-        }
-      };
+  mergeMap(builder, loc, cond, beforeCurrentValues, thenCurrentValues,
+           elseCurrentValues, moduleContext.currentValues);
 
-  mergeMap(moduleContext.nextValues, thenNext, elseNext, savedNext);
-  mergeMap(moduleContext.outputValues, thenOutput, elseOutput, savedOutput);
-  mergeMap(moduleContext.currentValues, thenCurrent, elseCurrent, savedCurrent);
+  mergeMap(builder, loc, cond, beforeNextValues, thenNextValues, elseNextValues,
+           moduleContext.nextValues);
+
+  mergeMap(builder, loc, cond, beforeOutputValues, thenOutputValues,
+           elseOutputValues, moduleContext.outputValues);
+
+  if (!functionStack.empty()) {
+    functionStack.back().locals = beforeLocals;
+    functionStack.back().returnValue = beforeReturnValue;
+    functionStack.back().hasReturnValue = beforeHasReturnValue;
+
+    mergeLocalMap(builder, loc, cond, beforeLocals, thenLocals, elseLocals,
+                  functionStack.back().locals);
+
+    if (thenHasReturnValue && elseHasReturnValue) {
+      mlir::Value mergedReturn =
+          mergeValue(builder, loc, cond, thenReturnValue, elseReturnValue);
+
+      if (mergedReturn) {
+        functionStack.back().returnValue = mergedReturn;
+        functionStack.back().hasReturnValue = true;
+      }
+    }
+  }
 
   return true;
 }
