@@ -2,7 +2,7 @@
 
 #include <chwc/Runtime.h>
 
-class Counter final : public Hardware {
+class Counter final : public Module {
 public:
   Input<Bool> en;
   Output<UInt<16>> out;

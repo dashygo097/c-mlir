@@ -125,7 +125,7 @@ auto CHWConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
 
       switch (fieldInfo.kind) {
       case HWFieldKind::Input:
-        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
+        llvm::WithColor::error() << "chwc: cannot assign to module input\n";
         break;
 
       case HWFieldKind::Output:

@@ -7,8 +7,8 @@
 
 namespace chwc {
 
-auto isCurrentHardwareMethod(const clang::CXXRecordDecl *recordDecl,
-                             clang::CXXMethodDecl *methodDecl) -> bool {
+auto isCurrentModuleMethod(const clang::CXXRecordDecl *recordDecl,
+                           clang::CXXMethodDecl *methodDecl) -> bool {
   if (!recordDecl || !methodDecl || !methodDecl->getParent()) {
     return false;
   }
@@ -78,9 +78,9 @@ auto CHWConverter::generateCXXMemberCallExpr(clang::CXXMemberCallExpr *callExpr)
     return value;
   }
 
-  if (!isCurrentHardwareMethod(moduleContext.recordDecl, methodDecl)) {
+  if (!isCurrentModuleMethod(moduleContext.recordDecl, methodDecl)) {
     llvm::WithColor::error()
-        << "chwc: only calls to methods of the current hardware class are "
+        << "chwc: only calls to methods of the current module class are "
            "supported\n";
     return nullptr;
   }

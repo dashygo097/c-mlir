@@ -263,7 +263,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
 
       switch (fieldInfo.kind) {
       case HWFieldKind::Input:
-        llvm::WithColor::error() << "chwc: cannot assign to hardware input\n";
+        llvm::WithColor::error() << "chwc: cannot assign to module input\n";
         break;
 
       case HWFieldKind::Output:
@@ -324,7 +324,7 @@ auto CHWConverter::generateCXXOperatorCallExpr(
       switch (fieldInfo.kind) {
       case HWFieldKind::Input:
         llvm::WithColor::error()
-            << "chwc: cannot assign to hardware input array\n";
+            << "chwc: cannot assign to module input array\n";
         return value;
 
       case HWFieldKind::Output:

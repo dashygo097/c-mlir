@@ -3,7 +3,7 @@
 #include <chwc/Runtime.h>
 
 template <int WIDTH>
-class Adder final : public Hardware {
+class Adder final : public Module {
 public:
   Input<UInt<WIDTH>> in1;
   Input<UInt<WIDTH>> in2;

@@ -2,13 +2,13 @@
 #define CHWC_RUNTIME_RUNTIME_H
 
 #include "chwc/Annotation.h"
-#include "chwc/Hardware.h"
+#include "chwc/Module.h"
 #include "chwc/Types/SInt.h"
 #include "chwc/Types/Signal.h"
 #include "chwc/Types/UInt.h"
 
 #ifndef CHWC_NO_GLOBAL_HARDWARE_ALIAS
-using Hardware = ::chwc::Hardware;
+using Module = ::chwc::Module;
 #endif
 
 #ifndef CHWC_NO_GLOBAL_TYPE_ALIAS

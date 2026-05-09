@@ -2,7 +2,7 @@
 
 #include <chwc/Runtime.h>
 
-class Adder32 final : public Hardware {
+class Adder32 final : public Module {
 public:
   Input<UInt<32>> in1;
   Input<UInt<32>> in2;

@@ -9,15 +9,15 @@
 
 namespace chwc::utils {
 
-inline constexpr llvm::StringRef HardwareInput = "hw.input";
-inline constexpr llvm::StringRef HardwareOutput = "hw.output";
-inline constexpr llvm::StringRef HardwareWire = "hw.wire";
-inline constexpr llvm::StringRef HardwareReg = "hw.reg";
+inline constexpr llvm::StringRef ModuleInput = "hw.input";
+inline constexpr llvm::StringRef ModuleOutput = "hw.output";
+inline constexpr llvm::StringRef ModuleWire = "hw.wire";
+inline constexpr llvm::StringRef ModuleReg = "hw.reg";
 
-inline constexpr llvm::StringRef HardwareReset = "hw.reset";
-inline constexpr llvm::StringRef HardwareClockTick = "hw.clock_tick";
-inline constexpr llvm::StringRef HardwareFunc = "hw.func";
-inline constexpr llvm::StringRef HardwareRule = "hw.rule";
+inline constexpr llvm::StringRef ModuleReset = "hw.reset";
+inline constexpr llvm::StringRef ModuleClockTick = "hw.clock_tick";
+inline constexpr llvm::StringRef ModuleFunc = "hw.func";
+inline constexpr llvm::StringRef ModuleRule = "hw.rule";
 
 inline auto getAnnotation(clang::Decl *decl) -> std::optional<std::string> {
   if (!decl) {
@@ -46,15 +46,15 @@ inline auto hasAnnotation(clang::Decl *decl, llvm::StringRef expected) -> bool {
 }
 
 inline auto isResetMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  return hasAnnotation(methodDecl, HardwareReset);
+  return hasAnnotation(methodDecl, ModuleReset);
 }
 
 inline auto isClockTickMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  return hasAnnotation(methodDecl, HardwareClockTick);
+  return hasAnnotation(methodDecl, ModuleClockTick);
 }
 
 inline auto isFuncMethod(clang::CXXMethodDecl *methodDecl) -> bool {
-  return hasAnnotation(methodDecl, HardwareFunc);
+  return hasAnnotation(methodDecl, ModuleFunc);
 }
 
 inline auto isLifecycleMethod(clang::CXXMethodDecl *methodDecl) -> bool {

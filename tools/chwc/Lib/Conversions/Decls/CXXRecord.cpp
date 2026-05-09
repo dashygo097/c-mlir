@@ -9,7 +9,7 @@
 
 namespace chwc {
 
-auto isHardwareClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
+auto isModuleClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
   if (!recordDecl) {
     return false;
   }
@@ -20,11 +20,11 @@ auto isHardwareClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
       continue;
     }
 
-    if (baseRecord->getNameAsString() == "Hardware") {
+    if (baseRecord->getNameAsString() == "Module") {
       return true;
     }
 
-    if (isHardwareClassImpl(baseRecord)) {
+    if (isModuleClassImpl(baseRecord)) {
       return true;
     }
   }
@@ -92,7 +92,7 @@ void collectTemplateParameters(CHWConverter &converter,
 
     if (!nttp->getType()->isIntegerType()) {
       llvm::WithColor::error()
-          << "chwc: template hardware parameter must be integer: "
+          << "chwc: template module parameter must be integer: "
           << nttp->getNameAsString() << "\n";
       continue;
     }
@@ -120,7 +120,7 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
     return true;
   }
 
-  if (!isHardwareClassImpl(recordDecl)) {
+  if (!isModuleClassImpl(recordDecl)) {
     return true;
   }
 
@@ -149,7 +149,7 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
   }
 
   if (moduleContext.clockMethods.empty()) {
-    llvm::WithColor::error() << "chwc: hardware class requires HW_CLOCK_TICK\n";
+    llvm::WithColor::error() << "chwc: module class requires HW_CLOCK_TICK\n";
   }
 
   mlir::OpBuilder::InsertionGuard guard(builder);
