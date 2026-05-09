@@ -224,10 +224,6 @@ inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
   }
 }
 
-inline auto isRegInitType(clang::QualType type) -> bool {
-  return getTemplateSpecializationName(type) == "RegInit";
-}
-
 inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   SignalTypeInfo info;
 
