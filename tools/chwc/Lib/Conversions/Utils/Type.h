@@ -172,9 +172,6 @@ inline auto decodeWidthArg(const clang::TemplateArgument &arg,
 inline auto decodeValueType(clang::QualType type, SignalTypeInfo &info)
     -> bool {
   std::string name = getTemplateSpecializationName(type);
-  if (name != "UInt" && name != "SInt" && name != "Bool" && name != "Enum") {
-    return false;
-  }
 
   if (name == "Bool") {
     info.isValue = true;
@@ -185,28 +182,93 @@ inline auto decodeValueType(clang::QualType type, SignalTypeInfo &info)
     return true;
   }
 
-  if (getTemplateArgCount(type) != 1) {
-    return false;
+  if (name == "UInt") {
+    if (getTemplateArgCount(type) != 1) {
+      return false;
+    }
+
+    std::optional<clang::TemplateArgument> widthArg = getTemplateArg(type, 0);
+    if (!widthArg) {
+      return false;
+    }
+
+    std::optional<unsigned> staticWidth;
+    std::string parameterWidth;
+
+    if (!decodeWidthArg(*widthArg, staticWidth, parameterWidth)) {
+      return false;
+    }
+
+    info.isValue = true;
+    info.isSignal = false;
+    info.isSigned = false;
+    info.staticWidth = staticWidth;
+    info.parameterWidth = parameterWidth;
+    return true;
   }
 
-  std::optional<clang::TemplateArgument> arg = getTemplateArg(type, 0);
-  if (!arg) {
-    return false;
+  if (name == "SInt") {
+    if (getTemplateArgCount(type) != 1) {
+      return false;
+    }
+
+    std::optional<clang::TemplateArgument> widthArg = getTemplateArg(type, 0);
+    if (!widthArg) {
+      return false;
+    }
+
+    std::optional<unsigned> staticWidth;
+    std::string parameterWidth;
+
+    if (!decodeWidthArg(*widthArg, staticWidth, parameterWidth)) {
+      return false;
+    }
+
+    info.isValue = true;
+    info.isSignal = false;
+    info.isSigned = true;
+    info.staticWidth = staticWidth;
+    info.parameterWidth = parameterWidth;
+    return true;
   }
 
-  std::optional<unsigned> staticWidth;
-  std::string parameterWidth;
+  if (name == "Enum") {
+    if (getTemplateArgCount(type) != 1) {
+      return false;
+    }
 
-  if (!decodeWidthArg(*arg, staticWidth, parameterWidth)) {
-    return false;
+    std::optional<clang::TemplateArgument> numberArg = getTemplateArg(type, 0);
+    if (!numberArg) {
+      return false;
+    }
+
+    if (numberArg->getKind() != clang::TemplateArgument::Integral) {
+      return false;
+    }
+
+    uint64_t number = numberArg->getAsIntegral().getZExtValue();
+
+    unsigned width = 0;
+    uint64_t values = 1;
+
+    while (values < number) {
+      values <<= 1;
+      ++width;
+    }
+
+    if (width == 0) {
+      width = 1;
+    }
+
+    info.isValue = true;
+    info.isSignal = false;
+    info.isSigned = false;
+    info.staticWidth = width;
+    info.parameterWidth.clear();
+    return true;
   }
 
-  info.isValue = true;
-  info.isSignal = false;
-  info.isSigned = name == "SInt";
-  info.staticWidth = staticWidth;
-  info.parameterWidth = parameterWidth;
-  return true;
+  return false;
 }
 
 inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
