@@ -1,32 +1,52 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/STLExtras.h"
 
 #define GEN_PASS_DEF_RAISESCF2AFFINEPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
 
-static auto resolveIndexCastChain(mlir::Value v) -> mlir::Value {
-  auto outerCast = v.getDefiningOp<mlir::arith::IndexCastOp>();
+static auto containsVectorDialectOp(mlir::scf::ForOp forOp) -> bool {
+  bool found = false;
+
+  forOp.walk([&](mlir::Operation *op) {
+    if (op == forOp.getOperation()) {
+      return;
+    }
+
+    if (op->getDialect() && op->getDialect()->getNamespace() == "vector") {
+      found = true;
+    }
+  });
+
+  return found;
+}
+
+static auto resolveIndexCastChain(mlir::Value value) -> mlir::Value {
+  auto outerCast = value.getDefiningOp<mlir::arith::IndexCastOp>();
   if (!outerCast) {
-    return v;
+    return value;
   }
+
   mlir::Value mid = outerCast.getIn();
   if (mid.getType().isIndex()) {
     return resolveIndexCastChain(mid);
   }
+
   auto innerCast = mid.getDefiningOp<mlir::arith::IndexCastOp>();
   if (!innerCast) {
-    return v;
+    return value;
   }
+
   mlir::Value original = innerCast.getIn();
   if (!original.getType().isIndex()) {
-    return v;
+    return value;
   }
+
   return resolveIndexCastChain(original);
 }
 
@@ -64,38 +84,47 @@ struct RaiseSCFFor2AffineForPattern
   auto matchAndRewrite(mlir::scf::ForOp forOp,
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
+    if (containsVectorDialectOp(forOp)) {
+      return mlir::failure();
+    }
 
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Location loc = forOp.getLoc();
 
-    mlir::AffineMap lbMap, ubMap;
-    llvm::SmallVector<mlir::Value> lbOperands, ubOperands;
+    mlir::AffineMap lbMap;
+    mlir::AffineMap ubMap;
+    llvm::SmallVector<mlir::Value> lbOperands;
+    llvm::SmallVector<mlir::Value> ubOperands;
 
     if (!getBoundInfo(forOp.getLowerBound(), ctx, lbMap, lbOperands)) {
       return mlir::failure();
     }
+
     if (!getBoundInfo(forOp.getUpperBound(), ctx, ubMap, ubOperands)) {
       return mlir::failure();
     }
 
     int64_t stepVal = 0;
-    if (auto stepConst =
-            forOp.getStep().getDefiningOp<mlir::arith::ConstantOp>()) {
-      if (auto intAttr =
-              mlir::dyn_cast<mlir::IntegerAttr>(stepConst.getValue())) {
-        stepVal = intAttr.getInt();
-      } else {
-        return mlir::failure();
-      }
-    } else {
+    auto stepConst = forOp.getStep().getDefiningOp<mlir::arith::ConstantOp>();
+    if (!stepConst) {
+      return mlir::failure();
+    }
+
+    auto stepAttr = mlir::dyn_cast<mlir::IntegerAttr>(stepConst.getValue());
+    if (!stepAttr) {
+      return mlir::failure();
+    }
+
+    stepVal = stepAttr.getInt();
+    if (stepVal <= 0) {
       return mlir::failure();
     }
 
     auto affineFor = mlir::affine::AffineForOp::create(
         rewriter, loc, lbOperands, lbMap, ubOperands, ubMap, stepVal,
         forOp.getInitArgs(),
-        [](mlir::OpBuilder &, mlir::Location, mlir::Value,
-           mlir::ValueRange) -> void {});
+        [](mlir::OpBuilder &, mlir::Location, mlir::Value, mlir::ValueRange) {
+        });
 
     mlir::Block *affineBody = affineFor.getBody();
     mlir::Block *scfBody = forOp.getBody();
@@ -107,6 +136,7 @@ struct RaiseSCFFor2AffineForPattern
 
     mlir::IRMapping mapping;
     mapping.map(forOp.getInductionVar(), affineFor.getInductionVar());
+
     for (auto [scfArg, affineArg] :
          llvm::zip(forOp.getRegionIterArgs(), affineFor.getRegionIterArgs())) {
       mapping.map(scfArg, affineArg);
@@ -114,16 +144,19 @@ struct RaiseSCFFor2AffineForPattern
 
     rewriter.setInsertionPointToEnd(affineBody);
 
-    for (auto &op : scfBody->without_terminator()) {
+    for (mlir::Operation &op : scfBody->without_terminator()) {
       rewriter.clone(op, mapping);
     }
 
     auto scfYield = mlir::cast<mlir::scf::YieldOp>(scfBody->getTerminator());
-    llvm::SmallVector<mlir::Value> yieldOps;
-    for (mlir::Value v : scfYield.getOperands()) {
-      yieldOps.push_back(mapping.lookupOrDefault(v));
+
+    llvm::SmallVector<mlir::Value> yieldValues;
+    for (mlir::Value value : scfYield.getOperands()) {
+      yieldValues.push_back(mapping.lookupOrDefault(value));
     }
-    mlir::affine::AffineYieldOp::create(rewriter, scfYield.getLoc(), yieldOps);
+
+    mlir::affine::AffineYieldOp::create(rewriter, scfYield.getLoc(),
+                                        yieldValues);
 
     rewriter.replaceOp(forOp, affineFor.getResults());
     return mlir::success();
@@ -132,9 +165,8 @@ struct RaiseSCFFor2AffineForPattern
 
 struct RaiseSCF2AffinePass
     : public impl::RaiseSCF2AffinePassBase<RaiseSCF2AffinePass> {
-
   void runOnOperation() override {
-    auto op = getOperation();
+    mlir::Operation *op = getOperation();
     mlir::RewritePatternSet patterns(op->getContext());
 
     patterns.add<RaiseSCFFor2AffineForPattern>(op->getContext());
@@ -143,12 +175,6 @@ struct RaiseSCF2AffinePass
       signalPassFailure();
       return;
     }
-
-    op->walk([](mlir::Operation *op) -> void {
-      if (mlir::isOpTriviallyDead(op)) {
-        op->erase();
-      }
-    });
   }
 };
 

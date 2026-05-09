@@ -13,7 +13,6 @@
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
-namespace {
 
 struct VectorBuildState {
   mlir::OpBuilder &builder;
@@ -577,8 +576,6 @@ static auto vectorizeReductionLoop(mlir::scf::ForOp forOp, uint32_t width)
 
   return mlir::success();
 }
-
-} // namespace
 
 struct LoopVectorizePass
     : public impl::LoopVectorizePassBase<LoopVectorizePass> {
