@@ -2,15 +2,15 @@
 #define CHWC_RUNTIME_RUNTIME_H
 
 #include "chwc/Annotation.h"
+#include "chwc/Instance.h"
 #include "chwc/Module.h"
-#include "chwc/SubModule.h"
-#include "chwc/Types/SInt.h"
-#include "chwc/Types/Signal.h"
-#include "chwc/Types/UInt.h"
+#include "chwc/Signals/SInt.h"
+#include "chwc/Signals/Signal.h"
+#include "chwc/Signals/UInt.h"
 
 #ifndef CHWC_NO_GLOBAL_MODULE_ALIAS
+using ::chwc::Instance;
 using ::chwc::Module;
-using ::chwc::SubModule;
 #endif
 
 #ifndef CHWC_NO_GLOBAL_TYPE_ALIAS

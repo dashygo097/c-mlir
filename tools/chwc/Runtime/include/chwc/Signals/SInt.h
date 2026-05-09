@@ -1,8 +1,8 @@
 #ifndef CHWC_RUNTIME_SINT_H
 #define CHWC_RUNTIME_SINT_H
 
-#include "chwc/Types/Signal.h"
-#include "chwc/Types/UInt.h"
+#include "chwc/Signals/Signal.h"
+#include "chwc/Signals/UInt.h"
 #include <cstdint>
 
 namespace chwc {

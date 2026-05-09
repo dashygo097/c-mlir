@@ -6,7 +6,7 @@
 
 namespace chwc {
 
-template <typename M> class SubModule : M {
+template <typename M> class Instance : M {
 public:
   static_assert(std::is_base_of_v<Module, M>,
                 "Submodule must derive from Module");

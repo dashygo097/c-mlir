@@ -1,7 +1,7 @@
 #ifndef CHWC_RUNTIME_UINT_H
 #define CHWC_RUNTIME_UINT_H
 
-#include "chwc/Types/Signal.h"
+#include "chwc/Signals/Signal.h"
 #include <cstdint>
 #include <limits>
 
