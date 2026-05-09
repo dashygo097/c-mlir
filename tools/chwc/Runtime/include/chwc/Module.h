@@ -6,10 +6,7 @@
 
 namespace chwc {
 
-class Module {
-public:
-  virtual ~Module() = default;
-};
+class Module {};
 
 template <typename M> class Instance : M {
 public:
