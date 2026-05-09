@@ -9,15 +9,9 @@
 
 namespace chwc::utils {
 
-inline constexpr llvm::StringRef ModuleInput = "hw.input";
-inline constexpr llvm::StringRef ModuleOutput = "hw.output";
-inline constexpr llvm::StringRef ModuleWire = "hw.wire";
-inline constexpr llvm::StringRef ModuleReg = "hw.reg";
-
 inline constexpr llvm::StringRef ModuleReset = "hw.reset";
 inline constexpr llvm::StringRef ModuleClockTick = "hw.clock_tick";
 inline constexpr llvm::StringRef ModuleFunc = "hw.func";
-inline constexpr llvm::StringRef ModuleRule = "hw.rule";
 
 inline auto getAnnotation(clang::Decl *decl) -> std::optional<std::string> {
   if (!decl) {

@@ -1,5 +1,4 @@
 #include "../../Converter.h"
-#include "../Utils/Annotation.h"
 #include "../Utils/Type.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "llvm/Support/WithColor.h"
@@ -17,17 +16,6 @@ auto CHWConverter::TraverseFieldDecl(clang::FieldDecl *fieldDecl) -> bool {
 
   if (elemInfo.isSignal && elemInfo.fieldKind) {
     kind = elemInfo.fieldKind;
-  } else if (std::optional<std::string> anno =
-                 utils::getAnnotation(fieldDecl)) {
-    if (*anno == "hw.input") {
-      kind = HWFieldKind::Input;
-    } else if (*anno == "hw.output") {
-      kind = HWFieldKind::Output;
-    } else if (*anno == "hw.wire") {
-      kind = HWFieldKind::Wire;
-    } else if (*anno == "hw.reg") {
-      kind = HWFieldKind::Reg;
-    }
   }
 
   if (!kind) {

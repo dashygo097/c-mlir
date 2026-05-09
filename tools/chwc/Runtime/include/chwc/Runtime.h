@@ -3,12 +3,14 @@
 
 #include "chwc/Annotation.h"
 #include "chwc/Module.h"
+#include "chwc/SubModule.h"
 #include "chwc/Types/SInt.h"
 #include "chwc/Types/Signal.h"
 #include "chwc/Types/UInt.h"
 
-#ifndef CHWC_NO_GLOBAL_HARDWARE_ALIAS
-using Module = ::chwc::Module;
+#ifndef CHWC_NO_GLOBAL_MODULE_ALIAS
+using ::chwc::Module;
+using ::chwc::SubModule;
 #endif
 
 #ifndef CHWC_NO_GLOBAL_TYPE_ALIAS
