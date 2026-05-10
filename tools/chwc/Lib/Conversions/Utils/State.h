@@ -23,26 +23,6 @@ struct RegisterState {
   }
 };
 
-inline auto emitRegister(RegisterState &state, HWModuleContext &moduleContext,
-                         const clang::FieldDecl *fieldDecl,
-                         mlir::OpBuilder &builder, mlir::Location loc)
-    -> mlir::Value {
-  HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
-
-  state.init(builder, loc);
-
-  circt::Backedge nextBackedge = state.backedgeBuilder->get(fieldInfo.type);
-
-  state.nextBackedges[fieldDecl] = nextBackedge;
-
-  auto reg = circt::seq::FirRegOp::create(
-      builder, loc, static_cast<mlir::Value>(nextBackedge), moduleContext.clock,
-      builder.getStringAttr(fieldInfo.name), moduleContext.reset,
-      fieldInfo.resetValue);
-
-  return reg.getResult();
-}
-
 inline void setRegisterNext(RegisterState &state,
                             const clang::FieldDecl *fieldDecl,
                             mlir::Value nextValue) {
@@ -62,6 +42,26 @@ inline auto resetValueForType(mlir::OpBuilder &builder, mlir::Location loc,
   }
 
   return zeroValue(builder, loc, type);
+}
+
+inline auto emitRegister(RegisterState &state, HWModuleContext &moduleContext,
+                         const clang::FieldDecl *fieldDecl,
+                         mlir::OpBuilder &builder, mlir::Location loc)
+    -> mlir::Value {
+  HWFieldInfo &fieldInfo = moduleContext.fields[fieldDecl];
+
+  state.init(builder, loc);
+
+  circt::Backedge nextBackedge = state.backedgeBuilder->get(fieldInfo.type);
+
+  state.nextBackedges[fieldDecl] = nextBackedge;
+
+  auto reg = circt::seq::FirRegOp::create(
+      builder, loc, static_cast<mlir::Value>(nextBackedge), moduleContext.clock,
+      builder.getStringAttr(fieldInfo.name), moduleContext.reset,
+      fieldInfo.resetValue);
+
+  return reg.getResult();
 }
 
 inline auto emitRegNext(HWModuleContext &moduleContext,

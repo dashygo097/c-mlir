@@ -2,8 +2,8 @@
 #define CHWC_UTILS_TYPE_H
 
 #include "../../Converter.h"
+#include "./Template.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include <optional>
 #include <string>
@@ -18,119 +18,6 @@ struct SignalTypeInfo {
   std::optional<unsigned> staticWidth;
   std::string parameterWidth;
 };
-
-inline auto getTemplateName(clang::TemplateName name) -> std::string {
-  if (auto *templateDecl = name.getAsTemplateDecl()) {
-    return templateDecl->getNameAsString();
-  }
-
-  return "";
-}
-
-inline auto getRecordTemplateSpec(clang::QualType type)
-    -> const clang::ClassTemplateSpecializationDecl * {
-  type = type.getCanonicalType().getUnqualifiedType();
-
-  const clang::Type *typePtr = type.getTypePtrOrNull();
-  if (!typePtr) {
-    return nullptr;
-  }
-
-  auto *recordType = typePtr->getAs<clang::RecordType>();
-  if (!recordType) {
-    return nullptr;
-  }
-
-  return llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(
-      recordType->getDecl());
-}
-
-inline auto getTemplateSpecializationType(clang::QualType type)
-    -> const clang::TemplateSpecializationType * {
-  type = type.getCanonicalType().getUnqualifiedType();
-
-  const clang::Type *typePtr = type.getTypePtrOrNull();
-  if (!typePtr) {
-    return nullptr;
-  }
-
-  return llvm::dyn_cast<clang::TemplateSpecializationType>(typePtr);
-}
-
-inline auto getTemplateSpecializationName(clang::QualType type) -> std::string {
-  if (auto *spec = getRecordTemplateSpec(type)) {
-    if (spec->getSpecializedTemplate()) {
-      return spec->getSpecializedTemplate()->getNameAsString();
-    }
-  }
-
-  if (auto *specType = getTemplateSpecializationType(type)) {
-    return getTemplateName(specType->getTemplateName());
-  }
-
-  return "";
-}
-
-inline auto getTemplateArgCount(clang::QualType type) -> unsigned {
-  if (auto *spec = getRecordTemplateSpec(type)) {
-    return spec->getTemplateArgs().size();
-  }
-
-  if (auto *specType = getTemplateSpecializationType(type)) {
-    return static_cast<unsigned>(specType->template_arguments().size());
-  }
-
-  return 0;
-}
-
-inline auto getTemplateArg(clang::QualType type, unsigned index)
-    -> std::optional<clang::TemplateArgument> {
-  if (auto *spec = getRecordTemplateSpec(type)) {
-    const clang::TemplateArgumentList &args = spec->getTemplateArgs();
-    if (index >= args.size()) {
-      return std::nullopt;
-    }
-
-    return args[index];
-  }
-
-  if (auto *specType = getTemplateSpecializationType(type)) {
-    llvm::ArrayRef<clang::TemplateArgument> args =
-        specType->template_arguments();
-
-    if (index >= args.size()) {
-      return std::nullopt;
-    }
-
-    return args[index];
-  }
-
-  return std::nullopt;
-}
-
-inline auto getTemplateWidthNameFromExpr(clang::Expr *expr)
-    -> std::optional<std::string> {
-  if (!expr) {
-    return std::nullopt;
-  }
-
-  expr = expr->IgnoreParenImpCasts();
-
-  if (auto *declRef = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-    if (auto *parm = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(
-            declRef->getDecl())) {
-      return parm->getNameAsString();
-    }
-  }
-
-  if (auto *subst = llvm::dyn_cast<clang::SubstNonTypeTemplateParmExpr>(expr)) {
-    if (auto *parm = subst->getParameter()) {
-      return parm->getNameAsString();
-    }
-  }
-
-  return std::nullopt;
-}
 
 inline auto decodeWidthArg(const clang::TemplateArgument &arg,
                            std::optional<unsigned> &staticWidth,

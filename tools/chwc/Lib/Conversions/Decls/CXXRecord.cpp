@@ -4,7 +4,7 @@
 #include "../Utils/Constant.h"
 #include "../Utils/Module.h"
 #include "../Utils/State.h"
-#include "circt/Dialect/HW/HWAttributes.h"
+#include "../Utils/Template.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -32,88 +32,6 @@ auto isModuleClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
   return false;
 }
 
-auto getTemplateIntegerDefaultAttr(mlir::OpBuilder &builder,
-                                   clang::NonTypeTemplateParmDecl *param)
-    -> mlir::Attribute {
-  if (!param || !param->hasDefaultArgument()) {
-    return {};
-  }
-
-  mlir::Type paramType = builder.getIntegerType(32);
-
-  clang::TemplateArgumentLoc defaultArgLoc = param->getDefaultArgument();
-  const clang::TemplateArgument &defaultArg = defaultArgLoc.getArgument();
-
-  if (defaultArg.getKind() == clang::TemplateArgument::Integral) {
-    return mlir::IntegerAttr::get(paramType,
-                                  defaultArg.getAsIntegral().getSExtValue());
-  }
-
-  clang::Expr *defaultExpr = defaultArgLoc.getSourceExpression();
-  if (!defaultExpr) {
-    llvm::WithColor::error() << "chwc: unsupported template parameter default: "
-                             << param->getNameAsString() << "\n";
-    return {};
-  }
-
-  defaultExpr = defaultExpr->IgnoreParenImpCasts();
-
-  auto *intLit = llvm::dyn_cast<clang::IntegerLiteral>(defaultExpr);
-  if (!intLit) {
-    llvm::WithColor::error()
-        << "chwc: template parameter default must be integer literal: "
-        << param->getNameAsString() << "\n";
-    return {};
-  }
-
-  return mlir::IntegerAttr::get(paramType, intLit->getValue().getSExtValue());
-}
-
-void collectTemplateParameters(CHWConverter &converter,
-                               HWModuleContext &moduleContext,
-                               mlir::OpBuilder &builder,
-                               clang::CXXRecordDecl *recordDecl) {
-  clang::ClassTemplateDecl *classTemplate =
-      recordDecl->getDescribedClassTemplate();
-
-  if (!classTemplate) {
-    return;
-  }
-
-  clang::TemplateParameterList *params = classTemplate->getTemplateParameters();
-
-  for (clang::NamedDecl *paramDecl : *params) {
-    auto *nttp = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(paramDecl);
-    if (!nttp) {
-      llvm::WithColor::error()
-          << "chwc: only non-type integer template parameters are supported\n";
-      continue;
-    }
-
-    if (!nttp->getType()->isIntegerType()) {
-      llvm::WithColor::error()
-          << "chwc: template module parameter must be integer: "
-          << nttp->getNameAsString() << "\n";
-      continue;
-    }
-
-    mlir::Type paramType = builder.getIntegerType(32);
-    mlir::StringAttr nameAttr = builder.getStringAttr(nttp->getNameAsString());
-    mlir::Attribute defaultAttr = getTemplateIntegerDefaultAttr(builder, nttp);
-
-    mlir::Attribute paramDeclAttr = circt::hw::ParamDeclAttr::get(
-        builder.getContext(), nameAttr, paramType, defaultAttr);
-
-    mlir::TypedAttr paramRefAttr = circt::hw::ParamDeclRefAttr::get(
-        builder.getContext(), nameAttr, paramType);
-
-    moduleContext.parameters.push_back(paramDeclAttr);
-    moduleContext.parameterRefs[nttp->getNameAsString()] = paramRefAttr;
-  }
-
-  (void)converter;
-}
-
 auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
     -> bool {
   if (!recordDecl || !recordDecl->isThisDeclarationADefinition()) {
@@ -130,7 +48,7 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  collectTemplateParameters(*this, moduleContext, builder, recordDecl);
+  utils::collectTemplateParameters(moduleContext, builder, recordDecl);
 
   for (clang::FieldDecl *fieldDecl : recordDecl->fields()) {
     TraverseFieldDecl(fieldDecl);

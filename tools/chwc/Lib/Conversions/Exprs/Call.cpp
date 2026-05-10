@@ -3,6 +3,7 @@
 #include "../Utils/Cast.h"
 #include "../Utils/Comb.h"
 #include "../Utils/State.h"
+#include "../Utils/Template.h"
 #include "llvm/Support/WithColor.h"
 
 namespace chwc {
@@ -34,39 +35,6 @@ auto getCallName(clang::CallExpr *callExpr) -> std::string {
   }
 
   return "";
-}
-
-auto getFirstIntegralTemplateArg(clang::CallExpr *callExpr)
-    -> std::optional<uint64_t> {
-  if (!callExpr) {
-    return std::nullopt;
-  }
-
-  clang::FunctionDecl *callee = callExpr->getDirectCallee();
-  if (!callee) {
-    return std::nullopt;
-  }
-
-  clang::FunctionTemplateSpecializationInfo *specInfo =
-      callee->getTemplateSpecializationInfo();
-
-  if (!specInfo || !specInfo->TemplateArguments) {
-    return std::nullopt;
-  }
-
-  llvm::ArrayRef<clang::TemplateArgument> args =
-      specInfo->TemplateArguments->asArray();
-
-  if (args.empty()) {
-    return std::nullopt;
-  }
-
-  const clang::TemplateArgument &arg = args.front();
-  if (arg.getKind() != clang::TemplateArgument::Integral) {
-    return std::nullopt;
-  }
-
-  return arg.getAsIntegral().getZExtValue();
 }
 
 auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
@@ -131,7 +99,8 @@ auto CHWConverter::generateCallExpr(clang::CallExpr *callExpr) -> mlir::Value {
       return nullptr;
     }
 
-    std::optional<uint64_t> cycles = getFirstIntegralTemplateArg(callExpr);
+    std::optional<uint64_t> cycles =
+        utils::getFirstIntegralTemplateArg(callExpr);
     if (!cycles) {
       llvm::WithColor::error()
           << "chwc: Delay requires an integer template cycle count\n";
