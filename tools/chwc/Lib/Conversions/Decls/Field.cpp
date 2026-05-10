@@ -98,6 +98,11 @@ auto CHWConverter::TraverseFieldDecl(clang::FieldDecl *fieldDecl) -> bool {
   info.kind = *kind;
   info.type = type;
 
+  if (std::optional<int64_t> init =
+          utils::getRegInitValue(fieldDecl->getType())) {
+    info.regInitValue = *init;
+  }
+
   if (std::optional<uint64_t> size = utils::getFieldArraySize(fieldDecl)) {
     info.isArray = true;
     info.arraySize = *size;

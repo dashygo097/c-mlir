@@ -173,10 +173,49 @@ inline auto decodeObjectKind(uint64_t value) -> std::optional<HWFieldKind> {
   }
 }
 
+inline auto stripArrayElementType(clang::QualType type) -> clang::QualType {
+  type = type.getCanonicalType().getUnqualifiedType();
+
+  auto *arrayType = llvm::dyn_cast_or_null<clang::ArrayType>(type.getTypePtr());
+  if (!arrayType) {
+    return type;
+  }
+
+  return arrayType->getElementType();
+}
+
 inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   SignalTypeInfo info;
 
   if (decodeValueType(type, info)) {
+    return info;
+  }
+
+  if (getTemplateSpecializationName(type) == "RegInit") {
+    if (getTemplateArgCount(type) != 2) {
+      return info;
+    }
+
+    std::optional<clang::TemplateArgument> valueArg = getTemplateArg(type, 0);
+    std::optional<clang::TemplateArgument> initArg = getTemplateArg(type, 1);
+
+    if (!valueArg || !initArg) {
+      return info;
+    }
+
+    if (valueArg->getKind() != clang::TemplateArgument::Type ||
+        initArg->getKind() != clang::TemplateArgument::Integral) {
+      return info;
+    }
+
+    SignalTypeInfo valueInfo;
+    if (!decodeValueType(valueArg->getAsType(), valueInfo)) {
+      return info;
+    }
+
+    info = valueInfo;
+    info.isSignal = true;
+    info.fieldKind = HWFieldKind::Reg;
     return info;
   }
 
@@ -251,6 +290,29 @@ inline auto getConstantArraySize(clang::QualType type)
   }
 
   return arrayType->getSize().getZExtValue();
+}
+
+inline auto getRegInitValue(clang::QualType type) -> std::optional<int64_t> {
+  type = stripArrayElementType(type);
+
+  if (getTemplateSpecializationName(type) != "RegInit") {
+    return std::nullopt;
+  }
+
+  if (getTemplateArgCount(type) != 2) {
+    return std::nullopt;
+  }
+
+  std::optional<clang::TemplateArgument> initArg = getTemplateArg(type, 1);
+  if (!initArg) {
+    return std::nullopt;
+  }
+
+  if (initArg->getKind() != clang::TemplateArgument::Integral) {
+    return std::nullopt;
+  }
+
+  return initArg->getAsIntegral().getSExtValue();
 }
 
 inline auto getArrayElementType(clang::QualType type) -> clang::QualType {

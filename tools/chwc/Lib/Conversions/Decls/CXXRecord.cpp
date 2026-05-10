@@ -83,9 +83,16 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
     }
 
     if (fieldInfo.isArray) {
+      if (fieldInfo.regInitValue != 0) {
+        llvm::WithColor::error()
+            << "chwc: non-zero RegInit array reset is not supported yet: "
+            << fieldInfo.name << "\n";
+      }
+
       fieldInfo.resetValue = utils::zeroArray(builder, loc, fieldInfo.type);
     } else {
-      fieldInfo.resetValue = utils::zeroValue(builder, loc, fieldInfo.type);
+      fieldInfo.resetValue =
+          utils::intConst(builder, loc, fieldInfo.type, fieldInfo.regInitValue);
     }
   }
 
@@ -127,9 +134,18 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
 
     case HWFieldKind::Reg: {
       if (!fieldInfo.resetValue) {
-        fieldInfo.resetValue =
-            fieldInfo.isArray ? utils::zeroArray(builder, loc, fieldInfo.type)
-                              : utils::zeroValue(builder, loc, fieldInfo.type);
+        if (fieldInfo.isArray) {
+          if (fieldInfo.regInitValue != 0) {
+            llvm::WithColor::error()
+                << "chwc: non-zero RegInit array reset is not supported yet: "
+                << fieldInfo.name << "\n";
+          }
+
+          fieldInfo.resetValue = utils::zeroArray(builder, loc, fieldInfo.type);
+        } else {
+          fieldInfo.resetValue = utils::intConst(builder, loc, fieldInfo.type,
+                                                 fieldInfo.regInitValue);
+        }
       }
 
       mlir::Value reg = utils::emitRegister(registerState, moduleContext,

@@ -35,6 +35,8 @@ struct HWFieldInfo {
   uint64_t arraySize{1};
 
   mlir::Value resetValue{};
+
+  int64_t regInitValue{0};
 };
 
 struct HWInstanceInfo {
