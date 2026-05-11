@@ -5,21 +5,30 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
+
 auto isInsideStructuredRegion(mlir::OpBuilder &builder,
                               mlir::func::FuncOp funcOp) -> bool {
   mlir::Block *block = builder.getInsertionBlock();
   if (!block) {
     return false;
   }
-  mlir::Region *blockRegion = block->getParent();
-  if (!blockRegion) {
+
+  mlir::Region *region = block->getParent();
+  if (!region) {
     return false;
   }
-  return blockRegion != &funcOp.getBody();
+
+  return region != &funcOp.getBody();
+}
+
+auto blockHasTerminator(mlir::Block *block) -> bool {
+  return block && !block->empty() &&
+         block->back().hasTrait<mlir::OpTrait::IsTerminator>();
 }
 
 void removeAutoYield(mlir::Block *block) {
-  if (!block->empty() && mlir::isa<mlir::scf::YieldOp>(block->back())) {
+  if (block && !block->empty() &&
+      mlir::isa<mlir::scf::YieldOp>(block->back())) {
     block->back().erase();
   }
 }
@@ -32,80 +41,119 @@ auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
+  mlir::Block *entryBlock = builder.getInsertionBlock();
+  if (!entryBlock || blockHasTerminator(entryBlock)) {
+    return true;
+  }
+
   mlir::Value condition = generateExpr(ifStmt->getCond());
   if (!condition) {
     llvm::WithColor::error() << "cmlirc: failed to generate if condition\n";
     return false;
   }
+
   mlir::Value condBool = utils::toBool(builder, loc, condition);
+  if (!condBool) {
+    llvm::WithColor::error() << "cmlirc: failed to cast if condition to bool\n";
+    return false;
+  }
 
   bool hasElse = ifStmt->getElse() != nullptr;
 
   if (isInsideStructuredRegion(builder, currentFunc)) {
     auto ifOp = mlir::scf::IfOp::create(builder, loc, mlir::TypeRange{},
                                         condBool, hasElse);
-    {
+
+    auto emitScfArm = [&](mlir::Block *armBlock, clang::Stmt *body) -> bool {
       mlir::OpBuilder::InsertionGuard guard(builder);
-      mlir::Block *thenBlock = &ifOp.getThenRegion().front();
 
-      removeAutoYield(thenBlock);
-      builder.setInsertionPointToStart(thenBlock);
-      TraverseStmt(ifStmt->getThen());
+      removeAutoYield(armBlock);
+      builder.setInsertionPointToStart(armBlock);
 
-      builder.setInsertionPointToEnd(thenBlock);
-      if (thenBlock->empty() ||
-          !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+      if (body && !TraverseStmt(body)) {
+        return false;
+      }
+
+      mlir::Block *exitBlock = builder.getInsertionBlock();
+      if (!exitBlock) {
+        return false;
+      }
+
+      if (exitBlock->getParent() != armBlock->getParent()) {
+        llvm::WithColor::error()
+            << "cmlirc: structured if arm escaped its region\n";
+        return false;
+      }
+
+      if (!blockHasTerminator(exitBlock)) {
+        builder.setInsertionPointToEnd(exitBlock);
         mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
       }
-    }
-    if (hasElse) {
-      mlir::OpBuilder::InsertionGuard guard(builder);
-      mlir::Block *elseBlock = &ifOp.getElseRegion().front();
 
-      removeAutoYield(elseBlock);
-      builder.setInsertionPointToStart(elseBlock);
-      TraverseStmt(ifStmt->getElse());
+      return true;
+    };
 
-      builder.setInsertionPointToEnd(elseBlock);
-      if (elseBlock->empty() ||
-          !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-        mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-      }
+    if (!emitScfArm(&ifOp.getThenRegion().front(), ifStmt->getThen())) {
+      return false;
     }
+
+    if (hasElse &&
+        !emitScfArm(&ifOp.getElseRegion().front(), ifStmt->getElse())) {
+      return false;
+    }
+
     builder.setInsertionPointAfter(ifOp);
     return true;
   }
 
-  mlir::Block *currentBlock = builder.getInsertionBlock();
-  mlir::Region *region = currentBlock->getParent();
+  mlir::Region *region = entryBlock->getParent();
 
-  mlir::Block *mergeBlock = builder.createBlock(region);
   mlir::Block *thenBlock = builder.createBlock(region);
-  mlir::Block *elseBlock = hasElse ? builder.createBlock(region) : mergeBlock;
+  mlir::Block *elseBlock = hasElse ? builder.createBlock(region) : nullptr;
+  mlir::Block *mergeBlock = builder.createBlock(region);
 
-  builder.setInsertionPointToEnd(currentBlock);
+  if (!hasElse) {
+    elseBlock = mergeBlock;
+  }
+
+  builder.setInsertionPointToEnd(entryBlock);
   mlir::cf::CondBranchOp::create(builder, loc, condBool, thenBlock,
                                  mlir::ValueRange{}, elseBlock,
                                  mlir::ValueRange{});
-  {
+
+  auto emitCfgArm = [&](mlir::Block *armBlock, clang::Stmt *body) -> bool {
     mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToStart(thenBlock);
-    TraverseStmt(ifStmt->getThen());
-    builder.setInsertionPointToEnd(thenBlock);
-    if (thenBlock->empty() ||
-        !thenBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+
+    builder.setInsertionPointToStart(armBlock);
+
+    if (body && !TraverseStmt(body)) {
+      return false;
+    }
+
+    mlir::Block *exitBlock = builder.getInsertionBlock();
+    if (!exitBlock) {
+      return false;
+    }
+
+    if (exitBlock->getParent() != mergeBlock->getParent()) {
+      llvm::WithColor::error() << "cmlirc: if arm escaped function CFG\n";
+      return false;
+    }
+
+    if (!blockHasTerminator(exitBlock)) {
+      builder.setInsertionPointToEnd(exitBlock);
       mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
     }
+
+    return true;
+  };
+
+  if (!emitCfgArm(thenBlock, ifStmt->getThen())) {
+    return false;
   }
-  if (hasElse) {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToStart(elseBlock);
-    TraverseStmt(ifStmt->getElse());
-    builder.setInsertionPointToEnd(elseBlock);
-    if (elseBlock->empty() ||
-        !elseBlock->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      mlir::cf::BranchOp::create(builder, loc, mergeBlock, mlir::ValueRange{});
-    }
+
+  if (hasElse && !emitCfgArm(elseBlock, ifStmt->getElse())) {
+    return false;
   }
 
   builder.setInsertionPointToStart(mergeBlock);

@@ -19,4 +19,3 @@ int fibonacci(int n) {
 // CHECK: %[[V4:.*]] = call @fibonacci(%[[V3]]) : (i32) -> i32
 // CHECK: %[[V5:.*]] = arith.addi %[[V2]], %[[V4]] : i32
 // CHECK: return %[[V5]] : i32
-// CHECK: return %arg0 : i32

@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -12,9 +13,19 @@ auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
+  mlir::Block *block = builder.getInsertionBlock();
+  if (block && !block->empty() &&
+      block->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
+    return true;
+  }
+
   mlir::Value retValue;
   if (auto *retExpr = stmt->getRetValue()) {
     retValue = generateExpr(retExpr);
+    if (!retValue) {
+      llvm::WithColor::error() << "cmlirc: failed to generate return value\n";
+      return false;
+    }
   }
 
   if (returnValueCapture) {
@@ -35,7 +46,6 @@ auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
     mlir::memref::StoreOp::create(builder, loc,
                                   utils::boolConst(builder, loc, true),
                                   it->returnFlag, mlir::ValueRange{});
-
     return true;
   }
 
