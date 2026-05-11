@@ -83,6 +83,9 @@ struct HWModuleContext {
   llvm::SmallVector<mlir::Attribute, 4> parameters;
   llvm::StringMap<mlir::TypedAttr> parameterRefs;
 
+  llvm::DenseMap<const clang::FieldDecl *, const clang::FieldDecl *>
+      bundleOwners;
+
   void clear() {
     recordDecl = nullptr;
     moduleOp = nullptr;
@@ -99,6 +102,7 @@ struct HWModuleContext {
     clockMethods.clear();
     parameters.clear();
     parameterRefs.clear();
+    bundleOwners.clear();
   }
 };
 

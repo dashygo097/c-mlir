@@ -6,6 +6,7 @@
 #include "chwc/Ops/Delay.h"
 #include "chwc/Ops/Mux.h"
 #include "chwc/Ops/WireDefault.h"
+#include "chwc/Port.h"
 #include "chwc/Signal.h"
 #include "chwc/Signals/RegInit.h"
 #include "chwc/Types/Enum.h"
@@ -15,6 +16,7 @@
 #ifndef CHWC_NO_GLOBAL_MODULE_ALIAS
 using ::chwc::Instance;
 using ::chwc::Module;
+using ::chwc::Port;
 #endif
 
 #ifndef CHWC_NO_GLOBAL_TYPE_ALIAS

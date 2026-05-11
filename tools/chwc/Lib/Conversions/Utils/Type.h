@@ -19,6 +19,28 @@ struct SignalTypeInfo {
   std::string parameterWidth;
 };
 
+inline auto isDerivedFromNamedClass(const clang::CXXRecordDecl *recordDecl,
+                                    llvm::StringRef expectedName) -> bool {
+  if (!recordDecl) {
+    return false;
+  }
+
+  if (recordDecl->getNameAsString() == expectedName) {
+    return true;
+  }
+
+  for (const clang::CXXBaseSpecifier &base : recordDecl->bases()) {
+    const clang::CXXRecordDecl *baseRecord =
+        base.getType()->getAsCXXRecordDecl();
+
+    if (isDerivedFromNamedClass(baseRecord, expectedName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 inline auto decodeWidthArg(const clang::TemplateArgument &arg,
                            std::optional<unsigned> &staticWidth,
                            std::string &parameterWidth) -> bool {
@@ -353,6 +375,26 @@ inline auto getFieldElementTypeInfo(clang::FieldDecl *fieldDecl)
   return getSignalTypeInfo(getFieldElementType(fieldDecl));
 }
 
+inline auto getPortRecordDecl(clang::QualType type)
+    -> const clang::CXXRecordDecl * {
+  type = type.getCanonicalType().getUnqualifiedType();
+
+  const clang::CXXRecordDecl *recordDecl = type->getAsCXXRecordDecl();
+  if (!recordDecl) {
+    return nullptr;
+  }
+
+  if (!isDerivedFromNamedClass(recordDecl, "Port")) {
+    return nullptr;
+  }
+
+  if (recordDecl->getNameAsString() == "Port") {
+    return nullptr;
+  }
+
+  return recordDecl;
+}
+
 inline auto isSignalType(clang::QualType type) -> bool {
   return getSignalTypeInfo(type).isSignal;
 }
@@ -368,6 +410,10 @@ inline auto isSignedType(clang::QualType type) -> bool {
 
 inline auto isInstanceType(clang::QualType type) -> bool {
   return getInstanceModuleDecl(type) != nullptr;
+}
+
+inline auto isPortType(clang::QualType type) -> bool {
+  return getPortRecordDecl(type) != nullptr;
 }
 
 } // namespace chwc::utils
