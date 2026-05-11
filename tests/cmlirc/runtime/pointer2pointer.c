@@ -1,0 +1,24 @@
+// RUN: cmlirc %s -function=main -o %t.input.mlir
+// RUN: mlir-opt --convert-to-llvm %t.input.mlir -o %t.llvm.mlir
+// RUN: mlir-translate --mlir-to-llvmir %t.llvm.mlir -o %t.ll
+// RUN: lli %t.ll | FileCheck %s
+
+#include <stdio.h>
+
+int main() {
+  int i = 6;
+  int *j = &i;
+  int **k = &j;
+
+  printf("The value of i is %d\n", i);
+  printf("The value of i is %d\n", *j);
+  printf("The value of i is %d\n", *(&i));
+  printf("The value of i is %d\n", **(&j));
+
+  return 0;
+}
+
+// CHECK: The value of i is 6
+// CHECK: The value of i is 6
+// CHECK: The value of i is 6
+// CHECK: The value of i is 6

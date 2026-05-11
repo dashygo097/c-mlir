@@ -8,7 +8,7 @@
 int main() {
   for (int i = 0; i < 10; i++) {
     if (i == 3) {
-      continue;
+      break;
     }
     printf("i is %d\n", i);
   }
@@ -21,10 +21,4 @@ int main() {
 // CHECK: i is 0
 // CHECK: i is 1
 // CHECK: i is 2
-// CHECK: i is 4
-// CHECK: i is 5
-// CHECK: i is 6
-// CHECK: i is 7
-// CHECK: i is 8
-// CHECK: i is 9
 // CHECK: Loop done!
