@@ -1,5 +1,5 @@
 #include "../../Converter.h"
-#include "../Utils/Constant.h"
+#include "../Utils/Cast.h"
 
 namespace chwc {
 
@@ -8,35 +8,44 @@ auto CHWConverter::TraverseDeclStmt(clang::DeclStmt *declStmt) -> bool {
     return true;
   }
 
-  if (functionStack.empty()) {
-    functionStack.emplace_back();
-  }
-
   for (clang::Decl *decl : declStmt->decls()) {
-    auto *varDecl = mlir::dyn_cast<clang::VarDecl>(decl);
+    auto *varDecl = llvm::dyn_cast_or_null<clang::VarDecl>(decl);
     if (!varDecl) {
       continue;
     }
 
-    mlir::Value value = nullptr;
-
-    if (varDecl->hasInit()) {
-      value = generateExpr(varDecl->getInit());
+    if (!varDecl->hasInit()) {
+      continue;
     }
 
-    if (!value) {
-      mlir::Type type = convertType(varDecl->getType());
-      if (!type) {
-        continue;
+    mlir::Value initValue = generateExpr(varDecl->getInit());
+    if (!initValue) {
+      llvm::WithColor::error() << "chwc: failed to generate local initializer: "
+                               << varDecl->getNameAsString() << "\n";
+      continue;
+    }
+
+    clang::QualType varType = varDecl->getType();
+
+    if (!varType->isUndeducedAutoType() && !varType->getContainedAutoType()) {
+      mlir::Type targetType = convertType(varType);
+
+      if (targetType && initValue.getType() != targetType) {
+        mlir::OpBuilder &builder = contextManager.Builder();
+        mlir::Location loc = builder.getUnknownLoc();
+
+        initValue = utils::promoteValue(builder, loc, initValue, targetType);
+        if (!initValue) {
+          continue;
+        }
       }
-
-      mlir::OpBuilder &builder = contextManager.Builder();
-      mlir::Location loc = builder.getUnknownLoc();
-
-      value = utils::zeroValue(builder, loc, type);
     }
 
-    functionStack.back().locals[varDecl] = value;
+    if (functionStack.empty()) {
+      functionStack.emplace_back();
+    }
+
+    functionStack.back().locals[varDecl] = initValue;
   }
 
   return true;

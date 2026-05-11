@@ -156,7 +156,6 @@ inline auto decodeValueType(clang::QualType type, SignalTypeInfo &info)
     }
 
     uint64_t number = numberArg->getAsIntegral().getZExtValue();
-
     unsigned width = 0;
     uint64_t values = 1;
 
@@ -214,20 +213,20 @@ inline auto getSignalTypeInfo(clang::QualType type) -> SignalTypeInfo {
   }
 
   if (getTemplateSpecializationName(type) == "RegInit") {
-    if (getTemplateArgCount(type) != 2) {
+    if (getTemplateArgCount(type) < 1) {
       return info;
     }
 
     std::optional<clang::TemplateArgument> valueArg = getTemplateArg(type, 0);
-    std::optional<clang::TemplateArgument> initArg = getTemplateArg(type, 1);
-
-    if (!valueArg || !initArg) {
+    if (!valueArg || valueArg->getKind() != clang::TemplateArgument::Type) {
       return info;
     }
 
-    if (valueArg->getKind() != clang::TemplateArgument::Type ||
-        initArg->getKind() != clang::TemplateArgument::Integral) {
-      return info;
+    if (getTemplateArgCount(type) >= 2) {
+      std::optional<clang::TemplateArgument> initArg = getTemplateArg(type, 1);
+      if (!initArg || initArg->getKind() != clang::TemplateArgument::Integral) {
+        return info;
+      }
     }
 
     SignalTypeInfo valueInfo;
@@ -321,17 +320,17 @@ inline auto getRegInitValue(clang::QualType type) -> std::optional<int64_t> {
     return std::nullopt;
   }
 
-  if (getTemplateArgCount(type) != 2) {
+  if (getTemplateArgCount(type) < 1) {
     return std::nullopt;
+  }
+
+  if (getTemplateArgCount(type) < 2) {
+    return 0;
   }
 
   std::optional<clang::TemplateArgument> initArg = getTemplateArg(type, 1);
-  if (!initArg) {
-    return std::nullopt;
-  }
-
-  if (initArg->getKind() != clang::TemplateArgument::Integral) {
-    return std::nullopt;
+  if (!initArg || initArg->getKind() != clang::TemplateArgument::Integral) {
+    return 0;
   }
 
   return initArg->getAsIntegral().getSExtValue();

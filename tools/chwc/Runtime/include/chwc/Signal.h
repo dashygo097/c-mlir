@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <type_traits>
-#include <utility>
 
 namespace chwc {
 
@@ -27,11 +26,11 @@ public:
 
   constexpr Signal() = default;
 
-  constexpr explicit Signal(const T &value) : value_(value) {}
+  explicit constexpr Signal(const T &value) : value_(value) {}
 
   template <typename U, typename = std::enable_if_t<
                             !std::is_same_v<Signal<T, Kind>, std::decay_t<U>>>>
-  constexpr explicit Signal(U &&value) : value_(T(std::forward<U>(value))) {}
+  explicit constexpr Signal(const U &value) : value_(unwrap(value)) {}
 
   [[nodiscard]] constexpr auto read() const -> T { return value_; }
 
@@ -56,8 +55,8 @@ public:
 
   template <typename U, typename = std::enable_if_t<
                             !std::is_same_v<Signal<T, Kind>, std::decay_t<U>>>>
-  constexpr auto operator=(U &&value) -> Signal & {
-    value_ = T(std::forward<U>(value));
+  constexpr auto operator=(const U &value) -> Signal & {
+    value_ = unwrap(value);
     return *this;
   }
 
@@ -220,9 +219,9 @@ private:
     return T(value);
   }
 
-  template <ObjectKind OtherKind>
-  static constexpr auto unwrap(const Signal<T, OtherKind> &signal) -> T {
-    return signal.read();
+  template <typename U, ObjectKind OtherKind>
+  static constexpr auto unwrap(const Signal<U, OtherKind> &signal) -> T {
+    return T(signal.read());
   }
 
   T value_{};

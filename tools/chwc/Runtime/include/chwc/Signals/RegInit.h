@@ -7,7 +7,7 @@
 
 namespace chwc {
 
-template <typename T, typename T::storage_type Init>
+template <typename T, typename T::storage_type Init = 0>
 class RegInit final : public Signal<T, ObjectKind::Reg> {
 public:
   using Base = Signal<T, ObjectKind::Reg>;
@@ -23,11 +23,11 @@ public:
 
   constexpr RegInit() : Base(T(Init)) {}
 
-  constexpr explicit RegInit(const T &value) : Base(value) {}
+  constexpr RegInit(const T &value) : Base(value) {}
 
   template <typename U, typename = std::enable_if_t<
                             !std::is_same_v<RegInit<T, Init>, std::decay_t<U>>>>
-  constexpr explicit RegInit(U &&value) : Base(T(value)) {}
+  constexpr RegInit(const U &value) : Base(T(value)) {}
 
   using Base::operator=;
 };
@@ -48,4 +48,4 @@ struct TypeTraits<RegInit<T, Init>> {
 
 } // namespace chwc
 
-#endif // CHWC_RUNTIME_REGINIT_H
+#endif

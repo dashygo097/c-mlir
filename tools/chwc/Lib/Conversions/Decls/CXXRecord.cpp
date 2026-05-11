@@ -32,6 +32,59 @@ auto isModuleClassImpl(clang::CXXRecordDecl *recordDecl) -> bool {
   return false;
 }
 
+auto makeIndexConst(mlir::OpBuilder &builder, mlir::Location loc,
+                    uint64_t value) -> mlir::Value {
+  return utils::intConst(builder, loc, builder.getIntegerType(32), value);
+}
+
+auto buildArrayResetValue(mlir::OpBuilder &builder, mlir::Location loc,
+                          HWFieldInfo &fieldInfo) -> mlir::Value {
+  mlir::Value resetArray = utils::zeroArray(builder, loc, fieldInfo.type);
+  if (!resetArray) {
+    return nullptr;
+  }
+
+  for (uint64_t i = 0; i < fieldInfo.arraySize; ++i) {
+    int64_t initValue = fieldInfo.regInitValue;
+
+    if (!fieldInfo.regInitValues.empty()) {
+      initValue = 0;
+
+      if (i < fieldInfo.regInitValues.size()) {
+        initValue = fieldInfo.regInitValues[i];
+      }
+    }
+
+    if (initValue == 0) {
+      continue;
+    }
+
+    mlir::Value index = makeIndexConst(builder, loc, i);
+    mlir::Value elem =
+        utils::intConst(builder, loc, fieldInfo.elementType, initValue);
+
+    if (!index || !elem) {
+      return nullptr;
+    }
+
+    resetArray = utils::arrayInject(builder, loc, resetArray, index, elem);
+    if (!resetArray) {
+      return nullptr;
+    }
+  }
+
+  return resetArray;
+}
+
+auto buildDefaultResetValue(mlir::OpBuilder &builder, mlir::Location loc,
+                            HWFieldInfo &fieldInfo) -> mlir::Value {
+  if (fieldInfo.isArray) {
+    return buildArrayResetValue(builder, loc, fieldInfo);
+  }
+
+  return utils::intConst(builder, loc, fieldInfo.type, fieldInfo.regInitValue);
+}
+
 auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
     -> bool {
   if (!recordDecl || !recordDecl->isThisDeclarationADefinition()) {
@@ -82,18 +135,11 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
       continue;
     }
 
-    if (fieldInfo.isArray) {
-      if (fieldInfo.regInitValue != 0) {
-        llvm::WithColor::error()
-            << "chwc: non-zero RegInit array reset is not supported yet: "
-            << fieldInfo.name << "\n";
-      }
-
-      fieldInfo.resetValue = utils::zeroArray(builder, loc, fieldInfo.type);
-    } else {
-      fieldInfo.resetValue =
-          utils::intConst(builder, loc, fieldInfo.type, fieldInfo.regInitValue);
+    if (!fieldInfo.isArray) {
+      continue;
     }
+
+    fieldInfo.resetValue = buildDefaultResetValue(builder, loc, fieldInfo);
   }
 
   emitMode = HWEmitMode::Reset;
@@ -134,18 +180,7 @@ auto CHWConverter::TraverseCXXRecordDecl(clang::CXXRecordDecl *recordDecl)
 
     case HWFieldKind::Reg: {
       if (!fieldInfo.resetValue) {
-        if (fieldInfo.isArray) {
-          if (fieldInfo.regInitValue != 0) {
-            llvm::WithColor::error()
-                << "chwc: non-zero RegInit array reset is not supported yet: "
-                << fieldInfo.name << "\n";
-          }
-
-          fieldInfo.resetValue = utils::zeroArray(builder, loc, fieldInfo.type);
-        } else {
-          fieldInfo.resetValue = utils::intConst(builder, loc, fieldInfo.type,
-                                                 fieldInfo.regInitValue);
-        }
+        fieldInfo.resetValue = buildDefaultResetValue(builder, loc, fieldInfo);
       }
 
       mlir::Value reg = utils::emitRegister(registerState, moduleContext,

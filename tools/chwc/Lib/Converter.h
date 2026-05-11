@@ -37,6 +37,7 @@ struct HWFieldInfo {
   mlir::Value resetValue{};
 
   int64_t regInitValue{0};
+  llvm::SmallVector<int64_t, 8> regInitValues;
 };
 
 struct HWInstanceInfo {
@@ -135,13 +136,6 @@ public:
   // loop
   auto TraverseForStmt(clang::ForStmt *forStmt) -> bool;
 
-private:
-  CHWContextManager &contextManager;
-
-  HWModuleContext moduleContext;
-  llvm::SmallVector<HWFunctionContext, 8> functionStack;
-  HWEmitMode emitMode{HWEmitMode::Normal};
-
   // type router
   auto convertType(clang::QualType type) -> mlir::Type;
   auto convertBuiltinType(const clang::BuiltinType *type) -> mlir::Type;
@@ -183,6 +177,13 @@ private:
       -> mlir::Value;
   auto generateLOrBinaryOperator(mlir::Value lhs, mlir::Value rhs)
       -> mlir::Value;
+
+private:
+  CHWContextManager &contextManager;
+
+  HWModuleContext moduleContext;
+  llvm::SmallVector<HWFunctionContext, 8> functionStack;
+  HWEmitMode emitMode{HWEmitMode::Normal};
 };
 
 } // namespace chwc
