@@ -2,6 +2,7 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
+
 auto CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef)
     -> mlir::Value {
   if (auto *varDecl = mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
@@ -10,13 +11,11 @@ auto CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef)
         return paramTable[parmDecl];
       }
     }
+
     if (symbolTable.count(varDecl)) {
-      mlir::Value val = symbolTable[varDecl];
-      if (varDecl->getType()->isPointerType()) {
-        return val;
-      }
-      return val;
+      return symbolTable[varDecl];
     }
+
     llvm::WithColor::error()
         << "cmlirc: variable not found: " << varDecl->getName() << "\n";
     return nullptr;
@@ -37,4 +36,5 @@ auto CMLIRConverter::generateDeclRefExpr(clang::DeclRefExpr *declRef)
                            << declRef->getDecl()->getDeclKindName() << "\n";
   return nullptr;
 }
+
 } // namespace cmlirc

@@ -12,17 +12,21 @@ enum class LHSKind { Scalar, Indexed, Member };
 
 inline auto classifyLHS(clang::Expr *lhs) -> LHSKind {
   clang::Expr *bare = lhs->IgnoreParenImpCasts();
+
   if (mlir::isa<clang::ArraySubscriptExpr>(bare)) {
     return LHSKind::Indexed;
   }
+
   if (auto *uo = mlir::dyn_cast<clang::UnaryOperator>(bare)) {
     if (uo->getOpcode() == clang::UO_Deref) {
       return LHSKind::Indexed;
     }
   }
+
   if (mlir::isa<clang::MemberExpr>(bare)) {
     return LHSKind::Member;
   }
+
   return LHSKind::Scalar;
 }
 
@@ -53,18 +57,32 @@ inline auto loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
                     mlir::Type elementType) -> mlir::Value {
   switch (kind) {
   case LHSKind::Indexed:
+    if (!arrayAccess) {
+      llvm::WithColor::error() << "cmlirc: missing indexed LHS access\n";
+      return nullptr;
+    }
+
     if (mlir::isa<mlir::LLVM::LLVMPointerType>(arrayAccess->base.getType())) {
       mlir::Value offsetPtr = getLLVMOffsetPointer(
           builder, loc, arrayAccess->base, elementType, arrayAccess->indices);
       return mlir::LLVM::LoadOp::create(builder, loc, elementType, offsetPtr)
           .getResult();
     }
+
     return mlir::memref::LoadOp::create(builder, loc, arrayAccess->base,
                                         arrayAccess->indices)
         .getResult();
+
   case LHSKind::Member:
-    return mlir::LLVM::LoadOp::create(builder, loc, elementType, lhsMemref);
+    return mlir::LLVM::LoadOp::create(builder, loc, elementType, lhsMemref)
+        .getResult();
+
   case LHSKind::Scalar:
+    if (mlir::isa<mlir::LLVM::LLVMPointerType>(lhsMemref.getType())) {
+      return mlir::LLVM::LoadOp::create(builder, loc, elementType, lhsMemref)
+          .getResult();
+    }
+
     return mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
   }
 
@@ -78,22 +96,35 @@ storeLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
          const std::optional<cmlirc::ArrayAccessInfo> &arrayAccess) {
   switch (kind) {
   case LHSKind::Indexed:
+    if (!arrayAccess) {
+      llvm::WithColor::error() << "cmlirc: missing indexed LHS access\n";
+      return;
+    }
+
     if (mlir::isa<mlir::LLVM::LLVMPointerType>(arrayAccess->base.getType())) {
       mlir::Value offsetPtr =
           getLLVMOffsetPointer(builder, loc, arrayAccess->base, value.getType(),
                                arrayAccess->indices);
       mlir::LLVM::StoreOp::create(builder, loc, value, offsetPtr);
-      break;
+      return;
     }
+
     mlir::memref::StoreOp::create(builder, loc, value, arrayAccess->base,
                                   arrayAccess->indices);
-    break;
+    return;
+
   case LHSKind::Member:
     mlir::LLVM::StoreOp::create(builder, loc, value, lhsMemref);
-    break;
+    return;
+
   case LHSKind::Scalar:
+    if (mlir::isa<mlir::LLVM::LLVMPointerType>(lhsMemref.getType())) {
+      mlir::LLVM::StoreOp::create(builder, loc, value, lhsMemref);
+      return;
+    }
+
     mlir::memref::StoreOp::create(builder, loc, value, lhsMemref);
-    break;
+    return;
   }
 }
 

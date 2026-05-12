@@ -12,6 +12,10 @@ auto CMLIRConverter::convertPointerType(const clang::PointerType *type)
     return mlir::LLVM::LLVMPointerType::get(builder.getContext());
   }
 
+  if (pointeeType->isFunctionType()) {
+    return mlir::LLVM::LLVMPointerType::get(builder.getContext());
+  }
+
   if (mlir::isa<clang::RecordType>(pointeeType.getTypePtr())) {
     return mlir::LLVM::LLVMPointerType::get(builder.getContext());
   }
@@ -24,16 +28,19 @@ auto CMLIRConverter::convertPointerType(const clang::PointerType *type)
                mlir::dyn_cast<clang::ArrayType>(currentType.getTypePtr())) {
       if (auto *constArrayType =
               mlir::dyn_cast<clang::ConstantArrayType>(arrType)) {
-        int64_t size = constArrayType->getSize().getSExtValue();
-        dimensions.push_back(size);
-        currentType = constArrayType->getElementType();
+        dimensions.push_back(constArrayType->getSize().getSExtValue());
+        currentType = constArrayType->getElementType().getCanonicalType();
       } else {
         dimensions.push_back(mlir::ShapedType::kDynamic);
-        currentType = arrType->getElementType();
+        currentType = arrType->getElementType().getCanonicalType();
       }
     }
 
     mlir::Type elementType = convertType(currentType);
+    if (!elementType) {
+      return nullptr;
+    }
+
     dimensions.insert(dimensions.begin(), mlir::ShapedType::kDynamic);
     return mlir::MemRefType::get(dimensions, elementType);
   }
@@ -42,6 +49,8 @@ auto CMLIRConverter::convertPointerType(const clang::PointerType *type)
   if (!elementType) {
     return nullptr;
   }
+
   return mlir::MemRefType::get({mlir::ShapedType::kDynamic}, elementType);
 }
+
 } // namespace cmlirc

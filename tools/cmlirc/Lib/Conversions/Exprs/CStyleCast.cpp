@@ -49,11 +49,21 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   case clang::CK_BitCast:
   case clang::CK_LValueBitCast:
   case clang::CK_AddressSpaceConversion: {
+    if (castExpr->getType()->isPointerType() &&
+        mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+      return value;
+    }
+
     bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
     return utils::toBitcastValue(builder, loc, value, targetType, isSigned);
   }
 
   case clang::CK_NoOp: {
+    if (castExpr->getType()->isPointerType() &&
+        mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+      return value;
+    }
+
     return value;
   }
 

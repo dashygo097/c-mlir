@@ -20,25 +20,23 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   switch (castExpr->getCastKind()) {
   case clang::CK_LValueToRValue: {
     mlir::Value value = generateExpr(subExpr);
-
-    if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType()) &&
-        !lastArrayAccess) {
-      return mlir::LLVM::LoadOp::create(builder, loc, targetType, value)
-          .getResult();
-    }
-
-    if (subExpr->getType()->isPointerType() && !lastArrayAccess) {
-      return value;
+    if (!value) {
+      return nullptr;
     }
 
     if (lastArrayAccess && lastArrayAccess->base == value) {
       if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+        mlir::Type loadType = targetType;
+        if (subExpr->getType()->isPointerType()) {
+          loadType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+        }
+
         mlir::Value offsetPtr =
             utils::getLLVMOffsetPointer(builder, loc, lastArrayAccess->base,
-                                        targetType, lastArrayAccess->indices);
+                                        loadType, lastArrayAccess->indices);
 
         mlir::Value result =
-            mlir::LLVM::LoadOp::create(builder, loc, targetType, offsetPtr)
+            mlir::LLVM::LoadOp::create(builder, loc, loadType, offsetPtr)
                 .getResult();
 
         lastArrayAccess.reset();
@@ -54,10 +52,37 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       return result;
     }
 
+    if (subExpr->getType()->isPointerType()) {
+      if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+        auto *bare = subExpr->IgnoreParenImpCasts();
+
+        if (auto *declRef = mlir::dyn_cast<clang::DeclRefExpr>(bare)) {
+          if (auto *varDecl =
+                  mlir::dyn_cast<clang::VarDecl>(declRef->getDecl())) {
+            if (!mlir::isa<clang::ParmVarDecl>(varDecl) &&
+                symbolTable.count(varDecl) && symbolTable[varDecl] == value) {
+              auto ptrType =
+                  mlir::LLVM::LLVMPointerType::get(builder.getContext());
+
+              return mlir::LLVM::LoadOp::create(builder, loc, ptrType, value)
+                  .getResult();
+            }
+          }
+        }
+      }
+
+      return value;
+    }
+
     if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(value.getType())) {
       if (memrefType.hasRank() && memrefType.getRank() == 0) {
         return mlir::memref::LoadOp::create(builder, loc, value).getResult();
       }
+    }
+
+    if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+      return mlir::LLVM::LoadOp::create(builder, loc, targetType, value)
+          .getResult();
     }
 
     return value;
@@ -105,6 +130,12 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   case CK::CK_AddressSpaceConversion: {
     mlir::Value value = generateExpr(subExpr);
     bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
+
+    if (castExpr->getType()->isPointerType() &&
+        mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+      return value;
+    }
+
     return utils::toBitcastValue(builder, loc, value, targetType, isSigned);
   }
 

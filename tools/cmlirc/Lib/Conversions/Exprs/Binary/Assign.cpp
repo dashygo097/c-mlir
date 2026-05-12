@@ -7,7 +7,7 @@
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
-// Emit the arithmetic for a compound-assignment operator (+=, -= …).
+
 auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
                        clang::BinaryOperatorKind op, mlir::Value lhs,
                        mlir::Value rhs) -> mlir::Value {
@@ -48,39 +48,63 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
 
   utils::LHSKind lhsKind = utils::classifyLHS(assignOp->getLHS());
 
-  // Evaluate LHS address
   mlir::Value lhsAddr = generateExpr(assignOp->getLHS());
+  if (!lhsAddr) {
+    return nullptr;
+  }
 
-  // For indexed access, consume the side-channel ArrayAccessInfo immediately.
   std::optional<ArrayAccessInfo> arrayAccess;
   if (lhsKind == utils::LHSKind::Indexed) {
     if (!lastArrayAccess) {
       llvm::WithColor::error() << "cmlirc: missing array access info for LHS\n";
       return nullptr;
     }
+
     arrayAccess = std::move(lastArrayAccess);
     lastArrayAccess.reset();
   }
 
-  // Evaluate RHS value
   mlir::Value rhsValue = generateExpr(assignOp->getRHS());
+  if (!rhsValue) {
+    return nullptr;
+  }
+
   mlir::Value resultValue = rhsValue;
 
-  // Compound-assignment
   if (assignOp->getOpcode() != clang::BO_Assign) {
     mlir::Type lhsElemType = convertType(assignOp->getLHS()->getType());
-    mlir::Value oldValue =
-        loadLHS(builder, loc, lhsKind, lhsAddr, arrayAccess, lhsElemType);
+    if (!lhsElemType) {
+      return nullptr;
+    }
+
+    if (assignOp->getLHS()->getType()->isPointerType()) {
+      lhsElemType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+    }
+
+    mlir::Value oldValue = utils::loadLHS(builder, loc, lhsKind, lhsAddr,
+                                          arrayAccess, lhsElemType);
+    if (!oldValue) {
+      return nullptr;
+    }
+
     mlir::Type lhsType = oldValue.getType();
     mlir::Value computeLHS = oldValue;
 
-    // Promote LHS to the computation type if required (e.g. short += int).
     if (auto *compOp =
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       mlir::Type computeType = convertType(compOp->getComputationResultType());
-      bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
+      if (!computeType) {
+        return nullptr;
+      }
+
+      bool isSigned =
+          compOp->getLHS()->getType()->isSignedIntegerOrEnumerationType();
+
       computeLHS =
           utils::toValue(builder, loc, computeLHS, computeType, isSigned);
+      if (!computeLHS) {
+        return nullptr;
+      }
     }
 
     mlir::Value computed = emitCompoundArith(
@@ -89,16 +113,49 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
       return nullptr;
     }
 
-    // Truncate back to the LHS storage type if computation widened it.
+    resultValue = computed;
+
     if (auto *compOp =
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
-      bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
+      bool isSigned =
+          compOp->getLHS()->getType()->isSignedIntegerOrEnumerationType();
+
       resultValue = utils::toValue(builder, loc, computed, lhsType, isSigned);
+      if (!resultValue) {
+        return nullptr;
+      }
     }
   }
 
-  // Store result
-  storeLHS(builder, loc, lhsKind, resultValue, lhsAddr, arrayAccess);
+  if (assignOp->getOpcode() == clang::BO_Assign) {
+    if (assignOp->getLHS()->getType()->isPointerType()) {
+      auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+
+      if (!mlir::isa<mlir::LLVM::LLVMPointerType>(resultValue.getType())) {
+        resultValue = utils::toPointer(builder, loc, resultValue, ptrType);
+        if (!resultValue) {
+          return nullptr;
+        }
+      }
+    } else {
+      mlir::Type lhsType = convertType(assignOp->getLHS()->getType());
+      if (!lhsType) {
+        return nullptr;
+      }
+
+      if (resultValue.getType() != lhsType) {
+        bool isSigned =
+            assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType();
+
+        if (mlir::Value casted =
+                utils::toValue(builder, loc, resultValue, lhsType, isSigned)) {
+          resultValue = casted;
+        }
+      }
+    }
+  }
+
+  utils::storeLHS(builder, loc, lhsKind, resultValue, lhsAddr, arrayAccess);
   return resultValue;
 }
 
