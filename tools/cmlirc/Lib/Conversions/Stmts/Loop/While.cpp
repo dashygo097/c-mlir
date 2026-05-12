@@ -57,14 +57,15 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
           mlir::Value whileCond =
               utils::toBool(builder, loc, generateExpr(whileStmt->getCond()));
 
-          mlir::Value finalCond = utils::andi(builder, loc, whileCond, args[1]);
+          mlir::Value finalCond =
+              utils::bitAnd(builder, loc, whileCond, args[1]);
 
           if (breakFlag) {
-            mlir::Value notBroke = utils::noti(
+            mlir::Value notBroke = utils::bitNot(
                 builder, loc,
                 mlir::memref::LoadOp::create(builder, loc, breakFlag)
                     .getResult());
-            finalCond = utils::andi(builder, loc, finalCond, notBroke);
+            finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
 
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
@@ -130,7 +131,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
                                       prevRetVal)
             .getResult();
 
-    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
+    mlir::Value newKeepGoing = utils::bitNot(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc,
                                mlir::ValueRange{newRetVal, newKeepGoing});
@@ -155,14 +156,15 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
                                   generateExpr(whileStmt->getCond()))
                   : utils::boolConst(builder, loc, true);
 
-          mlir::Value finalCond = utils::andi(builder, loc, whileCond, args[0]);
+          mlir::Value finalCond =
+              utils::bitAnd(builder, loc, whileCond, args[0]);
 
           if (breakFlag) {
-            mlir::Value notBroke = utils::noti(
+            mlir::Value notBroke = utils::bitNot(
                 builder, loc,
                 mlir::memref::LoadOp::create(builder, loc, breakFlag)
                     .getResult());
-            finalCond = utils::andi(builder, loc, finalCond, notBroke);
+            finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
 
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
@@ -212,7 +214,7 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
 
     mlir::Value didReturn =
         mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
-    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
+    mlir::Value newKeepGoing = utils::bitNot(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{newKeepGoing});
 
@@ -228,11 +230,11 @@ bool CMLIRConverter::TraverseWhileStmt(clang::WhileStmt *whileStmt) {
         mlir::Value cond =
             utils::toBool(builder, loc, generateExpr(whileStmt->getCond()));
         if (breakFlag) {
-          mlir::Value notBroke =
-              utils::noti(builder, loc,
-                          mlir::memref::LoadOp::create(builder, loc, breakFlag)
-                              .getResult());
-          cond = utils::andi(builder, loc, cond, notBroke);
+          mlir::Value notBroke = utils::bitNot(
+              builder, loc,
+              mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                  .getResult());
+          cond = utils::bitAnd(builder, loc, cond, notBroke);
         }
         mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },

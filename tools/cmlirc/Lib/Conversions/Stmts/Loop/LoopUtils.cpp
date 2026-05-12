@@ -14,10 +14,10 @@ mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
   for (mlir::Value flag : {breakFlag, continueFlag, returnFlag}) {
     if (!flag)
       continue;
-    mlir::Value notFlag = utils::noti(
+    mlir::Value notFlag = utils::bitNot(
         builder, loc,
         mlir::memref::LoadOp::create(builder, loc, flag).getResult());
-    result = result ? utils::andi(builder, loc, result, notFlag) : notFlag;
+    result = result ? utils::bitAnd(builder, loc, result, notFlag) : notFlag;
   }
   return result;
 }

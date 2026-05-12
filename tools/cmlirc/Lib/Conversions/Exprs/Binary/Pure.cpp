@@ -1,6 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
 #include "../../Utils/Constants.h"
+#include "../../Utils/Numerics.h"
 #include "../../Utils/Operators.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "clang/AST/OperationKinds.h"
@@ -27,31 +28,27 @@ auto CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
   switch (binOp->getOpcode()) {
   // Arithmetic
   case CBO::BO_Add:
-    return utils::emitOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::add(builder, loc, lhs, rhs);
   case CBO::BO_Sub:
-    return utils::emitOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::sub(builder, loc, lhs, rhs);
   case CBO::BO_Mul:
-    return utils::emitOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::mul(builder, loc, lhs, rhs);
   case CBO::BO_Div:
-    return utils::emitOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(
-        builder, loc, lhs, rhs);
+    return utils::divs(builder, loc, lhs, rhs);
   case CBO::BO_Rem:
-    return utils::emitIntOp<mlir::arith::RemSIOp>(builder, loc, lhs, rhs);
+    return utils::rems(builder, loc, lhs, rhs);
 
   // Bitwise
   case CBO::BO_And:
-    return utils::emitIntOp<mlir::arith::AndIOp>(builder, loc, lhs, rhs);
+    return utils::bitAnd(builder, loc, lhs, rhs);
   case CBO::BO_Or:
-    return utils::emitIntOp<mlir::arith::OrIOp>(builder, loc, lhs, rhs);
+    return utils::bitOr(builder, loc, lhs, rhs);
   case CBO::BO_Xor:
-    return utils::emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
+    return utils::bitXor(builder, loc, lhs, rhs);
   case CBO::BO_Shl:
-    return utils::emitIntOp<mlir::arith::ShLIOp>(builder, loc, lhs, rhs);
+    return utils::shl(builder, loc, lhs, rhs);
   case CBO::BO_Shr:
-    return utils::emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
+    return utils::shrs(builder, loc, lhs, rhs);
 
   // Cmp
   case CBO::BO_LT:

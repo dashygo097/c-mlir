@@ -115,14 +115,14 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
         doStmt->getCond()
             ? utils::toBool(builder, loc, generateExpr(doStmt->getCond()))
             : utils::boolConst(builder, loc, false);
-    mlir::Value notDidReturn = utils::noti(builder, loc, didReturn);
+    mlir::Value notDidReturn = utils::bitNot(builder, loc, didReturn);
     mlir::Value newKeepGoing =
-        utils::andi(builder, loc, origCond, notDidReturn);
+        utils::bitAnd(builder, loc, origCond, notDidReturn);
     if (breakFlag) {
-      mlir::Value notBroke = utils::noti(
+      mlir::Value notBroke = utils::bitNot(
           builder, loc,
           mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-      newKeepGoing = utils::andi(builder, loc, newKeepGoing, notBroke);
+      newKeepGoing = utils::bitAnd(builder, loc, newKeepGoing, notBroke);
     }
 
     mlir::scf::YieldOp::create(builder, loc,
@@ -187,16 +187,16 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
             : utils::boolConst(builder, loc, true);
 
     if (breakFlag) {
-      mlir::Value notBroke = utils::noti(
+      mlir::Value notBroke = utils::bitNot(
           builder, loc,
           mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-      cond = utils::andi(builder, loc, cond, notBroke);
+      cond = utils::bitAnd(builder, loc, cond, notBroke);
     }
     if (iterRetFlag) {
-      mlir::Value notRet = utils::noti(
+      mlir::Value notRet = utils::bitNot(
           builder, loc,
           mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
-      cond = utils::andi(builder, loc, cond, notRet);
+      cond = utils::bitAnd(builder, loc, cond, notRet);
     }
 
     mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
@@ -261,10 +261,10 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
           ? utils::toBool(builder, loc, generateExpr(doStmt->getCond()))
           : utils::boolConst(builder, loc, true);
   if (breakFlag) {
-    mlir::Value notBroke = utils::noti(
+    mlir::Value notBroke = utils::bitNot(
         builder, loc,
         mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-    cond = utils::andi(builder, loc, cond, notBroke);
+    cond = utils::bitAnd(builder, loc, cond, notBroke);
   }
   mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
 

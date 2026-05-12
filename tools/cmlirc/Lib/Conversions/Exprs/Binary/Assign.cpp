@@ -1,7 +1,7 @@
 #include "../../../Converter.h"
 #include "../../Utils/Casts.h"
 #include "../../Utils/LHS.h"
-#include "../../Utils/Operators.h"
+#include "../../Utils/Numerics.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
@@ -15,29 +15,25 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
 
   switch (op) {
   case CBO::BO_AddAssign:
-    return utils::emitOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::add(builder, loc, lhs, rhs);
   case CBO::BO_SubAssign:
-    return utils::emitOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::sub(builder, loc, lhs, rhs);
   case CBO::BO_MulAssign:
-    return utils::emitOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(builder, loc,
-                                                                   lhs, rhs);
+    return utils::mul(builder, loc, lhs, rhs);
   case CBO::BO_DivAssign:
-    return utils::emitOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(
-        builder, loc, lhs, rhs);
+    return utils::divs(builder, loc, lhs, rhs);
   case CBO::BO_RemAssign:
-    return utils::emitIntOp<mlir::arith::RemSIOp>(builder, loc, lhs, rhs);
+    return utils::rems(builder, loc, lhs, rhs);
   case CBO::BO_AndAssign:
-    return utils::emitIntOp<mlir::arith::AndIOp>(builder, loc, lhs, rhs);
+    return utils::bitAnd(builder, loc, lhs, rhs);
   case CBO::BO_OrAssign:
-    return utils::emitIntOp<mlir::arith::OrIOp>(builder, loc, lhs, rhs);
+    return utils::bitOr(builder, loc, lhs, rhs);
   case CBO::BO_XorAssign:
-    return utils::emitIntOp<mlir::arith::XOrIOp>(builder, loc, lhs, rhs);
+    return utils::bitXor(builder, loc, lhs, rhs);
   case CBO::BO_ShlAssign:
-    return utils::emitIntOp<mlir::arith::ShLIOp>(builder, loc, lhs, rhs);
+    return utils::shl(builder, loc, lhs, rhs);
   case CBO::BO_ShrAssign:
-    return utils::emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
+    return utils::shrs(builder, loc, lhs, rhs);
   default:
     llvm::WithColor::error() << "cmlirc: unsupported compound assignment: "
                              << clang::BinaryOperator::getOpcodeStr(op) << "\n";
@@ -93,7 +89,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
       mlir::Type computeType = convertType(compOp->getComputationResultType());
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       computeLHS =
-          utils::promoteValue(builder, loc, computeLHS, computeType, isSigned);
+          utils::castValue(builder, loc, computeLHS, computeType, isSigned);
     }
 
     mlir::Value computed = emitCompoundArith(
@@ -106,8 +102,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
     if (auto *compOp =
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
-      resultValue =
-          utils::truncateValue(builder, loc, computed, lhsType, isSigned);
+      resultValue = utils::castValue(builder, loc, computed, lhsType, isSigned);
     }
   }
 

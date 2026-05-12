@@ -22,15 +22,7 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
   // Arithmetic negation
   case CUO::UO_Minus: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v) {
-      return nullptr;
-    }
-    if (mlir::isa<mlir::IntegerType>(v.getType())) {
-      return utils::negi(builder, loc, v);
-    }
-    if (mlir::isa<mlir::FloatType>(v.getType())) {
-      return utils::negf(builder, loc, v);
-    }
+    return utils::neg(builder, loc, v);
 
     return nullptr;
   }
@@ -48,40 +40,21 @@ auto CMLIRConverter::generateUnaryOperator(clang::UnaryOperator *unOp)
   // Logical NOT: operand == 0
   case CUO::UO_LNot: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v) {
-      return nullptr;
-    }
-    mlir::Type ty = v.getType();
-    if (mlir::isa<mlir::IntegerType>(ty)) {
-      return mlir::arith::CmpIOp::create(builder, loc,
-                                         mlir::arith::CmpIPredicate::eq, v,
-                                         utils::intConst(builder, loc, ty, 0))
-          .getResult();
-    }
-    if (mlir::isa<mlir::FloatType>(ty)) {
-      return mlir::arith::CmpFOp::create(
-                 builder, loc, mlir::arith::CmpFPredicate::OEQ, v,
-                 utils::floatConst(builder, loc, ty, 0.0))
-          .getResult();
-    }
-    return nullptr;
+    mlir::Type type = v.getType();
+    return utils::emitCmpOp(builder, loc, mlir::arith::CmpIPredicate::eq,
+                            mlir::arith::CmpFPredicate::OEQ, v,
+                            utils::numericConst(builder, loc, type, 0, 0.0));
   }
 
   // Bitwise NOT: value ^ ~0
   case CUO::UO_Not: {
     mlir::Value v = generateExpr(subExpr);
-    if (!v) {
-      return nullptr;
-    }
-    return utils::noti(builder, loc, v);
+    return utils::bitNot(builder, loc, v);
   }
 
   // Dereference
   case CUO::UO_Deref: {
     mlir::Value base = generateExpr(subExpr);
-    if (!base) {
-      return nullptr;
-    }
     auto memrefTy = mlir::dyn_cast<mlir::MemRefType>(base.getType());
     if (!memrefTy) {
       return nullptr;

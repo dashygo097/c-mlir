@@ -33,8 +33,6 @@ auto getOrCreateFunctionDecl(mlir::OpBuilder &builder, mlir::ModuleOp module,
   return funcOp;
 }
 
-namespace {
-
 struct CallArg {
   mlir::Value value;
   clang::QualType clangType;
@@ -642,8 +640,6 @@ auto alignArithmeticArgs(mlir::OpBuilder &builder, mlir::Location loc,
 
   return true;
 }
-
-} // namespace
 
 mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   mlir::ModuleOp module = contextManager.Module();

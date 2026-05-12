@@ -67,14 +67,10 @@ void CMLIRConverter::emitPlainForLoop(clang::ForStmt *forStmt,
   mlir::Value iv = forOp.getInductionVar();
 
   if (!info.isIncrementing) {
-    mlir::Value ub1 =
-        mlir::arith::SubIOp::create(builder, loc, info.upperBound,
-                                    utils::indexConst(builder, loc, 1))
-            .getResult();
-    mlir::Value off =
-        mlir::arith::SubIOp::create(builder, loc, iv, info.lowerBound)
-            .getResult();
-    iv = mlir::arith::SubIOp::create(builder, loc, ub1, off).getResult();
+    mlir::Value ub1 = utils::sub(builder, loc, info.upperBound,
+                                 utils::indexConst(builder, loc, 1));
+    mlir::Value off = utils::sub(builder, loc, iv, info.lowerBound);
+    iv = utils::sub(builder, loc, ub1, off);
   }
 
   emitLoopBodyWithIV(info.inductionVar, iv, forOp.getBody(), body);
@@ -136,14 +132,14 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                                   generateExpr(forStmt->getCond()))
                   : utils::boolConst(builder, loc, true);
 
-          mlir::Value finalCond = utils::andi(builder, loc, cond, args[1]);
+          mlir::Value finalCond = utils::bitAnd(builder, loc, cond, args[1]);
 
           if (breakFlag) {
-            mlir::Value notBroke = utils::noti(
+            mlir::Value notBroke = utils::bitNot(
                 builder, loc,
                 mlir::memref::LoadOp::create(builder, loc, breakFlag)
                     .getResult());
-            finalCond = utils::andi(builder, loc, finalCond, notBroke);
+            finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
 
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
@@ -193,15 +189,15 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     loopStack.pop_back();
 
     if (forStmt->getInc()) {
-      mlir::Value notRet = utils::noti(
+      mlir::Value notRet = utils::bitNot(
           builder, loc,
           mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
       mlir::Value incGuard = notRet;
       if (breakFlag) {
-        mlir::Value notBroke = utils::noti(
+        mlir::Value notBroke = utils::bitNot(
             builder, loc,
             mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-        incGuard = utils::andi(builder, loc, incGuard, notBroke);
+        incGuard = utils::bitAnd(builder, loc, incGuard, notBroke);
       }
       utils::emitGuarded(builder, loc, incGuard,
                          [&] { TraverseStmt(forStmt->getInc()); });
@@ -221,7 +217,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
         mlir::arith::SelectOp::create(builder, loc, didReturn, loadedRetVal,
                                       prevRetVal)
             .getResult();
-    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
+    mlir::Value newKeepGoing = utils::bitNot(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc,
                                mlir::ValueRange{newRetVal, newKeepGoing});
@@ -246,14 +242,14 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                                   generateExpr(forStmt->getCond()))
                   : utils::boolConst(builder, loc, true);
 
-          mlir::Value finalCond = utils::andi(builder, loc, cond, args[0]);
+          mlir::Value finalCond = utils::bitAnd(builder, loc, cond, args[0]);
 
           if (breakFlag) {
-            mlir::Value notBroke = utils::noti(
+            mlir::Value notBroke = utils::bitNot(
                 builder, loc,
                 mlir::memref::LoadOp::create(builder, loc, breakFlag)
                     .getResult());
-            finalCond = utils::andi(builder, loc, finalCond, notBroke);
+            finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
 
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
@@ -296,15 +292,15 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     loopStack.pop_back();
 
     if (forStmt->getInc()) {
-      mlir::Value notRet = utils::noti(
+      mlir::Value notRet = utils::bitNot(
           builder, loc,
           mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
       mlir::Value incGuard = notRet;
       if (breakFlag) {
-        mlir::Value notBroke = utils::noti(
+        mlir::Value notBroke = utils::bitNot(
             builder, loc,
             mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
-        incGuard = utils::andi(builder, loc, incGuard, notBroke);
+        incGuard = utils::bitAnd(builder, loc, incGuard, notBroke);
       }
       utils::emitGuarded(builder, loc, incGuard,
                          [&] { TraverseStmt(forStmt->getInc()); });
@@ -317,7 +313,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
 
     mlir::Value didReturn =
         mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
-    mlir::Value newKeepGoing = utils::noti(builder, loc, didReturn);
+    mlir::Value newKeepGoing = utils::bitNot(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{newKeepGoing});
 
@@ -336,11 +332,11 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
                 ? utils::toBool(builder, loc, generateExpr(forStmt->getCond()))
                 : utils::boolConst(builder, loc, true);
         if (breakFlag) {
-          mlir::Value notBroke =
-              utils::noti(builder, loc,
-                          mlir::memref::LoadOp::create(builder, loc, breakFlag)
-                              .getResult());
-          cond = utils::andi(builder, loc, cond, notBroke);
+          mlir::Value notBroke = utils::bitNot(
+              builder, loc,
+              mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                  .getResult());
+          cond = utils::bitAnd(builder, loc, cond, notBroke);
         }
         mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },
@@ -377,11 +373,12 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     mlir::Block *cur = builder.getInsertionBlock();
     builder.setInsertionPointToEnd(cur);
     if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
-      mlir::Value runInc = hasBreak ? utils::noti(builder, loc,
-                                                  mlir::memref::LoadOp::create(
-                                                      builder, loc, breakFlag)
-                                                      .getResult())
-                                    : utils::boolConst(builder, loc, true);
+      mlir::Value runInc =
+          hasBreak ? utils::bitNot(
+                         builder, loc,
+                         mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                             .getResult())
+                   : utils::boolConst(builder, loc, true);
       utils::emitGuarded(builder, loc, runInc,
                          [&] { TraverseStmt(forStmt->getInc()); });
     }

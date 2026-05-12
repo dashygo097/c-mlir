@@ -6,22 +6,6 @@
 
 namespace cmlirc {
 
-// Compute `value ± 1` for integer or float types.
-auto applyIncDec(mlir::OpBuilder &builder, mlir::Location loc,
-                 mlir::Value value, bool isIncrement) -> mlir::Value {
-  if (mlir::isa<mlir::IntegerType>(value.getType())) {
-    return isIncrement ? utils::addi(builder, loc, value, 1)
-                       : utils::subi(builder, loc, value, 1);
-  }
-  if (mlir::isa<mlir::FloatType>(value.getType())) {
-    return isIncrement ? utils::addf(builder, loc, value, 1.0)
-                       : utils::subf(builder, loc, value, 1.0);
-  }
-  llvm::WithColor::error()
-      << "cmlirc: unsupported type for increment/decrement\n";
-  return nullptr;
-}
-
 auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
                                                  bool isIncrement,
                                                  bool isPrefix) -> mlir::Value {
@@ -35,10 +19,8 @@ auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
       auto it = paramTable.find(parm);
       if (it != paramTable.end()) {
         mlir::Value oldVal = it->second;
-        mlir::Value newVal = applyIncDec(builder, loc, oldVal, isIncrement);
-        if (!newVal) {
-          return nullptr;
-        }
+        mlir::Value newVal = isIncrement ? utils::inc(builder, loc, oldVal)
+                                         : utils::dec(builder, loc, oldVal);
         it->second = newVal;
         return isPrefix ? newVal : oldVal;
       }
@@ -70,18 +52,9 @@ auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
   // Load → compute → store
   mlir::Value oldVal =
       utils::loadLHS(builder, loc, lhsKind, lhsAddr, arrayAccess, elementType);
-
-  if (!oldVal) {
-    return nullptr;
-  }
-
-  mlir::Value newVal = applyIncDec(builder, loc, oldVal, isIncrement);
-  if (!newVal) {
-    return nullptr;
-  }
-
+  mlir::Value newVal = isIncrement ? utils::inc(builder, loc, oldVal)
+                                   : utils::dec(builder, loc, oldVal);
   utils::storeLHS(builder, loc, lhsKind, newVal, lhsAddr, arrayAccess);
-
   return isPrefix ? newVal : oldVal;
 }
 

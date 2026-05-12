@@ -5,9 +5,10 @@
 
 namespace cmlirc {
 
-bool CMLIRConverter::TraverseContinueStmt(clang::ContinueStmt *) {
-  if (!currentFunc || loopStack.empty())
+auto CMLIRConverter::TraverseContinueStmt(clang::ContinueStmt *) -> bool {
+  if (!currentFunc || loopStack.empty()) {
     return true;
+  }
 
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
