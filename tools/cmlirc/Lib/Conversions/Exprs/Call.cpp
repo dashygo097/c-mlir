@@ -89,7 +89,7 @@ auto integerToPointer(mlir::OpBuilder &builder, mlir::Location loc,
                 .getResult();
   } else if (mlir::isa<mlir::IntegerType>(value.getType()) &&
              value.getType() != builder.getI64Type()) {
-    value = utils::castValue(builder, loc, value, builder.getI64Type(), false);
+    value = utils::toValue(builder, loc, value, builder.getI64Type(), false);
   }
 
   return mlir::LLVM::IntToPtrOp::create(builder, loc, ptrType, value)
@@ -173,7 +173,7 @@ auto coerceExternalArg(mlir::OpBuilder &builder, mlir::Location loc,
 
     if (mlir::isa<mlir::IntegerType>(srcType) ||
         mlir::isa<mlir::FloatType>(srcType)) {
-      return utils::castValue(builder, loc, value, targetType,
+      return utils::toValue(builder, loc, value, targetType,
                               !isUnsignedIntegerLike(arg.clangType));
     }
   }
@@ -187,7 +187,7 @@ auto coerceExternalArg(mlir::OpBuilder &builder, mlir::Location loc,
 
     if (mlir::isa<mlir::IntegerType>(value.getType()) ||
         mlir::isa<mlir::FloatType>(value.getType())) {
-      return utils::castValue(builder, loc, value, targetType,
+      return utils::toValue(builder, loc, value, targetType,
                               !isUnsignedIntegerLike(arg.clangType));
     }
   }
@@ -635,7 +635,7 @@ auto alignArithmeticArgs(mlir::OpBuilder &builder, mlir::Location loc,
   }
 
   for (auto &value : args) {
-    value = utils::castValue(builder, loc, value, targetType, true);
+    value = utils::toValue(builder, loc, value, targetType, true);
   }
 
   return true;

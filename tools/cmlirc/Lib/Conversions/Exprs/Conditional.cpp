@@ -23,7 +23,7 @@ auto CMLIRConverter::generateConditionalOperator(
     builder.setInsertionPointToStart(thenBlock);
 
     mlir::Value trueValue = generateExpr(condOp->getTrueExpr());
-    trueValue = utils::castValue(builder, loc, trueValue, targetType, true);
+    trueValue = utils::toValue(builder, loc, trueValue, targetType, true);
 
     mlir::scf::YieldOp::create(builder, loc, trueValue);
   }
@@ -36,7 +36,7 @@ auto CMLIRConverter::generateConditionalOperator(
     mlir::Value falseValue;
     if (condOp->getFalseExpr()) {
       falseValue = generateExpr(condOp->getFalseExpr());
-      falseValue = utils::castValue(builder, loc, falseValue, targetType, true);
+      falseValue = utils::toValue(builder, loc, falseValue, targetType, true);
     } else {
       falseValue = utils::intConst(builder, loc, targetType, 0);
     }

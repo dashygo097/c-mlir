@@ -32,7 +32,6 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
     }
 
     if (lastArrayAccess && lastArrayAccess->base == value) {
-
       if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
         mlir::Value offsetPtr =
             utils::getLLVMOffsetPointer(builder, loc, lastArrayAccess->base,
@@ -41,6 +40,7 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
         mlir::Value result =
             mlir::LLVM::LoadOp::create(builder, loc, targetType, offsetPtr)
                 .getResult();
+
         lastArrayAccess.reset();
         return result;
       }
@@ -49,6 +49,7 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
           mlir::memref::LoadOp::create(builder, loc, lastArrayAccess->base,
                                        lastArrayAccess->indices)
               .getResult();
+
       lastArrayAccess.reset();
       return result;
     }
@@ -58,50 +59,64 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
         return mlir::memref::LoadOp::create(builder, loc, value).getResult();
       }
     }
+
     return value;
   }
 
   case CK::CK_IntegralToFloating:
-  case CK::CK_FloatingToIntegral:
   case CK::CK_IntegralCast:
   case CK::CK_FloatingCast:
   case CK::CK_BooleanToSignedIntegral: {
     mlir::Value value = generateExpr(subExpr);
-    bool isSigned = subExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, value, targetType, isSigned);
+    bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
+  }
+
+  case CK::CK_FloatingToIntegral: {
+    mlir::Value value = generateExpr(subExpr);
+    bool isSigned = castExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
   }
 
   case CK::CK_IntegralToBoolean:
-  case CK::CK_FloatingToBoolean: {
+  case CK::CK_FloatingToBoolean:
+  case CK::CK_PointerToBoolean: {
     mlir::Value value = generateExpr(subExpr);
     return utils::toBool(builder, loc, value);
   }
 
-  case CK::CK_BitCast: {
+  case CK::CK_IntegralToPointer: {
     mlir::Value value = generateExpr(subExpr);
+    return utils::toPointer(builder, loc, value, targetType);
+  }
 
-    if (mlir::isa<mlir::MemRefType>(value.getType()) &&
-        mlir::isa<mlir::LLVM::LLVMPointerType>(targetType)) {
+  case CK::CK_PointerToIntegral: {
+    mlir::Value value = generateExpr(subExpr);
+    bool isSigned = castExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
+  }
 
-      mlir::Value ptrAsIndex =
-          mlir::memref::ExtractAlignedPointerAsIndexOp::create(
-              builder, loc, builder.getIndexType(), value);
+  case CK::CK_NullToPointer: {
+    return utils::toNullPointer(builder, loc, targetType);
+  }
 
-      mlir::Value ptrAsI64 = mlir::arith::IndexCastOp::create(
-          builder, loc, builder.getI64Type(), ptrAsIndex);
-
-      return mlir::LLVM::IntToPtrOp::create(builder, loc, targetType, ptrAsI64)
-          .getResult();
-    }
-
-    return mlir::arith::BitcastOp::create(builder, loc, targetType, value)
-        .getResult();
+  case CK::CK_BitCast:
+  case CK::CK_LValueBitCast:
+  case CK::CK_AddressSpaceConversion: {
+    mlir::Value value = generateExpr(subExpr);
+    bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toBitcastValue(builder, loc, value, targetType, isSigned);
   }
 
   case CK::CK_NoOp:
   case CK::CK_ArrayToPointerDecay:
   case CK::CK_FunctionToPointerDecay: {
     return generateExpr(subExpr);
+  }
+
+  case CK::CK_ToVoid: {
+    generateExpr(subExpr);
+    return nullptr;
   }
 
   default: {

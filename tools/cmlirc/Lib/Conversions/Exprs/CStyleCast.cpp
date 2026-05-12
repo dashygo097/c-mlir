@@ -14,32 +14,43 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   mlir::Type targetType = convertType(castExpr->getType());
 
   switch (castExpr->getCastKind()) {
-
-  // Source-dependent Sign Casts (Int -> Float, Int -> Wider Int)
-  case clang::CK_IntegralToFloating:
   case clang::CK_IntegralCast:
   case clang::CK_FloatingCast:
-  case clang::CK_BooleanToSignedIntegral: {
-    bool isSigned = subExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, value, targetType, isSigned);
+  case clang::CK_BooleanToSignedIntegral:
+  case clang::CK_IntegralToFloating: {
+    bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
   }
 
-  // Target-dependent Sign Casts (Float -> Int)
   case clang::CK_FloatingToIntegral: {
-    bool isSigned = castExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, value, targetType, isSigned);
+    bool isSigned = castExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
   }
 
-  // Boolean Casts (Evaluates against 0 / 0.0)
   case clang::CK_IntegralToBoolean:
-  case clang::CK_FloatingToBoolean: {
+  case clang::CK_FloatingToBoolean:
+  case clang::CK_PointerToBoolean: {
     return utils::toBool(builder, loc, value);
   }
 
-  // Memory/Bitwise Casts
-  case clang::CK_BitCast: {
-    return mlir::arith::BitcastOp::create(builder, loc, targetType, value)
-        .getResult();
+  case clang::CK_IntegralToPointer: {
+    return utils::toPointer(builder, loc, value, targetType);
+  }
+
+  case clang::CK_PointerToIntegral: {
+    bool isSigned = castExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toValue(builder, loc, value, targetType, isSigned);
+  }
+
+  case clang::CK_NullToPointer: {
+    return utils::toNullPointer(builder, loc, targetType);
+  }
+
+  case clang::CK_BitCast:
+  case clang::CK_LValueBitCast:
+  case clang::CK_AddressSpaceConversion: {
+    bool isSigned = subExpr->getType()->isSignedIntegerOrEnumerationType();
+    return utils::toBitcastValue(builder, loc, value, targetType, isSigned);
   }
 
   case clang::CK_NoOp: {

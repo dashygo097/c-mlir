@@ -80,7 +80,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
       mlir::Type computeType = convertType(compOp->getComputationResultType());
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
       computeLHS =
-          utils::castValue(builder, loc, computeLHS, computeType, isSigned);
+          utils::toValue(builder, loc, computeLHS, computeType, isSigned);
     }
 
     mlir::Value computed = emitCompoundArith(
@@ -93,7 +93,7 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
     if (auto *compOp =
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
       bool isSigned = compOp->getLHS()->getType()->isSignedIntegerType();
-      resultValue = utils::castValue(builder, loc, computed, lhsType, isSigned);
+      resultValue = utils::toValue(builder, loc, computed, lhsType, isSigned);
     }
   }
 
