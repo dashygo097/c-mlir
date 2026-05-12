@@ -1,6 +1,5 @@
 #include "../../Converter.h"
 #include "../Utils/Casts.h"
-#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -15,11 +14,6 @@ auto CMLIRConverter::generateArraySubscriptExpr(
   while (auto *arraySubscript =
              mlir::dyn_cast<clang::ArraySubscriptExpr>(currentExpr)) {
     mlir::Value idx = generateExpr(arraySubscript->getIdx());
-    if (!idx) {
-      llvm::WithColor::error() << "cmlirc: failed to generate index\n";
-      return nullptr;
-    }
-
     indices.insert(indices.begin(), idx);
 
     clang::Expr *base = arraySubscript->getBase();
@@ -32,11 +26,6 @@ auto CMLIRConverter::generateArraySubscriptExpr(
   }
 
   mlir::Value base = generateExpr(currentExpr);
-  if (!base) {
-    llvm::WithColor::error() << "cmlirc: failed to generate base\n";
-    return nullptr;
-  }
-
   llvm::SmallVector<mlir::Value, 4> indexValues;
   for (mlir::Value idx : indices) {
     auto indexValue = utils::toIndex(builder, loc, idx);

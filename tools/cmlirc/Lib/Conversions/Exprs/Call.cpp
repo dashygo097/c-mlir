@@ -660,9 +660,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     std::vector<mlir::Value> args;                                             \
     for (uint32_t i = 0; i < numArgs; ++i) {                                   \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        return nullptr;                                                        \
-      }                                                                        \
       args.push_back(arg);                                                     \
     }                                                                          \
     if (!alignArithmeticArgs(builder, loc, args, true)) {                      \
@@ -679,9 +676,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     std::vector<mlir::Value> args;                                             \
     for (uint32_t i = 0; i < numArgs; ++i) {                                   \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        return nullptr;                                                        \
-      }                                                                        \
       args.push_back(arg);                                                     \
     }                                                                          \
     if (!alignArithmeticArgs(builder, loc, args, false)) {                     \
@@ -699,9 +693,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
     bool hasFloat = false;                                                     \
     for (uint32_t i = 0; i < numArgs; ++i) {                                   \
       mlir::Value arg = generateExpr(callExpr->getArg(i));                     \
-      if (!arg) {                                                              \
-        return nullptr;                                                        \
-      }                                                                        \
       if (mlir::isa<mlir::FloatType>(arg.getType())) {                         \
         hasFloat = true;                                                       \
       }                                                                        \
@@ -778,11 +769,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
       if (!methodDecl->isStatic()) {
         clang::Expr *implicitObj = memberCall->getImplicitObjectArgument();
         mlir::Value thisVal = generateExpr(implicitObj);
-        if (!thisVal) {
-          llvm::WithColor::error()
-              << "cmlirc: failed to generate 'this' argument\n";
-          return nullptr;
-        }
 
         if (!mlir::isa<mlir::LLVM::LLVMPointerType>(thisVal.getType())) {
           mlir::Type structType = thisVal.getType();
@@ -805,12 +791,6 @@ mlir::Value CMLIRConverter::generateCallExpr(clang::CallExpr *callExpr) {
   for (uint32_t i = 0; i < numArgs; ++i) {
     clang::Expr *argExpr = callExpr->getArg(i);
     mlir::Value value = generateExpr(argExpr);
-
-    if (!value) {
-      llvm::WithColor::error()
-          << "cmlirc: failed to generate argument " << i << "\n";
-      return nullptr;
-    }
 
     argValues.push_back({value, argExpr->getType()});
   }

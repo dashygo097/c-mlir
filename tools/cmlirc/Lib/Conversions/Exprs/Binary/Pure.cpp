@@ -16,10 +16,6 @@ auto CMLIRConverter::generatePureBinaryOperator(clang::BinaryOperator *binOp)
 
   mlir::Value lhs = generateExpr(binOp->getLHS());
   mlir::Value rhs = generateExpr(binOp->getRHS());
-  if (!lhs || !rhs) {
-    llvm::WithColor::error() << "cmlirc: failed to generate binary operands\n";
-    return nullptr;
-  }
 
   using CBO = clang::BinaryOperatorKind;
   using IP = mlir::arith::CmpIPredicate;

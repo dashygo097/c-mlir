@@ -24,12 +24,6 @@ void CMLIRConverter::storeInitListValues(clang::InitListExpr *initList,
             currentIndices.pop_back();
           } else {
             mlir::Value value = generateExpr(init);
-            if (!value) {
-              llvm::WithColor::error()
-                  << "cmlirc: failed to generate init value\n";
-              continue;
-            }
-
             llvm::SmallVector<mlir::Value, 4> fullIndices;
             fullIndices.append(currentIndices.begin(), currentIndices.end());
             fullIndices.push_back(indexVal);

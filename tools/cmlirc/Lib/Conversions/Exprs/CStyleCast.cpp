@@ -10,11 +10,7 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   mlir::Location loc = builder.getUnknownLoc();
   clang::Expr *subExpr = castExpr->getSubExpr();
 
-  mlir::Value subValue = generateExpr(subExpr);
-  if (!subValue) {
-    return nullptr;
-  }
-
+  mlir::Value value = generateExpr(subExpr);
   mlir::Type targetType = convertType(castExpr->getType());
 
   switch (castExpr->getCastKind()) {
@@ -25,29 +21,29 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   case clang::CK_FloatingCast:
   case clang::CK_BooleanToSignedIntegral: {
     bool isSigned = subExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, subValue, targetType, isSigned);
+    return utils::castValue(builder, loc, value, targetType, isSigned);
   }
 
   // Target-dependent Sign Casts (Float -> Int)
   case clang::CK_FloatingToIntegral: {
     bool isSigned = castExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, subValue, targetType, isSigned);
+    return utils::castValue(builder, loc, value, targetType, isSigned);
   }
 
   // Boolean Casts (Evaluates against 0 / 0.0)
   case clang::CK_IntegralToBoolean:
   case clang::CK_FloatingToBoolean: {
-    return utils::toBool(builder, loc, subValue);
+    return utils::toBool(builder, loc, value);
   }
 
   // Memory/Bitwise Casts
   case clang::CK_BitCast: {
-    return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
+    return mlir::arith::BitcastOp::create(builder, loc, targetType, value)
         .getResult();
   }
 
   case clang::CK_NoOp: {
-    return subValue;
+    return value;
   }
 
   default:
@@ -55,7 +51,7 @@ auto CMLIRConverter::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
         << "cmlirc: unsupported C-style cast kind: "
         << clang::CStyleCastExpr::getCastKindName(castExpr->getCastKind())
         << "\n";
-    return subValue;
+    return nullptr;
   }
 }
 

@@ -35,10 +35,6 @@ auto CMLIRConverter::generateMemberExpr(clang::MemberExpr *memberExpr)
 
   clang::Expr *base = memberExpr->getBase();
   mlir::Value baseValue = generateExpr(base);
-  if (!baseValue) {
-    llvm::WithColor::error() << "cmlirc: failed to generate base expression\n";
-    return nullptr;
-  }
 
   auto *fieldDecl =
       mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());

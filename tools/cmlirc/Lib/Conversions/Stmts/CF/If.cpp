@@ -47,11 +47,6 @@ auto CMLIRConverter::TraverseIfStmt(clang::IfStmt *ifStmt) -> bool {
   }
 
   mlir::Value condition = generateExpr(ifStmt->getCond());
-  if (!condition) {
-    llvm::WithColor::error() << "cmlirc: failed to generate if condition\n";
-    return false;
-  }
-
   mlir::Value condBool = utils::toBool(builder, loc, condition);
   if (!condBool) {
     llvm::WithColor::error() << "cmlirc: failed to cast if condition to bool\n";

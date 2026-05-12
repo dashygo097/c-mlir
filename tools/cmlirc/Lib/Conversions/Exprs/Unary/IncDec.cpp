@@ -29,13 +29,7 @@ auto CMLIRConverter::generateIncDecUnaryOperator(clang::Expr *expr,
 
   // General path with lvalue (Scalar, Indexed, or Member)
   utils::LHSKind lhsKind = utils::classifyLHS(expr);
-
   mlir::Value lhsAddr = generateExpr(expr);
-  if (!lhsAddr) {
-    llvm::WithColor::error()
-        << "cmlirc: cannot get lvalue for increment/decrement\n";
-    return nullptr;
-  }
 
   std::optional<ArrayAccessInfo> arrayAccess;
   if (lhsKind == utils::LHSKind::Indexed) {

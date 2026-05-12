@@ -1,7 +1,6 @@
 #include "../../Converter.h"
 #include "../Utils/Constants.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
 
@@ -22,10 +21,6 @@ auto CMLIRConverter::TraverseReturnStmt(clang::ReturnStmt *stmt) -> bool {
   mlir::Value retValue;
   if (auto *retExpr = stmt->getRetValue()) {
     retValue = generateExpr(retExpr);
-    if (!retValue) {
-      llvm::WithColor::error() << "cmlirc: failed to generate return value\n";
-      return false;
-    }
   }
 
   if (returnValueCapture) {

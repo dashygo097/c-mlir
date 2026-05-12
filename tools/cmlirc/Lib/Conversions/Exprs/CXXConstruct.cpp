@@ -65,12 +65,6 @@ auto CMLIRConverter::generateCXXConstructExpr(
       clang::Expr *arg = constructExpr->getArg(i);
       mlir::Value argValue = generateExpr(arg);
 
-      if (!argValue) {
-        llvm::WithColor::error()
-            << "cmlirc: failed to generate constructor argument " << i << "\n";
-        return nullptr;
-      }
-
       result =
           mlir::LLVM::InsertValueOp::create(builder, loc, result, argValue, i)
               .getResult();

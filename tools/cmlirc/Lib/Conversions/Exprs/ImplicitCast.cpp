@@ -1,6 +1,5 @@
 #include "../../Converter.h"
 #include "../Utils/Casts.h"
-#include "../Utils/Constants.h"
 #include "../Utils/LHS.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -20,21 +19,21 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
 
   switch (castExpr->getCastKind()) {
   case clang::CK_LValueToRValue: {
-    mlir::Value subValue = generateExpr(subExpr);
+    mlir::Value value = generateExpr(subExpr);
 
-    if (mlir::isa<mlir::LLVM::LLVMPointerType>(subValue.getType()) &&
+    if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType()) &&
         !lastArrayAccess) {
-      return mlir::LLVM::LoadOp::create(builder, loc, targetType, subValue)
+      return mlir::LLVM::LoadOp::create(builder, loc, targetType, value)
           .getResult();
     }
 
     if (subExpr->getType()->isPointerType() && !lastArrayAccess) {
-      return subValue;
+      return value;
     }
 
-    if (lastArrayAccess && lastArrayAccess->base == subValue) {
+    if (lastArrayAccess && lastArrayAccess->base == value) {
 
-      if (mlir::isa<mlir::LLVM::LLVMPointerType>(subValue.getType())) {
+      if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
         mlir::Value offsetPtr =
             utils::getLLVMOffsetPointer(builder, loc, lastArrayAccess->base,
                                         targetType, lastArrayAccess->indices);
@@ -54,13 +53,12 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       return result;
     }
 
-    if (auto memrefType =
-            mlir::dyn_cast<mlir::MemRefType>(subValue.getType())) {
+    if (auto memrefType = mlir::dyn_cast<mlir::MemRefType>(value.getType())) {
       if (memrefType.hasRank() && memrefType.getRank() == 0) {
-        return mlir::memref::LoadOp::create(builder, loc, subValue).getResult();
+        return mlir::memref::LoadOp::create(builder, loc, value).getResult();
       }
     }
-    return subValue;
+    return value;
   }
 
   case CK::CK_IntegralToFloating:
@@ -68,26 +66,26 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   case CK::CK_IntegralCast:
   case CK::CK_FloatingCast:
   case CK::CK_BooleanToSignedIntegral: {
-    mlir::Value subValue = generateExpr(subExpr);
+    mlir::Value value = generateExpr(subExpr);
     bool isSigned = subExpr->getType()->isSignedIntegerType();
-    return utils::castValue(builder, loc, subValue, targetType, isSigned);
+    return utils::castValue(builder, loc, value, targetType, isSigned);
   }
 
   case CK::CK_IntegralToBoolean:
   case CK::CK_FloatingToBoolean: {
-    mlir::Value subValue = generateExpr(subExpr);
-    return utils::toBool(builder, loc, subValue);
+    mlir::Value value = generateExpr(subExpr);
+    return utils::toBool(builder, loc, value);
   }
 
   case CK::CK_BitCast: {
-    mlir::Value subValue = generateExpr(subExpr);
+    mlir::Value value = generateExpr(subExpr);
 
-    if (mlir::isa<mlir::MemRefType>(subValue.getType()) &&
+    if (mlir::isa<mlir::MemRefType>(value.getType()) &&
         mlir::isa<mlir::LLVM::LLVMPointerType>(targetType)) {
 
       mlir::Value ptrAsIndex =
           mlir::memref::ExtractAlignedPointerAsIndexOp::create(
-              builder, loc, builder.getIndexType(), subValue);
+              builder, loc, builder.getIndexType(), value);
 
       mlir::Value ptrAsI64 = mlir::arith::IndexCastOp::create(
           builder, loc, builder.getI64Type(), ptrAsIndex);
@@ -96,24 +94,22 @@ auto CMLIRConverter::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
           .getResult();
     }
 
-    return mlir::arith::BitcastOp::create(builder, loc, targetType, subValue)
+    return mlir::arith::BitcastOp::create(builder, loc, targetType, value)
         .getResult();
   }
 
   case CK::CK_NoOp:
   case CK::CK_ArrayToPointerDecay:
   case CK::CK_FunctionToPointerDecay: {
-    mlir::Value subValue = generateExpr(subExpr);
-    return subValue;
+    return generateExpr(subExpr);
   }
 
   default: {
-    mlir::Value subValue = generateExpr(subExpr);
     llvm::WithColor::error()
         << "cmlirc: unsupported cast kind: "
         << clang::ImplicitCastExpr::getCastKindName(castExpr->getCastKind())
         << "\n";
-    return subValue;
+    return nullptr;
   }
   }
 }

@@ -10,9 +10,6 @@ auto CMLIRConverter::generateConditionalOperator(
   mlir::Location loc = builder.getUnknownLoc();
 
   mlir::Value condition = generateExpr(condOp->getCond());
-  if (!condition) {
-    return nullptr;
-  }
   mlir::Value condBool = utils::toBool(builder, loc, condition);
 
   mlir::Type targetType = convertType(condOp->getType());

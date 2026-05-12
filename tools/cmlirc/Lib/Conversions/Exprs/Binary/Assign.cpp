@@ -50,10 +50,6 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
 
   // Evaluate LHS address
   mlir::Value lhsAddr = generateExpr(assignOp->getLHS());
-  if (!lhsAddr) {
-    llvm::WithColor::error() << "cmlirc: failed to generate LHS address\n";
-    return nullptr;
-  }
 
   // For indexed access, consume the side-channel ArrayAccessInfo immediately.
   std::optional<ArrayAccessInfo> arrayAccess;
@@ -68,11 +64,6 @@ auto CMLIRConverter::generateAssignmentBinaryOperator(
 
   // Evaluate RHS value
   mlir::Value rhsValue = generateExpr(assignOp->getRHS());
-  if (!rhsValue) {
-    llvm::WithColor::error() << "cmlirc: failed to generate RHS\n";
-    return nullptr;
-  }
-
   mlir::Value resultValue = rhsValue;
 
   // Compound-assignment

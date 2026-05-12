@@ -31,9 +31,7 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
     if (decl->hasInit()) {
       mlir::Value initValue = generateExpr(decl->getInit());
       lastArrayAccess.reset();
-      if (initValue) {
-        symbolTable[decl] = initValue;
-      }
+      symbolTable[decl] = initValue;
     }
     return true;
   }
@@ -63,24 +61,20 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
             break;
           }
           mlir::Value initValue = generateExpr(initList->getInit(fieldIndex));
-          if (initValue) {
-            auto zero =
-                utils::intConst(builder, mlirLoc, builder.getI32Type(), 0);
-            auto fieldIdx = mlir::LLVM::ConstantOp::create(
-                builder, mlirLoc, builder.getI32Type(),
-                builder.getI32IntegerAttr(fieldIndex));
-            auto fieldPtr = mlir::LLVM::GEPOp::create(
-                builder, mlirLoc, ptrType, structType, allocaOp.getResult(),
-                llvm::SmallVector<mlir::Value, 2>{zero, fieldIdx});
-            mlir::LLVM::StoreOp::create(builder, mlirLoc, initValue, fieldPtr);
-          }
+          auto zero =
+              utils::intConst(builder, mlirLoc, builder.getI32Type(), 0);
+          auto fieldIdx = mlir::LLVM::ConstantOp::create(
+              builder, mlirLoc, builder.getI32Type(),
+              builder.getI32IntegerAttr(fieldIndex));
+          auto fieldPtr = mlir::LLVM::GEPOp::create(
+              builder, mlirLoc, ptrType, structType, allocaOp.getResult(),
+              llvm::SmallVector<mlir::Value, 2>{zero, fieldIdx});
+          mlir::LLVM::StoreOp::create(builder, mlirLoc, initValue, fieldPtr);
           fieldIndex++;
         }
       } else {
         mlir::Value initValue = generateExpr(init);
-        if (initValue) {
-          mlir::LLVM::StoreOp::create(builder, mlirLoc, initValue, allocaOp);
-        }
+        mlir::LLVM::StoreOp::create(builder, mlirLoc, initValue, allocaOp);
       }
     }
     return true;
@@ -133,11 +127,8 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
 
       if (decl->hasInit()) {
         mlir::Value initValue = generateExpr(decl->getInit());
-        if (initValue) {
-          mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
-                                        allocaOp.getResult(),
-                                        mlir::ValueRange{});
-        }
+        mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
+                                      allocaOp.getResult(), mlir::ValueRange{});
       }
       return true;
     }
@@ -167,10 +158,8 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
       storeInitListValues(initList, allocaOp.getResult());
     } else {
       mlir::Value initValue = generateExpr(init);
-      if (initValue) {
-        mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
-                                      allocaOp.getResult(), mlir::ValueRange{});
-      }
+      mlir::memref::StoreOp::create(builder, mlirLoc, initValue,
+                                    allocaOp.getResult(), mlir::ValueRange{});
     }
   }
 
