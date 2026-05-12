@@ -1,5 +1,5 @@
 #include "../../../Converter.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "../../Utils/Constants.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
@@ -15,10 +15,7 @@ auto CMLIRConverter::TraverseBreakStmt(clang::BreakStmt *) -> bool {
 
   LoopContext &ctx = loopStack.back();
 
-  mlir::Value trueVal =
-      mlir::arith::ConstantOp::create(builder, loc, builder.getI1Type(),
-                                      builder.getBoolAttr(true))
-          .getResult();
+  mlir::Value trueVal = utils::boolConst(builder, loc, true);
   mlir::memref::StoreOp::create(builder, loc, trueVal, ctx.breakFlag,
                                 mlir::ValueRange{});
 

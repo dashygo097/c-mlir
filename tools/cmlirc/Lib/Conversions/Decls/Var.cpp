@@ -47,8 +47,7 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
     }
 
     auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-    auto one = mlir::LLVM::ConstantOp::create(
-        builder, mlirLoc, builder.getI64Type(), builder.getI64IntegerAttr(1));
+    auto one = utils::intConst(builder, mlirLoc, builder.getI64Type(), 1);
     auto allocaOp = mlir::LLVM::AllocaOp::create(builder, mlirLoc, ptrType,
                                                  structType, one, 0);
     symbolTable[decl] = allocaOp.getResult();
@@ -65,9 +64,8 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
           }
           mlir::Value initValue = generateExpr(initList->getInit(fieldIndex));
           if (initValue) {
-            auto zero = mlir::LLVM::ConstantOp::create(
-                builder, mlirLoc, builder.getI32Type(),
-                builder.getI32IntegerAttr(0));
+            auto zero =
+                utils::intConst(builder, mlirLoc, builder.getI32Type(), 0);
             auto fieldIdx = mlir::LLVM::ConstantOp::create(
                 builder, mlirLoc, builder.getI32Type(),
                 builder.getI32IntegerAttr(fieldIndex));

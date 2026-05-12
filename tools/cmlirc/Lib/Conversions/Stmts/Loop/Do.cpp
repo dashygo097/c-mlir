@@ -46,6 +46,7 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
         mlir::arith::ConstantOp::create(builder, loc, funcRetType,
                                         builder.getZeroAttr(funcRetType))
             .getResult();
+
     mlir::Value initKeepGoing = utils::boolConst(builder, loc, true);
 
     auto whileOp = mlir::scf::WhileOp::create(
@@ -97,10 +98,11 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
 
     loopStack.pop_back();
 
-    if (continueFlag)
+    if (continueFlag) {
       mlir::memref::StoreOp::create(builder, loc,
                                     utils::boolConst(builder, loc, false),
                                     continueFlag, mlir::ValueRange{});
+    }
 
     mlir::Value didReturn =
         mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
@@ -176,10 +178,11 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
 
     loopStack.pop_back();
 
-    if (continueFlag)
+    if (continueFlag) {
       mlir::memref::StoreOp::create(builder, loc,
                                     utils::boolConst(builder, loc, false),
                                     continueFlag, mlir::ValueRange{});
+    }
 
     mlir::Value cond =
         doStmt->getCond()
@@ -251,10 +254,11 @@ bool CMLIRConverter::TraverseDoStmt(clang::DoStmt *doStmt) {
 
   loopStack.pop_back();
 
-  if (continueFlag)
+  if (continueFlag) {
     mlir::memref::StoreOp::create(builder, loc,
                                   utils::boolConst(builder, loc, false),
                                   continueFlag, mlir::ValueRange{});
+  }
 
   mlir::Value cond =
       doStmt->getCond()
