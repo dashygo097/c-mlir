@@ -34,20 +34,30 @@ inline auto getLLVMOffsetPointer(mlir::OpBuilder &builder, mlir::Location loc,
                                  mlir::Value basePtr, mlir::Type elementType,
                                  llvm::ArrayRef<mlir::Value> indices)
     -> mlir::Value {
+  if (indices.empty()) {
+    return basePtr;
+  }
+
   llvm::SmallVector<mlir::LLVM::GEPArg> gepIndices;
 
   for (mlir::Value idx : indices) {
+    if (!idx) {
+      return nullptr;
+    }
+
     if (idx.getType().isIndex()) {
       idx = mlir::arith::IndexCastOp::create(builder, loc, builder.getI64Type(),
                                              idx)
                 .getResult();
     }
+
     gepIndices.push_back(idx);
   }
 
-  auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-  return mlir::LLVM::GEPOp::create(builder, loc, ptrType, elementType, basePtr,
-                                   gepIndices)
+  return mlir::LLVM::GEPOp::create(
+             builder, loc,
+             mlir::LLVM::LLVMPointerType::get(builder.getContext()),
+             elementType, basePtr, gepIndices)
       .getResult();
 }
 
@@ -65,6 +75,11 @@ inline auto loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
     if (mlir::isa<mlir::LLVM::LLVMPointerType>(arrayAccess->base.getType())) {
       mlir::Value offsetPtr = getLLVMOffsetPointer(
           builder, loc, arrayAccess->base, elementType, arrayAccess->indices);
+
+      if (!offsetPtr) {
+        return nullptr;
+      }
+
       return mlir::LLVM::LoadOp::create(builder, loc, elementType, offsetPtr)
           .getResult();
     }
@@ -105,6 +120,11 @@ storeLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
       mlir::Value offsetPtr =
           getLLVMOffsetPointer(builder, loc, arrayAccess->base, value.getType(),
                                arrayAccess->indices);
+
+      if (!offsetPtr) {
+        return;
+      }
+
       mlir::LLVM::StoreOp::create(builder, loc, value, offsetPtr);
       return;
     }

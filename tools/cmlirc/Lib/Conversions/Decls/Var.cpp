@@ -1,11 +1,52 @@
 #include "../../Converter.h"
 #include "../Utils/Casts.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlirc {
+
+auto isNoOpAggregateArrayInitializer(clang::Expr *init) -> bool {
+  if (!init) {
+    return true;
+  }
+
+  init = init->IgnoreParenImpCasts();
+
+  if (auto *cleanups = mlir::dyn_cast<clang::ExprWithCleanups>(init)) {
+    return isNoOpAggregateArrayInitializer(cleanups->getSubExpr());
+  }
+
+  if (auto *bindTemp = mlir::dyn_cast<clang::CXXBindTemporaryExpr>(init)) {
+    return isNoOpAggregateArrayInitializer(bindTemp->getSubExpr());
+  }
+
+  if (auto *materialize =
+          mlir::dyn_cast<clang::MaterializeTemporaryExpr>(init)) {
+    return isNoOpAggregateArrayInitializer(materialize->getSubExpr());
+  }
+
+  if (auto *defaultInit = mlir::dyn_cast<clang::CXXDefaultInitExpr>(init)) {
+    return isNoOpAggregateArrayInitializer(defaultInit->getExpr());
+  }
+
+  if (auto *constructExpr = mlir::dyn_cast<clang::CXXConstructExpr>(init)) {
+    return constructExpr->getNumArgs() == 0;
+  }
+
+  if (mlir::isa<clang::ImplicitValueInitExpr>(init)) {
+    return true;
+  }
+
+  if (auto *initList = mlir::dyn_cast<clang::InitListExpr>(init)) {
+    return initList->getNumInits() == 0;
+  }
+
+  return false;
+}
 
 auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
   if (decl->isImplicit()) {
@@ -125,15 +166,16 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
     const clang::VariableArrayType *vat = nullptr;
 
     clang::QualType cur = canonical;
-    while (auto *av =
+    while (auto *arrayType =
                mlir::dyn_cast_or_null<clang::ArrayType>(cur.getTypePtr())) {
-      if (auto *v = mlir::dyn_cast<clang::VariableArrayType>(av)) {
-        vat = v;
+      if (auto *vla = mlir::dyn_cast<clang::VariableArrayType>(arrayType)) {
+        vat = vla;
         break;
       }
 
-      if (auto *c = mlir::dyn_cast<clang::ConstantArrayType>(av)) {
-        cur = c->getElementType().getCanonicalType();
+      if (auto *constantArray =
+              mlir::dyn_cast<clang::ConstantArrayType>(arrayType)) {
+        cur = constantArray->getElementType().getCanonicalType();
       } else {
         break;
       }
@@ -144,10 +186,10 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
       llvm::SmallVector<int64_t> shape;
 
       cur = canonical;
-      while (auto *av =
+      while (auto *arrayType =
                  mlir::dyn_cast_or_null<clang::ArrayType>(cur.getTypePtr())) {
-        if (auto *v = mlir::dyn_cast<clang::VariableArrayType>(av)) {
-          mlir::Value dimSize = generateExpr(v->getSizeExpr());
+        if (auto *vla = mlir::dyn_cast<clang::VariableArrayType>(arrayType)) {
+          mlir::Value dimSize = generateExpr(vla->getSizeExpr());
           dimSize = utils::toIndex(builder, mlirLoc, dimSize);
 
           if (!dimSize) {
@@ -156,10 +198,11 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
 
           dynamicSizes.push_back(dimSize);
           shape.push_back(mlir::ShapedType::kDynamic);
-          cur = v->getElementType().getCanonicalType();
-        } else if (auto *c = mlir::dyn_cast<clang::ConstantArrayType>(av)) {
-          shape.push_back(c->getSize().getSExtValue());
-          cur = c->getElementType().getCanonicalType();
+          cur = vla->getElementType().getCanonicalType();
+        } else if (auto *constantArray =
+                       mlir::dyn_cast<clang::ConstantArrayType>(arrayType)) {
+          shape.push_back(constantArray->getSize().getSExtValue());
+          cur = constantArray->getElementType().getCanonicalType();
         } else {
           break;
         }
@@ -197,6 +240,27 @@ auto CMLIRConverter::TraverseVarDecl(clang::VarDecl *decl) -> bool {
     llvm::WithColor::error() << "cmlirc: failed to convert type for variable: "
                              << decl->getNameAsString() << "\n";
     return false;
+  }
+
+  if (auto llvmArrayType =
+          mlir::dyn_cast<mlir::LLVM::LLVMArrayType>(mlirType)) {
+    auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
+    auto one = utils::intConst(builder, mlirLoc, builder.getI64Type(), 1);
+
+    auto allocaOp = mlir::LLVM::AllocaOp::create(builder, mlirLoc, ptrType,
+                                                 llvmArrayType, one, 0);
+    symbolTable[decl] = allocaOp.getResult();
+
+    if (decl->hasInit() && !isNoOpAggregateArrayInitializer(decl->getInit())) {
+      llvm::WithColor::error()
+          << "cmlirc: explicit initializer for LLVM aggregate array is not "
+             "supported yet: "
+          << decl->getNameAsString() << "\n";
+      return false;
+    }
+
+    lastArrayAccess.reset();
+    return true;
   }
 
   mlir::MemRefType allocaType;
