@@ -1,6 +1,7 @@
 #include "../../Converter.h"
 #include "../Utils/Casts.h"
 #include "../Utils/Constants.h"
+#include "../Utils/MemrefABI.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -265,11 +266,8 @@ auto coerceFuncCallArg(mlir::OpBuilder &builder, mlir::Location loc,
   auto actualMemref = mlir::dyn_cast<mlir::MemRefType>(actualType);
   auto declaredMemref = mlir::dyn_cast<mlir::MemRefType>(declaredType);
 
-  if (actualMemref && declaredMemref &&
-      actualMemref.getElementType() == declaredMemref.getElementType() &&
-      mlir::memref::CastOp::areCastCompatible(actualType, declaredType)) {
-    return mlir::memref::CastOp::create(builder, loc, declaredType, value)
-        .getResult();
+  if (actualMemref && declaredMemref) {
+    return utils::coerceMemRefForCall(builder, loc, value, declaredMemref);
   }
 
   if (mlir::isa<mlir::LLVM::LLVMPointerType>(declaredType)) {
