@@ -1,6 +1,6 @@
-// RUN: cmlirc %s -function=reduce_sum_positive | FileCheck %s
+// RUN: cmlirc %s -function=reduce_sum_nonzero | FileCheck %s
 
-float reduce_sum_positive(float *a, int n) {
+float reduce_sum_nonzero(float *a, int n) {
   float result = 0.0f;
   for (int i = 0; i < n; i++) {
     if (a[i] == 0.0f) {
@@ -11,7 +11,7 @@ float reduce_sum_positive(float *a, int n) {
   return result;
 }
 
-// CHECK: func.func @reduce_sum_positive(%arg0: memref<?xf32>, %arg1: i32) -> f32
+// CHECK: func.func @reduce_sum_nonzero(%arg0: memref<?xf32>, %arg1: i32) -> f32
 // CHECK-DAG: %[[cst:.+]] = arith.constant 0.000000e+00 : f32
 // CHECK-DAG: %[[c0_i32:.+]] = arith.constant 0 : i32
 // CHECK-DAG: %[[c1_i32:.+]] = arith.constant 1 : i32
