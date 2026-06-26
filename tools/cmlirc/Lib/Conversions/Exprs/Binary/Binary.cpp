@@ -2,10 +2,11 @@
 
 namespace cmlirc {
 
-mlir::Value
-CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp) {
-  if (binOp->isAssignmentOp())
+auto CMLIRConverter::generateBinaryOperator(clang::BinaryOperator *binOp)
+    -> mlir::Value {
+  if (binOp->isAssignmentOp()) {
     return generateAssignmentBinaryOperator(binOp);
+  }
   return generatePureBinaryOperator(binOp);
 }
 

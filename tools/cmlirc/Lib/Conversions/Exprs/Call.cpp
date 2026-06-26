@@ -174,7 +174,7 @@ auto coerceExternalArg(mlir::OpBuilder &builder, mlir::Location loc,
     if (mlir::isa<mlir::IntegerType>(srcType) ||
         mlir::isa<mlir::FloatType>(srcType)) {
       return utils::toValue(builder, loc, value, targetType,
-                              !isUnsignedIntegerLike(arg.clangType));
+                            !isUnsignedIntegerLike(arg.clangType));
     }
   }
 
@@ -188,7 +188,7 @@ auto coerceExternalArg(mlir::OpBuilder &builder, mlir::Location loc,
     if (mlir::isa<mlir::IntegerType>(value.getType()) ||
         mlir::isa<mlir::FloatType>(value.getType())) {
       return utils::toValue(builder, loc, value, targetType,
-                              !isUnsignedIntegerLike(arg.clangType));
+                            !isUnsignedIntegerLike(arg.clangType));
     }
   }
 
