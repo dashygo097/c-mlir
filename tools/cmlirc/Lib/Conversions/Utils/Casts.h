@@ -272,7 +272,7 @@ inline auto floatToFloat(mlir::OpBuilder &builder, mlir::Location loc,
   }
 
   if (srcFloat.getWidth() < targetType.getWidth()) {
-    return mlir::arith::ExtFOp::create(builder, loc, targetType, value)
+    return mlir::arith::ExtFOp::create(builder, loc, targetType, value, {})
         .getResult();
   }
 

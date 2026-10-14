@@ -9,64 +9,6 @@
 
 ## Installation
 
-### Option 1: Build from scratch
-
-**1. Configuration:**
-
-```bash
-make config # generate configuration file at build/config.cmake
-```
-
-**2. Build LLVM, MLIR and Clang:**
-
-```bash
-mkdir -p circt/llvm/build
-cd circt/llvm/build
-cmake -G Ninja ../llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DCMAKE_BUILD_TYPE=DEBUG
-ninja
-ninja check-mlir
-```
-
-For faster compilation, it is recommended to use -DLLVM_USE_LINKER=lld.
-
-**2.1 Build CIRCT:(_optional_)**
-
-```bash
-mkdir -p circt/build
-cd circt/build
-cmake -G Ninja .. \
-    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
-    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=DEBUG \
-    -DLLVM_USE_SPLIT_DWARF=ON \
-    -DCIRCT_SLANG_FRONTEND_ENABLED=ON
-ninja
-```
-
-For faster compilation, it is recommended to use -DLLVM_USE_LINKER=lld.
-
-**3. Build tools:**
-
-```bash
-make
-```
-
-Or manually follow this:
-
-```bash
-mkdir -p build
-cd build
-cmake -G Ninja ..
-ninja
-```
-
-### Option 2: Build with pre-built LLVM, MLIR and Clang
-
 **1. Configuration:**
 
 ```bash
@@ -78,8 +20,8 @@ Specify the `PATH` in `config.cmake`.
 ```cmake
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
-set(LLVM_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/llvm/build) # If you're building this proj from scratch, you should not change it
-set(CIRCT_BUILD_DIR ${CMAKE_SOURCE_DIR}/circt/build) # If you're not building `chwc`(c-hardware compiler), you can ignore this
+set(LLVM_BUILD_DIR /path/to/your/pre-built/installation)
+set(CIRCT_BUILD_DIR /path/to/your/pre-built/installation) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 
 # Compilation options
 set(USE_CCACHE ON)
@@ -89,8 +31,8 @@ set(DEFAULT_SYSROOT "")
 set(BUILD_EXECUTABLES ON)
 set(ENABLE_TESTING ON)
 
-set(ENABLE_CMLIRC ON) # Set `OFF` to disable building tool `cmlirc`
-set(ENABLE_CHWC ON) # Set `OFF` to disable building tool `chwc`
+set(BUILD_CMLIRC ON) # Set `OFF` to disable building tool `cmlirc`
+set(BUILD_CHWC OFF) # Set `OFF` to disable building tool `chwc`
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs

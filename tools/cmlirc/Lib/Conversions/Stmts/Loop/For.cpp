@@ -122,7 +122,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     auto whileOp = mlir::scf::WhileOp::create(
         builder, loc, mlir::TypeRange{funcRetType},
         mlir::ValueRange{initRetVal, initKeepGoing},
-        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        [&](mlir::OpBuilder &b, mlir::Location l,
+            mlir::ValueRange args) -> void {
           mlir::OpBuilder::InsertionGuard g(builder);
           builder.setInsertionPointToEnd(b.getInsertionBlock());
 
@@ -137,7 +138,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
           if (breakFlag) {
             mlir::Value notBroke = utils::bitNot(
                 builder, loc,
-                mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                mlir::memref::LoadOp::create(builder, loc, breakFlag, {})
                     .getResult());
             finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
@@ -145,7 +146,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
                                          mlir::ValueRange{args[0]});
         },
-        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) -> void {
           mlir::scf::YieldOp::create(
               b, l, mlir::ValueRange{initRetVal, initKeepGoing});
         });
@@ -180,7 +181,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
       for (clang::Stmt *s : compound->body()) {
         mlir::Value guard = utils::buildGuard(builder, loc, breakFlag,
                                               continueFlag, iterRetFlag);
-        utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+        utils::emitGuarded(builder, loc, guard,
+                           [&]() -> void { TraverseStmt(s); });
       }
     } else {
       TraverseStmt(forStmt->getBody());
@@ -191,16 +193,18 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     if (forStmt->getInc()) {
       mlir::Value notRet = utils::bitNot(
           builder, loc,
-          mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
+          mlir::memref::LoadOp::create(builder, loc, iterRetFlag, {})
+              .getResult());
       mlir::Value incGuard = notRet;
       if (breakFlag) {
         mlir::Value notBroke = utils::bitNot(
             builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
+            mlir::memref::LoadOp::create(builder, loc, breakFlag, {})
+                .getResult());
         incGuard = utils::bitAnd(builder, loc, incGuard, notBroke);
       }
       utils::emitGuarded(builder, loc, incGuard,
-                         [&] { TraverseStmt(forStmt->getInc()); });
+                         [&]() -> void { TraverseStmt(forStmt->getInc()); });
     }
 
     if (continueFlag) {
@@ -210,9 +214,9 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     }
 
     mlir::Value didReturn =
-        mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
+        mlir::memref::LoadOp::create(builder, loc, iterRetFlag, {}).getResult();
     mlir::Value loadedRetVal =
-        mlir::memref::LoadOp::create(builder, loc, iterRetSlot).getResult();
+        mlir::memref::LoadOp::create(builder, loc, iterRetSlot, {}).getResult();
     mlir::Value newRetVal =
         mlir::arith::SelectOp::create(builder, loc, didReturn, loadedRetVal,
                                       prevRetVal)
@@ -232,7 +236,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     auto whileOp = mlir::scf::WhileOp::create(
         builder, loc, mlir::TypeRange{builder.getI1Type()},
         mlir::ValueRange{initKeepGoing},
-        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
+        [&](mlir::OpBuilder &b, mlir::Location l,
+            mlir::ValueRange args) -> void {
           mlir::OpBuilder::InsertionGuard g(builder);
           builder.setInsertionPointToEnd(b.getInsertionBlock());
 
@@ -247,7 +252,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
           if (breakFlag) {
             mlir::Value notBroke = utils::bitNot(
                 builder, loc,
-                mlir::memref::LoadOp::create(builder, loc, breakFlag)
+                mlir::memref::LoadOp::create(builder, loc, breakFlag, {})
                     .getResult());
             finalCond = utils::bitAnd(builder, loc, finalCond, notBroke);
           }
@@ -255,9 +260,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
           mlir::scf::ConditionOp::create(builder, loc, finalCond,
                                          mlir::ValueRange{args[0]});
         },
-        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args) {
-          mlir::scf::YieldOp::create(b, l, args);
-        });
+        [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange args)
+            -> void { mlir::scf::YieldOp::create(b, l, args); });
 
     mlir::Block *afterBlock = &whileOp.getAfter().front();
     afterBlock->back().erase();
@@ -283,7 +287,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
       for (clang::Stmt *s : compound->body()) {
         mlir::Value guard = utils::buildGuard(builder, loc, breakFlag,
                                               continueFlag, iterRetFlag);
-        utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+        utils::emitGuarded(builder, loc, guard,
+                           [&]() -> void { TraverseStmt(s); });
       }
     } else {
       TraverseStmt(forStmt->getBody());
@@ -294,16 +299,18 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     if (forStmt->getInc()) {
       mlir::Value notRet = utils::bitNot(
           builder, loc,
-          mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult());
+          mlir::memref::LoadOp::create(builder, loc, iterRetFlag, {})
+              .getResult());
       mlir::Value incGuard = notRet;
       if (breakFlag) {
         mlir::Value notBroke = utils::bitNot(
             builder, loc,
-            mlir::memref::LoadOp::create(builder, loc, breakFlag).getResult());
+            mlir::memref::LoadOp::create(builder, loc, breakFlag, {})
+                .getResult());
         incGuard = utils::bitAnd(builder, loc, incGuard, notBroke);
       }
       utils::emitGuarded(builder, loc, incGuard,
-                         [&] { TraverseStmt(forStmt->getInc()); });
+                         [&]() -> void { TraverseStmt(forStmt->getInc()); });
     }
 
     if (continueFlag) {
@@ -312,7 +319,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     }
 
     mlir::Value didReturn =
-        mlir::memref::LoadOp::create(builder, loc, iterRetFlag).getResult();
+        mlir::memref::LoadOp::create(builder, loc, iterRetFlag, {}).getResult();
     mlir::Value newKeepGoing = utils::bitNot(builder, loc, didReturn);
 
     mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{newKeepGoing});
@@ -324,7 +331,7 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
 
   auto whileOp = mlir::scf::WhileOp::create(
       builder, loc, mlir::TypeRange{}, mlir::ValueRange{},
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) -> void {
         mlir::OpBuilder::InsertionGuard g(builder);
         builder.setInsertionPointToEnd(b.getInsertionBlock());
         mlir::Value cond =
@@ -334,13 +341,13 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
         if (breakFlag) {
           mlir::Value notBroke = utils::bitNot(
               builder, loc,
-              mlir::memref::LoadOp::create(builder, loc, breakFlag)
+              mlir::memref::LoadOp::create(builder, loc, breakFlag, {})
                   .getResult());
           cond = utils::bitAnd(builder, loc, cond, notBroke);
         }
         mlir::scf::ConditionOp::create(builder, loc, cond, mlir::ValueRange{});
       },
-      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) {
+      [&](mlir::OpBuilder &b, mlir::Location l, mlir::ValueRange) -> void {
         mlir::scf::YieldOp::create(b, l, mlir::ValueRange{});
       });
 
@@ -361,7 +368,8 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     for (clang::Stmt *s : compound->body()) {
       mlir::Value guard =
           utils::buildGuard(builder, loc, breakFlag, continueFlag, {});
-      utils::emitGuarded(builder, loc, guard, [&] { TraverseStmt(s); });
+      utils::emitGuarded(builder, loc, guard,
+                         [&]() -> void { TraverseStmt(s); });
     }
   } else {
     TraverseStmt(forStmt->getBody());
@@ -374,13 +382,13 @@ void CMLIRConverter::emitWhileStyleForLoop(clang::ForStmt *forStmt) {
     builder.setInsertionPointToEnd(cur);
     if (cur->empty() || !cur->back().hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::Value runInc =
-          hasBreak ? utils::bitNot(
-                         builder, loc,
-                         mlir::memref::LoadOp::create(builder, loc, breakFlag)
-                             .getResult())
+          hasBreak ? utils::bitNot(builder, loc,
+                                   mlir::memref::LoadOp::create(builder, loc,
+                                                                breakFlag, {})
+                                       .getResult())
                    : utils::boolConst(builder, loc, true);
       utils::emitGuarded(builder, loc, runInc,
-                         [&] { TraverseStmt(forStmt->getInc()); });
+                         [&]() -> void { TraverseStmt(forStmt->getInc()); });
     }
   }
 
@@ -409,9 +417,9 @@ auto CMLIRConverter::TraverseForStmt(clang::ForStmt *forStmt) -> bool {
   mlir::OpBuilder &builder = contextManager.Builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  auto info =
-      utils::analyseForLoop(forStmt, builder, loc,
-                            [this](clang::Expr *e) { return generateExpr(e); });
+  auto info = utils::analyseForLoop(
+      forStmt, builder, loc,
+      [this](clang::Expr *e) -> mlir::Value { return generateExpr(e); });
 
   if (!info) {
     emitWhileStyleForLoop(forStmt);

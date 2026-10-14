@@ -19,40 +19,45 @@ set(CMLIR_TEST_DEPS
   mlir-translate
   lli
   
-  cmlirc
-  chwc
-  
   # Clang
   clang
 )
 
-add_lit_testsuite(check-cmlirc
-  "Running the C-MLIR regression tests"
-  ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
-  DEPENDS ${CMLIR_TEST_DEPS}
-)
+if (BUILD_CMLIRC) 
+  list(APPEND CMLIR_TEST_DEPS cmlirc)
+  add_lit_testsuite(check-cmlirc
+    "Running the C-MLIR regression tests"
+    ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
+    DEPENDS ${CMLIR_TEST_DEPS}
+  )
 
-add_lit_testsuite(check-cmlirc-single
-  "Running the C-MLIR regression tests (single-threaded)"
-  ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
-  DEPENDS ${CMLIR_TEST_DEPS}
-  ARGS -j 1 -v
-)
+  add_lit_testsuite(check-cmlirc-single
+    "Running the C-MLIR regression tests (single-threaded)"
+    ${CMAKE_CURRENT_BINARY_DIR}/cmlirc
+    DEPENDS ${CMLIR_TEST_DEPS}
+    ARGS -j 1 -v
+  )
 
-add_lit_testsuite(check-chwc
-  "Running the C-HW regression tests"
-  ${CMAKE_CURRENT_BINARY_DIR}/chwc
-  DEPENDS ${CMLIR_TEST_DEPS}
-)
+  set_target_properties(check-cmlirc PROPERTIES FOLDER "Tests")
+  set_target_properties(check-cmlirc-single PROPERTIES FOLDER "Tests")
+endif()
 
-add_lit_testsuite(check-chwc-single
-  "Running the C-HW regression tests (single-threaded)"
-  ${CMAKE_CURRENT_BINARY_DIR}/chwc
-  DEPENDS ${CMLIR_TEST_DEPS}
-  ARGS -j 1 -v
-)
+if (BUILD_CHWC)
+  list(APPEND CMLIR_TEST_DEPS chwc)
 
-set_target_properties(check-cmlirc PROPERTIES FOLDER "Tests")
-set_target_properties(check-cmlirc-single PROPERTIES FOLDER "Tests")
-set_target_properties(check-chwc PROPERTIES FOLDER "Tests")
-set_target_properties(check-chwc-single PROPERTIES FOLDER "Tests")
+  add_lit_testsuite(check-chwc
+    "Running the C-HW regression tests"
+    ${CMAKE_CURRENT_BINARY_DIR}/chwc
+    DEPENDS ${CMLIR_TEST_DEPS}
+  )
+
+  add_lit_testsuite(check-chwc-single
+    "Running the C-HW regression tests (single-threaded)"
+    ${CMAKE_CURRENT_BINARY_DIR}/chwc
+    DEPENDS ${CMLIR_TEST_DEPS}
+    ARGS -j 1 -v
+  )
+
+  set_target_properties(check-chwc PROPERTIES FOLDER "Tests")
+  set_target_properties(check-chwc-single PROPERTIES FOLDER "Tests")
+endif()

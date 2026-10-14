@@ -24,7 +24,9 @@ endif()
 include(AppendLLVM)
 include(AppendMLIR)
 include(AppendClang)
-include(AppendCIRCT)
+if (BUILD_CHWC)
+  include(AppendCIRCT)
+endif()
 
 # Build the library
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)

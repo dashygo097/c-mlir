@@ -7,16 +7,17 @@
 
 namespace cmlirc::utils {
 
-mlir::Value buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
-                       mlir::Value breakFlag, mlir::Value continueFlag,
-                       mlir::Value returnFlag) {
+auto buildGuard(mlir::OpBuilder &builder, mlir::Location loc,
+                mlir::Value breakFlag, mlir::Value continueFlag,
+                mlir::Value returnFlag) -> mlir::Value {
   mlir::Value result;
   for (mlir::Value flag : {breakFlag, continueFlag, returnFlag}) {
-    if (!flag)
+    if (!flag) {
       continue;
+    }
     mlir::Value notFlag = utils::bitNot(
         builder, loc,
-        mlir::memref::LoadOp::create(builder, loc, flag).getResult());
+        mlir::memref::LoadOp::create(builder, loc, flag, {}).getResult());
     result = result ? utils::bitAnd(builder, loc, result, notFlag) : notFlag;
   }
   return result;
@@ -36,8 +37,9 @@ void emitGuarded(mlir::OpBuilder &builder, mlir::Location loc,
     if (builder.getInsertionBlock()->empty() ||
         !builder.getInsertionBlock()
              ->back()
-             .hasTrait<mlir::OpTrait::IsTerminator>())
+             .hasTrait<mlir::OpTrait::IsTerminator>()) {
       mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
+    }
   }
   builder.setInsertionPointAfter(ifOp);
 }
@@ -52,7 +54,8 @@ void ensureYield(mlir::OpBuilder &builder, mlir::Location loc,
   }
 }
 
-bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing) {
+auto classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing)
+    -> bool {
   using CBO = clang::BinaryOperatorKind;
   switch (op) {
   case CBO::BO_LT:
@@ -68,32 +71,36 @@ bool classifyCondOp(clang::BinaryOperatorKind op, bool &isIncrementing) {
   }
 }
 
-mlir::Value
-extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
-            bool isIncrementing, mlir::OpBuilder &builder, mlir::Location loc,
-            const std::function<mlir::Value(clang::Expr *)> &genExpr) {
+auto extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
+                 bool isIncrementing, mlir::OpBuilder &builder,
+                 mlir::Location loc,
+                 const std::function<mlir::Value(clang::Expr *)> &genExpr)
+    -> mlir::Value {
 
   if (auto *unary = mlir::dyn_cast_or_null<clang::UnaryOperator>(incExpr)) {
     auto *subj = mlir::dyn_cast<clang::DeclRefExpr>(
         unary->getSubExpr()->IgnoreImpCasts());
-    if (!subj || subj->getDecl() != var)
+    if (!subj || subj->getDecl() != var) {
       return {};
+    }
 
     bool isInc = (unary->getOpcode() == clang::UO_PostInc ||
                   unary->getOpcode() == clang::UO_PreInc);
     bool isDec = (unary->getOpcode() == clang::UO_PostDec ||
                   unary->getOpcode() == clang::UO_PreDec);
 
-    if ((isInc && isIncrementing) || (isDec && !isIncrementing))
+    if ((isInc && isIncrementing) || (isDec && !isIncrementing)) {
       return indexConst(builder, loc, 1);
+    }
     return {};
   }
 
   if (auto *bin = mlir::dyn_cast_or_null<clang::BinaryOperator>(incExpr)) {
     auto *lhsRef =
         mlir::dyn_cast<clang::DeclRefExpr>(bin->getLHS()->IgnoreImpCasts());
-    if (!lhsRef || lhsRef->getDecl() != var)
+    if (!lhsRef || lhsRef->getDecl() != var) {
       return {};
+    }
 
     auto op = bin->getOpcode();
 
@@ -108,12 +115,14 @@ extractStep(clang::Expr *incExpr, const clang::VarDecl *var,
     if (op == clang::BO_Assign) {
       auto *rhs = mlir::dyn_cast<clang::BinaryOperator>(
           bin->getRHS()->IgnoreImpCasts());
-      if (!rhs)
+      if (!rhs) {
         return {};
+      }
       auto *rhsLHS =
           mlir::dyn_cast<clang::DeclRefExpr>(rhs->getLHS()->IgnoreImpCasts());
-      if (!rhsLHS || rhsLHS->getDecl() != var)
+      if (!rhsLHS || rhsLHS->getDecl() != var) {
         return {};
+      }
 
       auto rhsOp = rhs->getOpcode();
       if ((rhsOp == clang::BO_Add && isIncrementing) ||
@@ -134,8 +143,9 @@ void adjustBounds(mlir::OpBuilder &builder, mlir::Location loc,
   if (isIncrementing) {
     lb = initVal;
     ub = condVal;
-    if (condOp == clang::BO_LE)
+    if (condOp == clang::BO_LE) {
       ub = addi(builder, loc, ub, 1);
+    }
   } else {
     lb = condVal;
     ub = initVal;
@@ -148,37 +158,43 @@ void adjustBounds(mlir::OpBuilder &builder, mlir::Location loc,
   }
 }
 
-std::optional<SimpleLoopInfo>
-analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
-               mlir::Location loc,
-               const std::function<mlir::Value(clang::Expr *)> &genExpr) {
+auto analyseForLoop(clang::ForStmt *forStmt, mlir::OpBuilder &builder,
+                    mlir::Location loc,
+                    const std::function<mlir::Value(clang::Expr *)> &genExpr)
+    -> std::optional<SimpleLoopInfo> {
 
   auto *initStmt = mlir::dyn_cast_or_null<clang::DeclStmt>(forStmt->getInit());
-  if (!initStmt || !initStmt->isSingleDecl())
+  if (!initStmt || !initStmt->isSingleDecl()) {
     return std::nullopt;
+  }
 
   auto *varDecl = mlir::dyn_cast<clang::VarDecl>(initStmt->getSingleDecl());
-  if (!varDecl || !varDecl->hasInit() || !varDecl->getType()->isIntegerType())
+  if (!varDecl || !varDecl->hasInit() || !varDecl->getType()->isIntegerType()) {
     return std::nullopt;
+  }
 
   auto *cond =
       mlir::dyn_cast_or_null<clang::BinaryOperator>(forStmt->getCond());
-  if (!cond)
+  if (!cond) {
     return std::nullopt;
+  }
 
   auto *condLHSRef =
       mlir::dyn_cast<clang::DeclRefExpr>(cond->getLHS()->IgnoreImpCasts());
-  if (!condLHSRef || condLHSRef->getDecl() != varDecl)
+  if (!condLHSRef || condLHSRef->getDecl() != varDecl) {
     return std::nullopt;
+  }
 
   bool isIncrementing = true;
-  if (!classifyCondOp(cond->getOpcode(), isIncrementing))
+  if (!classifyCondOp(cond->getOpcode(), isIncrementing)) {
     return std::nullopt;
+  }
 
   mlir::Value step = extractStep(forStmt->getInc(), varDecl, isIncrementing,
                                  builder, loc, genExpr);
-  if (!step)
+  if (!step) {
     return std::nullopt;
+  }
 
   mlir::Value initVal = toIndex(builder, loc, genExpr(varDecl->getInit()));
   mlir::Value condVal = toIndex(builder, loc, genExpr(cond->getRHS()));

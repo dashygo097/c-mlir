@@ -14,4 +14,7 @@ add_mlir_dialect_library(cmlir
   DEPENDS 
   MLIRCMLIROpsIncGen
   MLIRCMLIRTransformsIncGen
+
+  LINK_LIBS PUBLIC
+    MLIRArithDialect
 )

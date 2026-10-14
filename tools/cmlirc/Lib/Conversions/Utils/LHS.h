@@ -98,7 +98,8 @@ inline auto loadLHS(mlir::OpBuilder &builder, mlir::Location loc, LHSKind kind,
           .getResult();
     }
 
-    return mlir::memref::LoadOp::create(builder, loc, lhsMemref).getResult();
+    return mlir::memref::LoadOp::create(builder, loc, lhsMemref, {})
+        .getResult();
   }
 
   llvm::WithColor::error() << "cmlirc: unhandled LHSKind\n";

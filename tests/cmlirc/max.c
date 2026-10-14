@@ -9,9 +9,8 @@ int max2(int a, int b) {
 }
 
 // CHECK2: func.func @max2(%arg0: i32, %arg1: i32) -> i32
-// CHECK2: %[[V0:.*]] = arith.cmpi sgt, %arg0, %arg1 : i32
-// CHECK2: %[[V1:.*]] = arith.select %[[V0]], %arg0, %arg1 : i32
-// CHECK2: return %[[V1]] : i32
+// CHECK2: %[[V0:.*]] = arith.maxsi %arg0, %arg1 : i32
+// CHECK2: return %[[V0]] : i32
 
 //--- max3.c
 int max3(int a, int b, int c) {
@@ -49,10 +48,7 @@ int max4(int a, int b, int c, int d) {
 }
 
 // CHECK4: func.func @max4(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32) -> i32
-// CHECK4: %[[V0:.*]] = arith.cmpi sgt, %arg1, %arg0 : i32
-// CHECK4: %[[V1:.*]] = arith.select %[[V0]], %arg1, %arg0 : i32
-// CHECK4: %[[V2:.*]] = arith.cmpi sgt, %arg2, %[[V1]] : i32
-// CHECK4: %[[V3:.*]] = arith.select %[[V2]], %arg2, %[[V1]] : i32
-// CHECK4: %[[V4:.*]] = arith.cmpi sgt, %arg3, %[[V3]] : i32
-// CHECK4: %[[V5:.*]] = arith.select %[[V4]], %arg3, %[[V3]] : i32
-// CHECK4: return %[[V5]] : i32
+// CHECK4: %[[V0:.*]] = arith.maxsi %arg1, %arg0 : i32
+// CHECK4: %[[V1:.*]] = arith.maxsi %arg2, %[[V0]] : i32
+// CHECK4: %[[V2:.*]] = arith.maxsi %arg3, %[[V1]] : i32
+// CHECK4: return %[[V2]] : i32
