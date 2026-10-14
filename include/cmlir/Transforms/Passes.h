@@ -20,8 +20,6 @@ auto createFMAPass() -> std::unique_ptr<mlir::Pass>;
 auto createRaiseMemref2AffinePass() -> std::unique_ptr<mlir::Pass>;
 auto createRaiseSCF2AffinePass() -> std::unique_ptr<mlir::Pass>;
 
-void registerTransformPasses();
-
 #define GEN_PASS_REGISTRATION
 #include "cmlir/Transforms/Passes.h.inc"
 

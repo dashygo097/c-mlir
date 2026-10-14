@@ -2,3 +2,5 @@ Checks: >
   google-*,
   modernize-*
 HeaderFilterRegex: "^(?!.*llvm-project).*"
+CheckOptions:
+  google-readability-braces-around-statements.ShortStatementLines: "0"

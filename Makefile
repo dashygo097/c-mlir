@@ -5,7 +5,7 @@ BUILD_DIR = $(PROJECT_DIR)/build
 # Build configuration
 BUILD_TYPE ?= Release 
 GENERATOR ?= Ninja 
-TEST_TARGET ?=
+TEST_TARGET ?= frontend
 
 # Detect generator command
 ifeq ($(GENERATOR),Ninja)

@@ -33,8 +33,7 @@ for var in ["HOME", "TMPDIR", "TMP", "TEMP"]:
     if var in os.environ:
         config.environment[var] = os.environ[var]
 
-config.substitutions.append(("%cmlir", "cmlirc"))
-config.substitutions.append(("%cmlir", "chwc"))
+config.substitutions.append(("%frontend", "clang-to-mlir"))
 
 tools = {
     "FileCheck": "FileCheck",

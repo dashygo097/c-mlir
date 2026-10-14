@@ -1,0 +1,60 @@
+#include "../Lowering.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "clang/AST/Expr.h"
+
+namespace cmlir::frontend {
+
+auto ASTLowering::generateUnaryExprOrTypeTraitExpr(
+    clang::UnaryExprOrTypeTraitExpr *expr) -> mlir::Value {
+
+  clang::ASTContext &astCtx = context.ast();
+  mlir::OpBuilder &builder = context.builder();
+  mlir::Location loc = builder.getUnknownLoc();
+
+  using CUETT = clang::UnaryExprOrTypeTrait;
+
+  switch (expr->getKind()) {
+  case CUETT::UETT_SizeOf: {
+    clang::QualType qty = expr->isArgumentType()
+                              ? expr->getArgumentType()
+                              : expr->getArgumentExpr()->getType();
+    qty = qty.getCanonicalType();
+    clang::TypeInfo ti = astCtx.getTypeInfo(qty);
+    uint64_t sizeBytes = ti.Width / 8;
+    mlir::Type resultType = convertType(expr->getType());
+    if (!resultType) {
+      resultType = builder.getI64Type();
+    }
+    return mlir::arith::ConstantOp::create(
+               builder, loc, resultType,
+               builder.getIntegerAttr(resultType,
+                                      static_cast<int64_t>(sizeBytes)))
+        .getResult();
+  }
+
+  case CUETT::UETT_AlignOf: {
+    clang::QualType qty = expr->isArgumentType()
+                              ? expr->getArgumentType()
+                              : expr->getArgumentExpr()->getType();
+    qty = qty.getCanonicalType();
+    clang::TypeInfo ti = astCtx.getTypeInfo(qty);
+    uint64_t alignBytes = ti.Align / 8;
+    mlir::Type resultType = convertType(expr->getType());
+    if (!resultType) {
+      resultType = builder.getI64Type();
+    }
+    return mlir::arith::ConstantOp::create(
+               builder, loc, resultType,
+               builder.getIntegerAttr(resultType,
+                                      static_cast<int64_t>(alignBytes)))
+        .getResult();
+  }
+
+  default:
+    llvm::errs() << "unsupported UnaryExprOrTypeTrait kind: " << expr->getKind()
+                 << "\n";
+    return {};
+  }
+}
+
+} // namespace cmlir::frontend

@@ -1,0 +1,76 @@
+add_library(CMLIRFrontend STATIC
+  Frontend.cc
+  Declarations/Dispatch.cc
+  Declarations/Function.cc
+  Declarations/Record.cc
+  Declarations/Var.cc
+  Expressions/Address.cc
+  Expressions/ArraySubscript.cc
+  Expressions/Binary/Assign.cc
+  Expressions/Binary/Binary.cc
+  Expressions/Binary/Pure.cc
+  Expressions/CStyleCast.cc
+  Expressions/CXXConstruct.cc
+  Expressions/CXXThis.cc
+  Calls/Call.cc
+  Calls/Builtins.cc
+  Calls/ExternalABI.cc
+  Calls/Symbols.cc
+  Expressions/Conditional.cc
+  Expressions/DeclRef.cc
+  Expressions/Dispatch.cc
+  Expressions/ImplicitCast.cc
+  Expressions/InitList.cc
+  Expressions/Literals.cc
+  Expressions/Logical.cc
+  Expressions/Member.cc
+  Expressions/Paren.cc
+  Expressions/Unary/AddrOf.cc
+  Expressions/Unary/IncDec.cc
+  Expressions/Unary/Unary.cc
+  Expressions/UnaryOrTypeTrait.cc
+  Pragmas/PragmaHandler.cc
+  Statements/Break.cc
+  Statements/Continue.cc
+  Statements/Dispatch.cc
+  Statements/Do.cc
+  Statements/For.cc
+  Statements/If.cc
+  ControlFlow/LoopCFG.cc
+  ControlFlow/LoopAnalysis.cc
+  Statements/Return.cc
+  Statements/Switch.cc
+  Statements/While.cc
+  Types/Array.cc
+  Types/Builtin.cc
+  Types/Dispatch.cc
+  Types/FieldLayout.cc
+  Types/Pointer.cc
+  Types/Record.cc
+  Types/Reference.cc
+  Types/Typedef.cc
+)
+target_include_directories(CMLIRFrontend PUBLIC
+  ${PROJECT_SOURCE_DIR}/include
+)
+target_link_libraries(CMLIRFrontend
+  PUBLIC
+    CMLIR::ClangASTSupport
+    CMLIR::ClangMLIRSupport
+    MLIRIR
+  PRIVATE
+    MLIRAffineDialect
+    MLIRArithDialect
+    MLIRControlFlowDialect
+    MLIRFuncDialect
+    MLIRLLVMDialect
+    MLIRMathDialect
+    MLIRMemRefDialect
+    MLIRSCFDialect
+    MLIRVectorDialect
+    clangLex
+    clangSupport
+)
+llvm_update_compile_flags(CMLIRFrontend)
+target_compile_features(CMLIRFrontend PUBLIC cxx_std_17)
+add_library(CMLIR::Frontend ALIAS CMLIRFrontend)

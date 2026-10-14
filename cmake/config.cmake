@@ -1,22 +1,19 @@
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
 set(LLVM_BUILD_DIR /path/to/your/pre-built/installation)
-set(CIRCT_BUILD_DIR /path/to/your/pre-built/installation) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 
 # Compilation options
 set(USE_CCACHE ON)
-set(DEFAULT_SYSROOT "")
+set(DEFAULT_SYSROOT "") # for macOS user you can use `xcrun --show-sdk-path` to fill in this PATH
 
 # Build options
-set(BUILD_EXECUTABLES ON)
 set(ENABLE_TESTING ON)
 
-set(BUILD_CMLIRC ON) # Set `OFF` to disable building tool `cmlirc`
-set(BUILD_CHWC OFF) # Set `OFF` to disable building tool `chwc`  
+set(BUILD_FRONTEND ON) # Build the reusable Clang AST lowering library
+set(BUILD_CLANG_TO_MLIR ON) # Set OFF to build libraries without the CLI
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
 set(LLVM_DIR ${LLVM_BUILD_DIR}/lib/cmake/llvm)
 set(MLIR_DIR ${LLVM_BUILD_DIR}/lib/cmake/mlir)
 set(Clang_DIR ${LLVM_BUILD_DIR}/lib/cmake/clang)
-set(CIRCT_DIR ${CIRCT_BUILD_DIR}/lib/cmake/circt) # If you're not building `chwc`(c-hardware compiler), you can ignore this

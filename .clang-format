@@ -1,1 +1,4 @@
 BasedOnStyle: LLVM
+InsertBraces: true
+SeparateDefinitionBlocks: Always
+ShortNamespaceLines: 0

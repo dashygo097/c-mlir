@@ -21,25 +21,23 @@ Specify the `PATH` in `config.cmake`.
 # Build configuration options
 # NOTE: set(LLVM_BUILD_DIR path/to/your/pre-built/installation) # if you're using your pre-built installation.
 set(LLVM_BUILD_DIR /path/to/your/pre-built/installation)
-set(CIRCT_BUILD_DIR /path/to/your/pre-built/installation) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 
 # Compilation options
 set(USE_CCACHE ON)
-set(DEFAULT_SYSROOT "")
+set(DEFAULT_SYSROOT "") # for macOS user you can use `xcrun --show-sdk-path` to fill in this PATH
 
-# Build options
-set(BUILD_EXECUTABLES ON)
+# Test options
 set(ENABLE_TESTING ON)
 
-set(BUILD_CMLIRC ON) # Set `OFF` to disable building tool `cmlirc`
-set(BUILD_CHWC OFF) # Set `OFF` to disable building tool `chwc`
+# Build options
+set(BUILD_FRONTEND ON) # Build the reusable Clang AST lowering library
+set(BUILD_CLANG_TO_MLIR ON) # Set OFF to build libraries without the CLI
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs
 set(LLVM_DIR ${LLVM_BUILD_DIR}/lib/cmake/llvm)
 set(MLIR_DIR ${LLVM_BUILD_DIR}/lib/cmake/mlir)
 set(Clang_DIR ${LLVM_BUILD_DIR}/lib/cmake/clang)
-set(CIRCT_DIR ${CIRCT_BUILD_DIR}/lib/cmake/circt) # If you're not building `chwc`(c-hardware compiler), you can ignore this
 ```
 
 **2. Build tools**
@@ -70,19 +68,20 @@ pip install lit
 **2. Run tests**
 
 ```bash
-make test TEST_TARGET=xxx # The name of the executable you want to test(cmlirc, chwc, etc.)
+make test # Run the clang-to-mlir regression suite and compiler API checks
 ```
 
 Or manually follow this:
 
 ```bash
 cd build
-ninja check-xxx # The name of the executable you want to test(cmlirc, chwc, etc.)
+ninja check-frontend
+ninja check-frontend-api # Run only the reusable compiler API checks
 ```
 
 ## Examples
 
-### `cmlirc` (c/c++ to mlir compiler)
+### `clang-to-mlir` (c/c++ to mlir compiler)
 
 **1. Dot Product**
 
@@ -97,7 +96,7 @@ float dot(const float *a, const float *b, int n) {
 ```
 
 ```bash
-cmlirc dot.c
+clang-to-mlir dot.c
 ```
 
 ```mlir
@@ -118,54 +117,6 @@ module {
   }
 }
 ```
-
-### `chwc` (c/c++ to hardware compiler)
-
-**1. Counter**
-
-```cpp
-#include <chwc/Runtime.h> // Runtime Lib
-
-class Counter final : public Hardware {
-public:
-  Input<UInt<1>> en;
-  Output<UInt<16>> out;
-  Reg<UInt<16>> value;
-
-  // HW_RESET denotes this function processes reset tasks
-  HW_RESET void rst() { value = 0; }
-
-  // HW_CLOCK_TICK denotes this function processes clock related tasks
-  HW_CLOCK_TICK void tick() {
-    if (en) {
-      value = add_one(value);
-    }
-    out = value;
-  }
-
-  // HW_FUNC denotes this function is an inline helper function
-  HW_FUNC UInt<16> add_one(UInt<16> input) { return input + 1; }
-};
-```
-
-```bash
-chwc counter.cpp
-```
-
-```mlir
-module {
-  hw.module @Counter(in %clk : !seq.clock, in %rst : i1, in %en : i1, out out : i16) {
-    %c1_i16 = hw.constant 1 : i16
-    %c0_i16 = hw.constant 0 : i16
-    %value = seq.firreg %1 clock %clk reset sync %rst, %c0_i16 : i16
-    %0 = comb.add %value, %c1_i16 : i16
-    %1 = comb.mux %en, %0, %value : i16
-    hw.output %value : i16
-  }
-}
-```
-
-which can be lowered into (system)verilog with `circt-opt` and `firtool`.
 
 ## Acknowledgement
 
