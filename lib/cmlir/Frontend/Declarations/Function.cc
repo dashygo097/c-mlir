@@ -104,6 +104,11 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
   if (sm.isInSystemHeader(decl->getLocation())) {
     return true;
   }
+  if (decl->isVariadic()) {
+    context.source().error(decl->getLocation(),
+                           "variadic function definitions are unsupported");
+    return false;
+  }
 
   mlir::OpBuilder &builder = context.builder();
   mlir::OpBuilder::InsertionGuard insertion(builder);
@@ -112,58 +117,28 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
   // Name of the function
   std::string funcName = functionSymbolName(*decl);
 
-  // Convert parameter types
-  llvm::SmallVector<mlir::Type, 4> argTypes;
-
-  // Check MethodDecl
   bool isInstanceMethod = false;
-  if (auto *methodDecl = mlir::dyn_cast<clang::CXXMethodDecl>(decl)) {
-    if (!methodDecl->isStatic()) {
-      isInstanceMethod = true;
-      mlir::Type thisType = convertType(methodDecl->getThisType());
-      if (!thisType) {
-        return false;
-      }
-      argTypes.push_back(thisType);
-    }
+  if (auto *method = llvm::dyn_cast<clang::CXXMethodDecl>(decl)) {
+    isInstanceMethod = !method->isStatic();
   }
-
-  for (auto *param : decl->parameters()) {
-    mlir::Type paramType = convertType(param->getType());
-    if (!paramType) {
-      return false;
-    }
-    argTypes.push_back(paramType);
-  }
-
-  // Convert return type
-  mlir::Type returnType = convertType(decl->getReturnType());
-  if (!returnType) {
+  auto signature =
+      lowerFunctionSignature(types, *decl, CallConvention::Internal);
+  if (mlir::failed(signature)) {
+    context.source().error(decl->getLocation(),
+                           "unsupported function definition signature");
     return false;
   }
-
-  llvm::SmallVector<mlir::Type, 1> returnTypes;
-  if (!mlir::isa<mlir::NoneType>(returnType)) {
-    returnTypes.push_back(returnType);
+  auto returnTypes = signature->getResults();
+  auto funcOp =
+      getOrCreateFunctionDecl(builder, context.module(), funcName, *signature);
+  if (!funcOp) {
+    return false;
   }
-
-  auto funcType = builder.getFunctionType(argTypes, returnTypes);
-
-  // Create function
-
-  auto funcOp = context.module().lookupSymbol<mlir::func::FuncOp>(funcName);
-  if (funcOp && !funcOp.isDeclaration()) {
+  if (!funcOp.isDeclaration()) {
     return true;
   }
-  if (funcOp && funcOp.getFunctionType() != funcType) {
-    context.source().error(decl->getLocation(),
-                           "conflicting function signature");
-    return false;
-  }
-  if (!funcOp) {
-    funcOp = mlir::func::FuncOp::create(builder, builder.getUnknownLoc(),
-                                        funcName, funcType);
-  }
+  funcOp->moveBefore(context.module().getBody(),
+                     context.module().getBody()->end());
   funcOp.setPublic();
 
   // Create entry block

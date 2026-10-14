@@ -1,6 +1,7 @@
 #ifndef CMLIR_FRONTEND_LOWERING_H
 #define CMLIR_FRONTEND_LOWERING_H
 
+#include "Calls/CallLowering.h"
 #include "Pragmas/PragmaHandler.h"
 #include "State/FunctionState.h"
 #include "State/ModuleState.h"
@@ -17,7 +18,8 @@ class ASTLowering {
 public:
   explicit ASTLowering(clang_mlir::Context &context,
                        const LoopHintMap &loopHintMap)
-      : context(context), loopHintMap(loopHintMap), types(context) {}
+      : context(context), loopHintMap(loopHintMap), types(context),
+        calls(context, types) {}
 
   ~ASTLowering() = default;
 
@@ -51,6 +53,7 @@ private:
   ModuleState module;
   FunctionState function;
   TypeLowering types;
+  CallLowering calls;
   bool trace = false;
 
   auto convertType(clang::QualType type) -> mlir::Type {

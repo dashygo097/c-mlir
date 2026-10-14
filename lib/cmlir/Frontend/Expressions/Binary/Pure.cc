@@ -1,4 +1,5 @@
 #include "../../Lowering.h"
+#include "../PointerArithmetic.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
 #include "clang-mlir/Numerics.h"
@@ -23,6 +24,26 @@ auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
   mlir::Value rhs = generateExpr(binOp->getRHS());
   if (!lhs || !rhs) {
     return {};
+  }
+
+  if (binOp->getType()->isPointerType() &&
+      (binOp->getOpcode() == clang::BO_Add ||
+       binOp->getOpcode() == clang::BO_Sub)) {
+    auto *pointerExpr = binOp->getLHS();
+    auto *offsetExpr = binOp->getRHS();
+    if (!pointerExpr->getType()->isPointerType()) {
+      std::swap(lhs, rhs);
+      std::swap(pointerExpr, offsetExpr);
+    }
+    auto element =
+        types.convertStorageType(pointerExpr->getType()->getPointeeType());
+    if (!element) {
+      return {};
+    }
+    return emitPointerOffset(
+        builder, loc, lhs, rhs, element,
+        offsetExpr->getType()->isSignedIntegerOrEnumerationType(),
+        binOp->getOpcode() == clang::BO_Sub);
   }
 
   using CBO = clang::BinaryOperatorKind;

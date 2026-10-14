@@ -13,8 +13,11 @@ add_library(CMLIRFrontend STATIC
   Expressions/CXXConstruct.cc
   Expressions/CXXThis.cc
   Calls/Call.cc
-  Calls/Builtins.cc
+  Calls/CallLowering.cc
+  Calls/Arguments.cc
   Calls/ExternalABI.cc
+  Calls/Math.cc
+  Calls/Signature.cc
   Calls/Symbols.cc
   Expressions/Conditional.cc
   Expressions/DeclRef.cc
@@ -25,6 +28,7 @@ add_library(CMLIRFrontend STATIC
   Expressions/Logical.cc
   Expressions/Member.cc
   Expressions/Paren.cc
+  Expressions/PointerArithmetic.cc
   Expressions/Unary/AddrOf.cc
   Expressions/Unary/IncDec.cc
   Expressions/Unary/Unary.cc

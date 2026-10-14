@@ -1,33 +1,21 @@
-#include "../Lowering.h"
 #include "CallLowering.h"
-#include "clang-mlir/Casts.h"
-#include "clang-mlir/Constants.h"
-#include "clang-mlir/MemrefABI.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "ExternalABI.h"
+#include "mlir/IR/Diagnostics.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Mangle.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/WithColor.h"
-
-#include "mlir/IR/Diagnostics.h"
+#include "llvm/ADT/DenseSet.h"
 
 namespace cmlir::frontend {
 
 auto getOrCreateFunctionDecl(mlir::OpBuilder &builder, mlir::ModuleOp module,
-                             const std::string &name,
-                             mlir::FunctionType funcType)
+                             llvm::StringRef name, mlir::FunctionType funcType)
     -> mlir::func::FuncOp {
-  if (auto existing = module.lookupSymbol<mlir::func::FuncOp>(name)) {
-    if (existing.getFunctionType() != funcType) {
-      mlir::emitError(builder.getUnknownLoc(),
-                      "conflicting function symbol signature");
+  if (auto *symbol = module.lookupSymbol(name)) {
+    auto existing = mlir::dyn_cast<mlir::func::FuncOp>(symbol);
+    if (!existing || existing.getFunctionType() != funcType) {
+      mlir::emitError(builder.getUnknownLoc())
+          << "conflicting function symbol signature for '" << name << "'";
       return {};
     }
     return existing;
@@ -47,10 +35,11 @@ auto getOrCreateLLVMFunctionDecl(mlir::OpBuilder &builder,
                                  mlir::ModuleOp module, llvm::StringRef name,
                                  mlir::LLVM::LLVMFunctionType funcType)
     -> mlir::LLVM::LLVMFuncOp {
-  if (auto existing = module.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name)) {
-    if (existing.getFunctionType() != funcType) {
-      mlir::emitError(builder.getUnknownLoc(),
-                      "conflicting function symbol signature");
+  if (auto *symbol = module.lookupSymbol(name)) {
+    auto existing = mlir::dyn_cast<mlir::LLVM::LLVMFuncOp>(symbol);
+    if (!existing || existing.getFunctionType() != funcType) {
+      mlir::emitError(builder.getUnknownLoc())
+          << "conflicting function symbol signature for '" << name << "'";
       return {};
     }
     return existing;
