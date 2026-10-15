@@ -81,6 +81,9 @@ ninja check-frontend-api # Run only the reusable compiler API checks
 
 ## Examples
 
+The optimization stages and profiling options are described in
+[Optimization pipeline](docs/Pipeline.md).
+
 ### `clang-to-mlir` (c/c++ to mlir compiler)
 
 **1. Dot Product**

@@ -4,6 +4,12 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/Support/Error.h"
 
+namespace mlir {
+
+class TimingScope;
+
+} // namespace mlir
+
 namespace cmlir {
 
 struct PipelineOptions {
@@ -14,6 +20,8 @@ struct PipelineOptions {
   bool raiseSCFToAffine = false;
   bool raiseMemRefToAffine = false;
   bool fuseMultiplyAdd = false;
+  // Optional caller-owned scope; it must outlive runPipeline.
+  mlir::TimingScope *timingScope = nullptr;
 };
 
 // Always verifies, including when optimization is disabled. A failed pipeline

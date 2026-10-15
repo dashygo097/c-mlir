@@ -2,6 +2,7 @@
 
 // RUN: clang-to-mlir %t/reduce_sum.c -function=reduce_sum64 | FileCheck %s
 // RUN: clang-to-mlir %t/reduce_sum_loop_unroll.c -function=reduce_sum64 | FileCheck %s --check-prefix=CHECKUNROLL
+// RUN: clang-to-mlir %t/reduce_sum_loop_unroll.c -function=reduce_sum64 --raise-scf-to-affine | FileCheck %s --check-prefix=CHECKUNROLL
 
 //--- reduce_sum.c
 float reduce_sum64(float a[64]) {

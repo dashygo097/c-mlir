@@ -5,13 +5,13 @@ include "mlir/Pass/PassBase.td"
 
 def ConstPropPass
     : Pass<"cmlir-constprop"> {
-  let summary = "Perform constant propagation.";
+  let summary = "Fold constants using operation-defined semantics.";
   let constructor = "cmlir::createConstPropPass()";
 
   let description = [{
-    This pass performs constant propagation for the following patterns:
-    1. affine.store(cast(const)) -> affine.store(const)
-    2. memref.store(cast(const)) -> memref.store(const)
+    Fold operations with the registered operation folders, preserving integer
+    widths and floating-point precision. This pass does not perform host
+    double/int64_t conversions or replace general SSA constant propagation.
   }];
 }
 
@@ -41,10 +41,14 @@ def LoopVectorizePass
 
 def ArithCastPropPass
     : Pass<"cmlir-arith-cast-prop"> {
-  let summary = "Perform arith casts propgation";
+  let summary = "Eliminate provably exact arithmetic cast round trips.";
   let constructor = "cmlir::createArithCastPropPass()";
   let description = [{
-    This pass propgates the arith cast from float -> int or int -> float and fold arith.index_cast for readability.
+    Eliminate matching signed or unsigned integer-to-float-to-integer casts
+    only when the float precision and exponent range can represent every
+    source integer exactly. Arithmetic is not moved across these casts.
+    Matching index cast round trips are removed only when the data layout
+    or inferred integer range proves that no bits can be lost.
   }];
 }
 

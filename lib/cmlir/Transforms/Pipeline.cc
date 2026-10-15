@@ -6,6 +6,7 @@
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/Transforms/InlinerInterfaceImpl.h"
+#include "mlir/Dialect/MemRef/IR/MemRefMemorySlot.h"
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -17,6 +18,27 @@
 namespace cmlir {
 
 namespace {
+
+auto addValueCleanup(mlir::PassManager &pm) -> void {
+  pm.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(mlir::createCSEPass());
+}
+
+auto addMetadataCleanup(mlir::PassManager &pm) -> void {
+  pm.addPass(mlir::memref::createExpandStridedMetadataPass());
+  addValueCleanup(pm);
+}
+
+auto addStorageCleanup(mlir::PassManager &pm) -> void {
+  // Expose the original storage before splitting aggregates and promoting
+  // slots. Constant propagation then sees SSA values instead of loads.
+  pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
+  pm.addPass(mlir::createSROA());
+  pm.addPass(mlir::createMem2Reg());
+  pm.addPass(mlir::createSCCPPass());
+  pm.addPass(cmlir::createArithCastPropPass());
+  addValueCleanup(pm);
+}
 
 auto runStage(mlir::PassManager &pm, mlir::ModuleOp module,
               llvm::StringRef name, bool dump) -> llvm::Error {
@@ -54,91 +76,61 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
   mlir::LLVM::registerInlinerInterface(registry);
   mlir::func::registerInlinerExtension(registry);
   mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
+  mlir::memref::registerMemorySlotExternalModels(registry);
   module.getContext()->appendDialectRegistry(registry);
   mlir::PassManager pm(module.getContext());
   pm.enableVerifier(true);
+  if (options.timingScope) {
+    pm.enableTiming(*options.timingScope);
+  }
 
-  // PHASE 1: INITIAL CLEANUP & SSA CONVERSION
-  pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::createSCCPPass());
-  pm.addPass(cmlir::createConstPropPass());
-  pm.addPass(mlir::createCSEPass());
-
-  pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
-  pm.addPass(mlir::memref::createNormalizeMemRefsPass());
-  pm.addPass(mlir::createMem2Reg());
-  pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::createCSEPass());
-
+  addMetadataCleanup(pm);
+  addStorageCleanup(pm);
   if (auto error = runStage(pm, module, "SSA cleanup", options.dumpStages)) {
     return error;
   }
 
-  // PHASE 2: INLINING
   if (options.inlineFunctions) {
     pm.addPass(mlir::createInlinerPass());
+    // Actual argument shapes can expose new metadata and storage folds.
+    addMetadataCleanup(pm);
+    addStorageCleanup(pm);
     pm.addPass(mlir::createSymbolDCEPass());
-    pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createSCCPPass());
-    pm.addPass(cmlir::createConstPropPass());
-    pm.addPass(mlir::createCSEPass());
-
-    pm.addPass(mlir::createMem2Reg());
-    pm.addPass(mlir::createCanonicalizerPass());
+    if (auto error = runStage(pm, module, "inlining", options.dumpStages)) {
+      return error;
+    }
   }
 
-  if (auto error = runStage(pm, module, "inlining", options.dumpStages)) {
-    return error;
-  }
-
-  // PHASE 3: STRUCT OPTIMIZATIONS
   if (options.promoteStructs) {
     pm.addPass(cmlir::createStruct2MemrefPass());
-    pm.addPass(mlir::createMem2Reg());
-    pm.addPass(mlir::createCanonicalizerPass());
+    addStorageCleanup(pm);
+    if (auto error =
+            runStage(pm, module, "struct promotion", options.dumpStages)) {
+      return error;
+    }
   }
 
-  if (auto error =
-          runStage(pm, module, "struct promotion", options.dumpStages)) {
-    return error;
-  }
-
-  // PHASE 4: LOOP OPTIMIZATIONS
-  pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-  pm.addNestedPass<mlir::func::FuncOp>(
-      mlir::bufferization::createBufferHoistingPass());
-
-  // FMA fusion
   if (options.fuseMultiplyAdd) {
     pm.addPass(cmlir::createFMAPass());
   }
-
-  // Loop vectorization
-  pm.addPass(cmlir::createLoopVectorizePass());
-  pm.addPass(mlir::createCanonicalizerPass());
-
-  // Loop unrolling
-  pm.addPass(cmlir::createLoopUnrollPass());
   pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::bufferization::createBufferHoistingPass());
   if (auto error =
-          runStage(pm, module, "loop transformations", options.dumpStages)) {
+          runStage(pm, module, "loop preparation", options.dumpStages)) {
     return error;
   }
 
-  // PHASE 5: AFFINE TRANSFORMATIONS
+  // Analyze and fuse eligible loops before code expansion. Explicit pragma
+  // loops stay in SCF for the transformations that understand their hints.
   if (options.raiseSCFToAffine || options.raiseMemRefToAffine) {
+    pm.addPass(mlir::memref::createNormalizeMemRefsPass());
     if (options.raiseSCFToAffine) {
       pm.addPass(cmlir::createRaiseSCF2AffinePass());
     }
-
-    pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCSEPass());
-
     if (options.raiseMemRefToAffine) {
       pm.addPass(cmlir::createRaiseMemref2AffinePass());
     }
-
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::affine::createAffineLoopNormalizePass());
     pm.addNestedPass<mlir::func::FuncOp>(
@@ -146,33 +138,31 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
     pm.addPass(mlir::affine::createLoopFusionPass());
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::affine::createSimplifyAffineStructuresPass());
-
-    pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCSEPass());
+    addValueCleanup(pm);
+    if (auto error = runStage(pm, module, "affine transformations",
+                              options.dumpStages)) {
+      return error;
+    }
   }
 
+  pm.addPass(cmlir::createLoopVectorizePass());
+  pm.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(cmlir::createLoopUnrollPass());
+  pm.addPass(mlir::createLoopInvariantCodeMotionPass());
   if (auto error =
-          runStage(pm, module, "affine transformations", options.dumpStages)) {
+          runStage(pm, module, "loop transformations", options.dumpStages)) {
     return error;
   }
 
-  // PHASE 6: FINAL CLEANUP
-  pm.addPass(mlir::createMem2Reg());
-  pm.addPass(mlir::memref::createFoldMemRefAliasOpsPass());
   pm.addNestedPass<mlir::func::FuncOp>(
       mlir::bufferization::createBufferLoopHoistingPass());
-
   pm.addPass(mlir::createControlFlowSinkPass());
-  pm.addPass(cmlir::createConstPropPass());
-  pm.addPass(cmlir::createArithCastPropPass());
+  addMetadataCleanup(pm);
+  addStorageCleanup(pm);
   pm.addPass(mlir::arith::createIntRangeOptimizationsPass());
-
-  pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::createCSEPass());
+  addValueCleanup(pm);
   pm.addPass(mlir::createRemoveDeadValuesPass());
   pm.addPass(mlir::createSymbolDCEPass());
-  pm.addPass(mlir::createTopologicalSortPass());
-
   return runStage(pm, module, "final cleanup", options.dumpStages);
 }
 

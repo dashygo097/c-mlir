@@ -3,6 +3,7 @@
 // RUN: clang-to-mlir %t/vec_add.c -function=vec_add | FileCheck %s --check-prefix=CHECK
 // RUN: clang-to-mlir %t/vec_add.c -function=vec_add --raise-scf-to-affine | FileCheck %s --check-prefix=CHECKAFFINE
 // RUN: clang-to-mlir %t/vec_add_vectorize.c -function=vec_add_vec | FileCheck %s --check-prefix=CHECKVEC
+// RUN: clang-to-mlir %t/vec_add_vectorize.c -function=vec_add_vec --raise-scf-to-affine | FileCheck %s --check-prefix=CHECKVEC
 
 //--- vec_add.c
 void vec_add(float *c, const float *a, const float *b, int n) {

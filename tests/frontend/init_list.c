@@ -12,9 +12,8 @@ int init_list() {
 }
 
 // CHECK0: func.func @init_list() -> i32
-// CHECK0: %[[V0:.*]] = memref.alloca() : memref<10xi32>
-// CHECK0: %[[V1:.*]] = affine.load %[[V0]][0] : memref<10xi32>
-// CHECK0: return %[[V1]] : i32
+// CHECK0: %[[UNINITIALIZED:.*]] = ub.poison : i32
+// CHECK0: return %[[UNINITIALIZED]] : i32
 
 //--- init_list1.c
 int init_list() {

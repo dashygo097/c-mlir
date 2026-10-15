@@ -2,6 +2,7 @@ add_mlir_library(CMLIRTransforms
   ArithCastProp.cc
   ConstProp.cc
   FMA.cc
+  IndexCastProp.cc
   LoopUnroll.cc
   LoopVectorize.cc
   Pipeline.cc
@@ -11,6 +12,8 @@ add_mlir_library(CMLIRTransforms
   DEPENDS MLIRCMLIRTransformsIncGen
   LINK_LIBS PUBLIC
     MLIRSupport
+    MLIRAnalysis
+    MLIRDataLayoutInterfaces
     MLIRIR
     MLIRPass
     MLIRTransforms

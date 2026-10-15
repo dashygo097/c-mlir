@@ -4,6 +4,7 @@
 
 #include "./ArgumentList.h"
 #include "FrontendAction.h"
+#include "mlir/Support/Timing.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
@@ -43,6 +44,11 @@ llvm::cl::opt<bool>
     dumpStages("dump-stages", llvm::cl::init(false),
                llvm::cl::desc("Print verified compilation stages to stderr"),
                llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
+    pipelineTiming("pipeline-timing", llvm::cl::init(false),
+                   llvm::cl::desc("Print pass and analysis timings"),
+                   llvm::cl::cat(toolOptions));
 
 // Passes
 llvm::cl::opt<bool> disableOpt("disable-opt", llvm::cl::init(false),
@@ -124,6 +130,13 @@ auto main(int argc, const char **argv) -> int {
   pipeline.raiseMemRefToAffine = options::raiseMemref2Affine;
   pipeline.raiseSCFToAffine = options::raiseSCF2Affine;
   pipeline.fuseMultiplyAdd = options::fma;
+  mlir::DefaultTimingManager timing;
+  timing.setEnabled(options::pipelineTiming);
+  timing.setDisplayMode(mlir::DefaultTimingManager::DisplayMode::List);
+  auto timingScope = timing.getRootScope();
+  if (options::pipelineTiming) {
+    pipeline.timingScope = &timingScope;
+  }
   auto factory = std::make_unique<ActionFactory>(*out, codegen, pipeline);
   return tool.run(factory.get());
 }

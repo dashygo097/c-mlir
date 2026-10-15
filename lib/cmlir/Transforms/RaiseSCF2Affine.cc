@@ -84,6 +84,12 @@ struct RaiseSCFFor2AffineForPattern
   auto matchAndRewrite(mlir::scf::ForOp forOp,
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
+    // The pragma transformations operate on SCF loops. Keep those loops in
+    // their supported dialect instead of losing their hints during raising.
+    if (forOp->hasAttr("vectorize") || forOp->hasAttr("unroll") ||
+        forOp->hasAttr("unroll_count") || forOp->hasAttr("nounroll")) {
+      return mlir::failure();
+    }
     if (containsVectorDialectOp(forOp)) {
       return mlir::failure();
     }

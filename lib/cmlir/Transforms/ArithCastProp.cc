@@ -1,211 +1,69 @@
+#include "CastFolding.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/APFloat.h"
 
 #define GEN_PASS_DEF_ARITHCASTPROPPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
 
-static auto getIntVal(mlir::Value floatVal, mlir::Type intType,
-                      mlir::PatternRewriter &rewriter, mlir::Location loc)
-    -> mlir::Value {
-  if (auto sitofp = floatVal.getDefiningOp<mlir::arith::SIToFPOp>()) {
-    if (sitofp.getIn().getType() == intType) {
-      return sitofp.getIn();
-    }
-  }
+namespace {
 
-  llvm::APFloat floatAttr(0.0);
-  if (mlir::matchPattern(floatVal, mlir::m_ConstantFloat(&floatAttr))) {
-    double dVal = floatAttr.convertToDouble();
-    auto intVal = static_cast<int64_t>(dVal);
-    return mlir::arith::ConstantOp::create(
-        rewriter, loc, rewriter.getIntegerAttr(intType, intVal));
-  }
+// Eliminate a round trip only when every source integer is exactly
+// representable. Moving arithmetic across casts also needs a proof about
+// intermediate results, so those former rewrites are deliberately absent.
+template <typename ToInteger, typename ToFloat, bool Signed>
+struct ExactIntegerRoundTrip : mlir::OpRewritePattern<ToInteger> {
+  using mlir::OpRewritePattern<ToInteger>::OpRewritePattern;
 
-  return nullptr;
-}
-
-template <typename FloatOp, typename IntOp>
-static auto tryReplaceBinary(mlir::arith::FPToSIOp fptosiOp,
-                             mlir::Value inFloat, mlir::Type outIntType,
-                             mlir::PatternRewriter &rewriter)
-    -> mlir::LogicalResult {
-  if (auto binOp = inFloat.getDefiningOp<FloatOp>()) {
-    mlir::Value lhsInt =
-        getIntVal(binOp.getLhs(), outIntType, rewriter, fptosiOp.getLoc());
-    mlir::Value rhsInt =
-        getIntVal(binOp.getRhs(), outIntType, rewriter, fptosiOp.getLoc());
-
-    if (lhsInt && rhsInt) {
-      rewriter.replaceOpWithNewOp<IntOp>(fptosiOp, lhsInt, rhsInt);
-      return mlir::success();
-    }
-  }
-  return mlir::failure();
-}
-
-template <typename FloatOp, typename IntOp>
-static auto tryReplaceUnary(mlir::arith::FPToSIOp fptosiOp, mlir::Value inFloat,
-                            mlir::Type outIntType,
-                            mlir::PatternRewriter &rewriter)
-    -> mlir::LogicalResult {
-  if (auto unOp = inFloat.getDefiningOp<FloatOp>()) {
-    mlir::Value valInt =
-        getIntVal(unOp.getOperand(), outIntType, rewriter, fptosiOp.getLoc());
-
-    if (valInt) {
-      rewriter.replaceOpWithNewOp<IntOp>(fptosiOp, valInt);
-      return mlir::success();
-    }
-  }
-  return mlir::failure();
-}
-
-template <typename FloatOp>
-static auto tryBypassUnary(mlir::arith::FPToSIOp fptosiOp, mlir::Value inFloat,
-                           mlir::Type outIntType,
-                           mlir::PatternRewriter &rewriter)
-    -> mlir::LogicalResult {
-  if (auto unOp = inFloat.getDefiningOp<FloatOp>()) {
-    mlir::Value valInt =
-        getIntVal(unOp.getOperand(), outIntType, rewriter, fptosiOp.getLoc());
-
-    if (valInt) {
-      rewriter.replaceOp(fptosiOp, valInt);
-      return mlir::success();
-    }
-  }
-  return mlir::failure();
-}
-
-// Rewrite Pattern
-struct PropFPToSIPattern
-    : public mlir::OpRewritePattern<mlir::arith::FPToSIOp> {
-  using mlir::OpRewritePattern<mlir::arith::FPToSIOp>::OpRewritePattern;
-
-  auto matchAndRewrite(mlir::arith::FPToSIOp fptosiOp,
-                       mlir::PatternRewriter &rewriter) const
+  auto matchAndRewrite(ToInteger cast, mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
-    mlir::Value inFloat = fptosiOp.getIn();
-    mlir::Type outIntType = fptosiOp.getType();
-
-    if (mlir::Value directInt =
-            getIntVal(inFloat, outIntType, rewriter, fptosiOp.getLoc())) {
-      rewriter.replaceOp(fptosiOp, directInt);
-      return mlir::success();
-    }
-
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::MaxNumFOp, mlir::arith::MaxSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::MinNumFOp, mlir::arith::MinSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::MaximumFOp, mlir::arith::MaxSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::MinimumFOp, mlir::arith::MinSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::AddFOp, mlir::arith::AddIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::SubFOp, mlir::arith::SubIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::MulFOp, mlir::arith::MulIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::DivFOp, mlir::arith::DivSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(
-            tryReplaceBinary<mlir::arith::RemFOp, mlir::arith::RemSIOp>(
-                fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-
-    if (mlir::succeeded(tryReplaceUnary<mlir::math::AbsFOp, mlir::math::AbsIOp>(
-            fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-
-    if (mlir::succeeded(tryBypassUnary<mlir::math::FloorOp>(
-            fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(tryBypassUnary<mlir::math::CeilOp>(
-            fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(tryBypassUnary<mlir::math::RoundOp>(
-            fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-    if (mlir::succeeded(tryBypassUnary<mlir::math::TruncOp>(
-            fptosiOp, inFloat, outIntType, rewriter))) {
-      return mlir::success();
-    }
-
-    return mlir::failure();
-  }
-};
-
-struct FoldArithIndexCastPattern
-    : public mlir::OpRewritePattern<mlir::arith::IndexCastOp> {
-  using mlir::OpRewritePattern<mlir::arith::IndexCastOp>::OpRewritePattern;
-
-  auto matchAndRewrite(mlir::arith::IndexCastOp castOp,
-                       mlir::PatternRewriter &rewriter) const
-      -> mlir::LogicalResult override {
-
-    auto prevCastOp = castOp.getIn().getDefiningOp<mlir::arith::IndexCastOp>();
-    if (!prevCastOp) {
+    auto conversion = cast.getIn().template getDefiningOp<ToFloat>();
+    if (!conversion || conversion.getIn().getType() != cast.getType()) {
       return mlir::failure();
     }
-
-    if (prevCastOp.getIn().getType() == castOp.getType()) {
-      rewriter.replaceOp(castOp, prevCastOp.getIn());
-      return mlir::success();
+    auto integer = mlir::dyn_cast<mlir::IntegerType>(cast.getType());
+    auto floating = mlir::dyn_cast<mlir::FloatType>(conversion.getType());
+    if (!integer || !floating ||
+        !(floating.isF16() || floating.isBF16() || floating.isF32() ||
+          floating.isF64() || floating.isF80() || floating.isF128())) {
+      return mlir::failure();
     }
-
-    return mlir::failure();
+    const auto &semantics = floating.getFloatSemantics();
+    auto valueBits = integer.getWidth() - (Signed ? 1 : 0);
+    if (valueBits > llvm::APFloat::semanticsPrecision(semantics) ||
+        integer.getWidth() - 1 >
+            static_cast<unsigned>(
+                llvm::APFloat::semanticsMaxExponent(semantics))) {
+      return mlir::failure();
+    }
+    rewriter.replaceOp(cast, conversion.getIn());
+    return mlir::success();
   }
 };
+
+} // namespace
 
 struct ArithCastPropPass
     : public impl::ArithCastPropPassBase<ArithCastPropPass> {
-  void runOnOperation() override {
-    auto op = getOperation();
-    mlir::RewritePatternSet patterns(op->getContext());
-
-    patterns.add<PropFPToSIPattern>(&getContext());
-    patterns.add<FoldArithIndexCastPattern>(&getContext());
-
-    (void)mlir::applyPatternsGreedily(op, std::move(patterns));
+  auto runOnOperation() -> void override {
+    if (mlir::failed(foldExactIndexRoundTrips(getOperation()))) {
+      signalPassFailure();
+      return;
+    }
+    mlir::RewritePatternSet patterns(&getContext());
+    patterns.add<ExactIntegerRoundTrip<mlir::arith::FPToSIOp,
+                                       mlir::arith::SIToFPOp, true>,
+                 ExactIntegerRoundTrip<mlir::arith::FPToUIOp,
+                                       mlir::arith::UIToFPOp, false>>(
+        &getContext());
+    if (mlir::failed(
+            mlir::applyPatternsGreedily(getOperation(), std::move(patterns)))) {
+      signalPassFailure();
+    }
   }
 };
 

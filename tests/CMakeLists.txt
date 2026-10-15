@@ -8,7 +8,7 @@ add_custom_target(check-dialect-api
 
 add_executable(CMLIRTransformsTests api/TransformsTest.cpp)
 llvm_update_compile_flags(CMLIRTransformsTests)
-target_link_libraries(CMLIRTransformsTests PRIVATE CMLIR::Transforms)
+target_link_libraries(CMLIRTransformsTests PRIVATE CMLIR::Transforms MLIRParser)
 add_test(NAME transforms-api COMMAND CMLIRTransformsTests)
 add_custom_target(check-transforms-api
   COMMAND $<TARGET_FILE:CMLIRTransformsTests>
