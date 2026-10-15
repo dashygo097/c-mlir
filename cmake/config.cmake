@@ -3,14 +3,12 @@
 set(LLVM_BUILD_DIR /path/to/your/pre-built/installation)
 
 # Compilation options
-set(USE_CCACHE ON)
+option(USE_CCACHE "Enable ccache for incremental building" ON)
 set(DEFAULT_SYSROOT "") # for macOS user you can use `xcrun --show-sdk-path` to fill in this PATH
 
 # Build options
-set(ENABLE_TESTING ON)
-
-set(BUILD_FRONTEND ON) # Build the reusable Clang AST lowering library
-set(BUILD_CLANG_TO_MLIR ON) # Set OFF to build libraries without the CLI
+option(ENABLE_TESTING "Enable building with tests" ON)
+option(ENABLE_EXECUTABLES "Enable building CLI executables" ON) # Build the reusable Clang AST lowering library
 
 # Derived paths
 # NOTE: you can force cmake to overwrite these PATHs

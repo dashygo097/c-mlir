@@ -1,4 +1,5 @@
 #include "cmlir/Transforms/Pipeline.h"
+#include "cmlir/Support/Printing.h"
 #include "cmlir/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
 #include "mlir/Dialect/Arith/Transforms/Passes.h"
@@ -49,7 +50,7 @@ auto runStage(mlir::PassManager &pm, mlir::ModuleOp module,
   }
   if (dump) {
     llvm::errs() << "// clang-to-mlir stage: " << name << '\n';
-    module.print(llvm::errs());
+    cmlir::printIR(module, llvm::errs());
     llvm::errs() << '\n';
   }
   pm.clear();
@@ -66,7 +67,7 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
   }
   if (options.dumpStages) {
     llvm::errs() << "// clang-to-mlir stage: AST lowering\n";
-    module.print(llvm::errs());
+    cmlir::printIR(module, llvm::errs());
     llvm::errs() << '\n';
   }
   if (!options.optimize) {

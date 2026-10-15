@@ -1,5 +1,7 @@
 import os
 import platform
+import shlex
+import sys
 
 import lit.formats
 
@@ -33,7 +35,7 @@ for var in ["HOME", "TMPDIR", "TMP", "TEMP"]:
     if var in os.environ:
         config.environment[var] = os.environ[var]
 
-config.substitutions.append(("%frontend", "clang-to-mlir"))
+config.substitutions.append(("%python", shlex.quote(sys.executable)))
 
 tools = {
     "FileCheck": "FileCheck",

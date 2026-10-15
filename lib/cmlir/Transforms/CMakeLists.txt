@@ -11,6 +11,7 @@ add_mlir_library(CMLIRTransforms
   Struct2Memref.cc
   DEPENDS MLIRCMLIRTransformsIncGen
   LINK_LIBS PUBLIC
+    CMLIRSupport
     MLIRSupport
     MLIRAnalysis
     MLIRDataLayoutInterfaces

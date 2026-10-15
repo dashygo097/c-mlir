@@ -1,3 +1,3 @@
-if(BUILD_CLANG_TO_MLIR)
+if(ENABLE_EXECUTABLES)
   add_subdirectory(clang-to-mlir)
 endif()

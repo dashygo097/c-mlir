@@ -20,12 +20,6 @@ if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/config.cmake")
   include("${CMAKE_CURRENT_BINARY_DIR}/config.cmake")
 endif()
 
-option(BUILD_FRONTEND "Build the Clang AST lowering library" ON)
-option(BUILD_CLANG_TO_MLIR "Build the clang-to-mlir command-line tool" ${BUILD_FRONTEND})
-if(BUILD_CLANG_TO_MLIR AND NOT BUILD_FRONTEND)
-  message(FATAL_ERROR "BUILD_CLANG_TO_MLIR requires BUILD_FRONTEND")
-endif()
-
 # Add cmake modules
 include(AppendLLVM)
 include(AppendMLIR)

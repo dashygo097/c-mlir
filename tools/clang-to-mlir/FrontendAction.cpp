@@ -1,5 +1,6 @@
 #include "FrontendAction.h"
 #include "Pragmas/PragmaHandler.h"
+#include "cmlir/Support/Printing.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Frontend/CompilerInstance.h"
 
@@ -27,7 +28,7 @@ public:
       report(ast, llvm::toString(std::move(error)));
       return;
     }
-    module->get().print(out);
+    cmlir::printIR(module->get(), out);
     out << '\n';
     out.flush();
   }

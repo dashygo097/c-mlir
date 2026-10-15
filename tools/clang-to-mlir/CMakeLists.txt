@@ -4,6 +4,7 @@ target_include_directories(clang-to-mlir PRIVATE
 )
 target_link_libraries(clang-to-mlir PRIVATE
   CMLIR::Frontend
+  CMLIR::Support
   CMLIR::Transforms
   clangTooling
 )
