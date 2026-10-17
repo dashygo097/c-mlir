@@ -6,19 +6,15 @@
 
 namespace cmlir {
 
-// Common Optimization Passes
-auto createConstPropPass() -> std::unique_ptr<mlir::Pass>;
+// Common optimization passes
+auto createArithCastPropPass() -> std::unique_ptr<mlir::Pass>;
 
-// Loop Optimization Passes
+// Loop optimization passes.
 auto createLoopUnrollPass() -> std::unique_ptr<mlir::Pass>;
 auto createLoopVectorizePass() -> std::unique_ptr<mlir::Pass>;
 
-// Conversion Passes (optional)
-auto createArithCastPropPass() -> std::unique_ptr<mlir::Pass>;
+// Representation conversion passes (optional).
 auto createStruct2MemrefPass() -> std::unique_ptr<mlir::Pass>;
-auto createFMAPass() -> std::unique_ptr<mlir::Pass>;
-auto createRaiseMemref2AffinePass() -> std::unique_ptr<mlir::Pass>;
-auto createRaiseSCF2AffinePass() -> std::unique_ptr<mlir::Pass>;
 
 #define GEN_PASS_REGISTRATION
 #include "cmlir/Transforms/Passes.h.inc"

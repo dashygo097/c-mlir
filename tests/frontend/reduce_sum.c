@@ -2,7 +2,7 @@
 
 // RUN: clang-to-mlir %t/reduce_sum.c -function=reduce_sum64 | FileCheck %s
 // RUN: clang-to-mlir %t/reduce_sum_loop_unroll.c -function=reduce_sum64 | FileCheck %s --check-prefix=CHECKUNROLL
-// RUN: clang-to-mlir %t/reduce_sum_loop_unroll.c -function=reduce_sum64 --raise-scf-to-affine | FileCheck %s --check-prefix=CHECKUNROLL
+// RUN: clang-to-mlir %t/reduce_sum_loop_unroll.c -function=reduce_sum64 --raise-scf-to-affine | FileCheck %s --check-prefix=CHECKUNROLLAFFINE
 
 //--- reduce_sum.c
 float reduce_sum64(float a[64]) {
@@ -50,3 +50,12 @@ float reduce_sum64(float a[64]) {
 // CHECKUNROLL:   scf.yield %[[V5]] : f32
 // CHECKUNROLL: }
 // CHECKUNROLL: return %[[V0]] : f32
+
+// CHECKUNROLLAFFINE-LABEL: func.func @reduce_sum64(
+// CHECKUNROLLAFFINE: %[[RESULT:.*]] = affine.for
+// CHECKUNROLLAFFINE: memref.load
+// CHECKUNROLLAFFINE: arith.addf
+// CHECKUNROLLAFFINE: memref.load
+// CHECKUNROLLAFFINE: %[[SUM:.*]] = arith.addf
+// CHECKUNROLLAFFINE: affine.yield %[[SUM]] : f32
+// CHECKUNROLLAFFINE: return %[[RESULT]] : f32

@@ -1,4 +1,4 @@
-// RUN: clang-to-mlir %s -function=matrix_sum --raise-memref-to-affine | FileCheck %s
+// RUN: clang-to-mlir %s -function=matrix_sum --affine-raise-from-memref | FileCheck %s
 
 int matrix_sum() {
   int mat[2][3] = {

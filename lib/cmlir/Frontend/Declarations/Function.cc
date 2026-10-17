@@ -162,6 +162,10 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
   for (uint32_t i = 0; i < decl->getNumParams(); ++i) {
     auto *param = decl->getParamDecl(i);
     auto value = entryBlock->getArgument(argIdx++);
+    if (param->getType().isRestrictQualified()) {
+      funcOp.setArgAttr(value.getArgNumber(), "cmlir.restrict",
+                        builder.getUnitAttr());
+    }
     if ((value.getType().isIntOrFloat() || value.getType().isIndex()) &&
         needsStorage(decl->getBody(), param)) {
       function.locals[param] =

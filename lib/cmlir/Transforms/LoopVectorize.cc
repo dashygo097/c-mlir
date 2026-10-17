@@ -1,618 +1,250 @@
 #include "cmlir/Transforms/Passes.h"
+#include "mlir/Analysis/AliasAnalysis.h"
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Conversion/SCFToAffine/SCFToAffine.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Affine/Transforms/Passes.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/IR/IRMapping.h"
-#include "mlir/Pass/Pass.h"
-#include "llvm/ADT/DenseMap.h"
-
-#include <optional>
+#include "mlir/Interfaces/ViewLikeInterface.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Rewrite/PatternApplicator.h"
+#include "mlir/Transforms/Passes.h"
+#include <limits>
 
 #define GEN_PASS_DEF_LOOPVECTORIZEPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
 
-struct VectorBuildState {
-  mlir::OpBuilder &builder;
-  mlir::Location loc;
-  mlir::scf::ForOp oldFor;
-  mlir::Value newIv;
-  uint32_t width;
-  llvm::DenseMap<mlir::Value, mlir::Value> map;
+namespace {
 
-  VectorBuildState(mlir::OpBuilder &builder, mlir::Location loc,
-                   mlir::scf::ForOp oldFor, mlir::Value newIv, uint32_t width)
-      : builder(builder), loc(loc), oldFor(oldFor), newIv(newIv), width(width),
-        map() {}
+// Observe the replacement without depending on the upstream pattern's final
+// insertion point. SCF raising creates one new Affine loop and moves its body.
+struct RaisedLoop : mlir::OpBuilder::Listener {
+  mlir::affine::AffineForOp loop;
+
+  auto notifyOperationInserted(mlir::Operation *op,
+                               mlir::OpBuilder::InsertPoint previous)
+      -> void override {
+    if (!previous.isSet() && !loop) {
+      loop = mlir::dyn_cast<mlir::affine::AffineForOp>(op);
+    }
+  }
 };
 
-static void clearLoopBody(mlir::scf::ForOp forOp) {
-  mlir::Block *body = forOp.getBody();
-
-  while (!body->empty()) {
-    body->back().erase();
+auto allocationRoot(mlir::Value value) -> mlir::Value {
+  while (auto *op = value.getDefiningOp()) {
+    if (auto view = mlir::dyn_cast<mlir::ViewLikeOpInterface>(op)) {
+      value = view.getViewSource();
+    } else if (auto cast = mlir::dyn_cast<mlir::memref::CastOp>(op)) {
+      value = cast.getSource();
+    } else {
+      break;
+    }
   }
-}
-
-static void transferUnrollAttrsToVectorLoop(mlir::scf::ForOp oldFor,
-                                            mlir::scf::ForOp vectorFor) {
-  if (oldFor->hasAttr("nounroll")) {
-    return;
-  }
-
-  if (auto attr = oldFor->getAttr("unroll_count")) {
-    vectorFor->setAttr("unroll_count", attr);
-    return;
-  }
-
-  if (auto attr = oldFor->getAttr("unroll")) {
-    vectorFor->setAttr("unroll", attr);
-  }
-}
-
-static auto getConstantIndexValue(mlir::Value value) -> std::optional<int64_t> {
-  auto op = value.getDefiningOp<mlir::arith::ConstantIndexOp>();
-  if (!op) {
-    return std::nullopt;
-  }
-
-  return op.value();
-}
-
-static auto isOne(mlir::Value value) -> bool {
-  auto v = getConstantIndexValue(value);
-  return v && *v == 1;
-}
-
-static auto stripIndexCastRoundTrip(mlir::Value value) -> mlir::Value {
-  auto outer = value.getDefiningOp<mlir::arith::IndexCastOp>();
-  if (!outer) {
-    return value;
-  }
-
-  mlir::Value innerValue = outer.getIn();
-  auto inner = innerValue.getDefiningOp<mlir::arith::IndexCastOp>();
-  if (!inner) {
-    return value;
-  }
-
-  if (value.getType().isIndex() && inner.getIn().getType().isIndex()) {
-    return inner.getIn();
-  }
-
   return value;
 }
 
-static auto createZeroLike(mlir::OpBuilder &builder, mlir::Location loc,
-                           mlir::Type type) -> mlir::Value {
-  if (type.isF32() || type.isF64()) {
-    return mlir::arith::ConstantOp::create(builder, loc, type,
-                                           builder.getZeroAttr(type));
-  }
-
-  return {};
+auto isRestrictArgument(mlir::Value value, mlir::func::FuncOp function)
+    -> bool {
+  auto arg = mlir::dyn_cast<mlir::BlockArgument>(value);
+  return arg && arg.getOwner() == &function.front() &&
+         function.getArgAttr(arg.getArgNumber(), "cmlir.restrict");
 }
 
-static auto getYieldOp(mlir::scf::ForOp forOp) -> mlir::scf::YieldOp {
-  mlir::Operation *term = forOp.getBody()->getTerminator();
-  if (!term) {
-    return {};
-  }
-
-  return mlir::dyn_cast<mlir::scf::YieldOp>(term);
-}
-
-static auto broadcastScalar(VectorBuildState &state, mlir::Value value)
-    -> mlir::Value {
-  if (!value.getType().isIntOrFloat()) {
-    return {};
-  }
-
-  auto vecType = mlir::VectorType::get({state.width}, value.getType());
-
-  return mlir::vector::BroadcastOp::create(state.builder, state.loc, vecType,
-                                           value);
-}
-
-static auto isSupportedArithOp(mlir::Operation *op) -> bool {
-  return mlir::isa<
-      mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
-      mlir::arith::DivFOp, mlir::arith::AddIOp, mlir::arith::SubIOp,
-      mlir::arith::MulIOp, mlir::arith::DivSIOp, mlir::arith::DivUIOp>(op);
-}
-
-static auto vectorizeValue(VectorBuildState &state, mlir::Value value)
-    -> mlir::Value {
-  if (state.map.count(value)) {
-    return state.map[value];
-  }
-
-  if (value == state.oldFor.getInductionVar()) {
-    return broadcastScalar(state, state.newIv);
-  }
-
-  mlir::Operation *def = value.getDefiningOp();
-  if (!def || def->getBlock() != state.oldFor.getBody()) {
-    return broadcastScalar(state, value);
-  }
-
-  if (auto indexCast = mlir::dyn_cast<mlir::arith::IndexCastOp>(def)) {
-    mlir::Value input = vectorizeValue(state, indexCast.getIn());
-    if (!input) {
-      return {};
+auto hasSafeAliases(mlir::affine::AffineForOp loop, mlir::func::FuncOp function)
+    -> bool {
+  llvm::SmallVector<mlir::Value> accesses, writes;
+  loop.walk([&](mlir::Operation *op) -> void {
+    if (auto read = mlir::dyn_cast<mlir::affine::AffineReadOpInterface>(op)) {
+      accesses.push_back(read.getMemRef());
+    } else if (auto write =
+                   mlir::dyn_cast<mlir::affine::AffineWriteOpInterface>(op)) {
+      accesses.push_back(write.getMemRef());
+      writes.push_back(write.getMemRef());
     }
-
-    auto shapedType = mlir::dyn_cast<mlir::ShapedType>(input.getType());
-    if (!shapedType) {
-      return {};
-    }
-
-    auto vecType = mlir::VectorType::get({state.width}, indexCast.getType());
-
-    auto newCast = mlir::arith::IndexCastOp::create(state.builder, state.loc,
-                                                    vecType, input);
-
-    state.map[value] = newCast.getResult();
-    return newCast.getResult();
-  }
-
-  if (auto loadOp = mlir::dyn_cast<mlir::memref::LoadOp>(def)) {
-    if (loadOp.getIndices().size() != 1) {
-      return {};
-    }
-
-    mlir::Value index = stripIndexCastRoundTrip(loadOp.getIndices()[0]);
-    if (index != state.oldFor.getInductionVar()) {
-      return {};
-    }
-
-    auto memrefType =
-        mlir::dyn_cast<mlir::MemRefType>(loadOp.getMemRef().getType());
-    if (!memrefType) {
-      return {};
-    }
-
-    auto elemType = memrefType.getElementType();
-    if (!elemType.isIntOrFloat()) {
-      return {};
-    }
-
-    auto vecType = mlir::VectorType::get({state.width}, elemType);
-
-    auto vecLoad = mlir::vector::LoadOp::create(state.builder, state.loc,
-                                                vecType, loadOp.getMemRef(),
-                                                mlir::ValueRange{state.newIv});
-
-    state.map[value] = vecLoad.getResult();
-    return vecLoad.getResult();
-  }
-
-  if (isSupportedArithOp(def)) {
-    llvm::SmallVector<mlir::Value, 4> newOperands;
-
-    for (mlir::Value operand : def->getOperands()) {
-      mlir::Value newOperand = vectorizeValue(state, operand);
-      if (!newOperand) {
-        return {};
+  });
+  mlir::AliasAnalysis analysis(function);
+  for (auto write : writes) {
+    for (auto access : accesses) {
+      if (write == access || analysis.alias(write, access).isNo()) {
+        continue;
       }
-
-      newOperands.push_back(newOperand);
-    }
-
-    auto shapedType =
-        mlir::dyn_cast<mlir::ShapedType>(newOperands[0].getType());
-    if (!shapedType) {
-      return {};
-    }
-
-    auto vecType =
-        mlir::VectorType::get({state.width}, shapedType.getElementType());
-
-    mlir::OperationState opState(state.loc, def->getName().getStringRef());
-    opState.addOperands(newOperands);
-    opState.addTypes(vecType);
-    opState.addAttributes(def->getAttrs());
-
-    mlir::Operation *newOp = state.builder.create(opState);
-    state.map[value] = newOp->getResult(0);
-    return newOp->getResult(0);
-  }
-
-  return {};
-}
-
-static auto isAllowedMapBodyOp(mlir::Operation *op) -> bool {
-  if (mlir::isa<mlir::memref::LoadOp, mlir::memref::StoreOp,
-                mlir::arith::IndexCastOp>(op)) {
-    return true;
-  }
-
-  if (isSupportedArithOp(op)) {
-    return true;
-  }
-
-  return false;
-}
-
-static auto isStoreToLoopIv(mlir::memref::StoreOp storeOp,
-                            mlir::scf::ForOp forOp) -> bool {
-  if (storeOp.getIndices().size() != 1) {
-    return false;
-  }
-
-  mlir::Value index = stripIndexCastRoundTrip(storeOp.getIndices()[0]);
-  return index == forOp.getInductionVar();
-}
-
-static auto hasVectorizableMapBody(mlir::scf::ForOp forOp) -> bool {
-  if (forOp.getNumRegionIterArgs() != 0 || forOp.getNumResults() != 0) {
-    return false;
-  }
-
-  auto yieldOp = getYieldOp(forOp);
-  if (!yieldOp || yieldOp.getNumOperands() != 0) {
-    return false;
-  }
-
-  bool hasStore = false;
-
-  for (mlir::Operation &op : forOp.getBody()->without_terminator()) {
-    if (!isAllowedMapBodyOp(&op)) {
+      auto lhs = allocationRoot(write);
+      auto rhs = allocationRoot(access);
+      if (lhs != rhs && (isRestrictArgument(lhs, function) ||
+                         isRestrictArgument(rhs, function))) {
+        continue;
+      }
       return false;
     }
-
-    if (auto storeOp = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
-      if (!isStoreToLoopIv(storeOp, forOp)) {
-        return false;
-      }
-
-      hasStore = true;
-    }
   }
-
-  return hasStore;
+  return true;
 }
 
-static auto vectorizeMapBody(VectorBuildState &state) -> mlir::LogicalResult {
-  bool emittedStore = false;
-
-  for (mlir::Operation &op : state.oldFor.getBody()->without_terminator()) {
-    if (auto storeOp = mlir::dyn_cast<mlir::memref::StoreOp>(&op)) {
-      if (!isStoreToLoopIv(storeOp, state.oldFor)) {
-        return mlir::failure();
-      }
-
-      mlir::Value vectorValue = vectorizeValue(state, storeOp.getValue());
-      if (!vectorValue) {
-        return mlir::failure();
-      }
-
-      auto vectorType = mlir::dyn_cast<mlir::VectorType>(vectorValue.getType());
-      if (!vectorType) {
-        return mlir::failure();
-      }
-
-      mlir::vector::StoreOp::create(state.builder, state.loc, vectorValue,
-                                    storeOp.getMemRef(),
-                                    mlir::ValueRange{state.newIv});
-
-      emittedStore = true;
+auto permitsReduction(mlir::affine::AffineForOp loop) -> bool {
+  auto yield =
+      mlir::cast<mlir::affine::AffineYieldOp>(loop.getBody()->getTerminator());
+  for (auto value : yield.getOperands()) {
+    if (!mlir::isa<mlir::FloatType>(value.getType())) {
       continue;
     }
-
-    if (!isAllowedMapBodyOp(&op)) {
-      return mlir::failure();
+    auto op = mlir::dyn_cast_if_present<mlir::arith::ArithFastMathInterface>(
+        value.getDefiningOp());
+    auto flags =
+        op ? op.getFastMathFlagsAttr() : mlir::arith::FastMathFlagsAttr{};
+    if (!flags || !static_cast<bool>(flags.getValue() &
+                                     mlir::arith::FastMathFlags::reassoc)) {
+      return false;
     }
   }
-
-  return emittedStore ? mlir::success() : mlir::failure();
+  return true;
 }
 
-static auto
-buildScalarMapRemainderLoop(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::scf::ForOp oldFor, mlir::Value lowerBound)
-    -> mlir::scf::ForOp {
-  auto remainderFor = mlir::scf::ForOp::create(
-      builder, loc, lowerBound, oldFor.getUpperBound(), oldFor.getStep());
-
-  clearLoopBody(remainderFor);
-  builder.setInsertionPointToEnd(remainderFor.getBody());
-
-  mlir::IRMapping mapper;
-  mapper.map(oldFor.getInductionVar(), remainderFor.getInductionVar());
-
-  for (mlir::Operation &op : oldFor.getBody()->without_terminator()) {
-    builder.clone(op, mapper);
+auto prepareFullTile(mlir::affine::AffineForOp loop, unsigned width)
+    -> mlir::FailureOr<mlir::affine::AffineForOp> {
+  if (loop.getStepAsInt() != 1) {
+    return mlir::failure();
   }
-
-  mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-  builder.setInsertionPointAfter(remainderFor);
-
-  return remainderFor;
+  if (auto trips = loop.getStaticTripCount()) {
+    if (trips->urem(width) == 0) {
+      return loop;
+    }
+  }
+  // Tiling utilities currently do not support loop-carried results. Keep
+  // reductions scalar unless the entire trip count is a multiple of width.
+  if (loop.getNumResults() != 0) {
+    return mlir::failure();
+  }
+  llvm::SmallVector<mlir::affine::AffineForOp> band{loop}, tiled, full;
+  if (mlir::failed(mlir::affine::tilePerfectlyNested(band, {width}, &tiled))) {
+    return mlir::failure();
+  }
+  band.assign(1, tiled.back());
+  if (mlir::failed(mlir::affine::separateFullTiles(band, &full))) {
+    return mlir::failure();
+  }
+  return full.front();
 }
 
-static auto vectorizeMapLoop(mlir::scf::ForOp forOp, uint32_t width)
-    -> mlir::LogicalResult {
-  if (!hasVectorizableMapBody(forOp)) {
-    return mlir::failure();
-  }
-
-  if (!isOne(forOp.getStep())) {
-    return mlir::failure();
-  }
-
-  mlir::OpBuilder builder(forOp);
-  mlir::Location loc = forOp.getLoc();
-
-  mlir::Value widthValue =
-      mlir::arith::ConstantIndexOp::create(builder, loc, width);
-
-  mlir::Value tripCount = mlir::arith::SubIOp::create(
-      builder, loc, forOp.getUpperBound(), forOp.getLowerBound());
-
-  mlir::Value vectorTripCount =
-      mlir::arith::DivSIOp::create(builder, loc, tripCount, widthValue);
-
-  mlir::Value vectorElementCount =
-      mlir::arith::MulIOp::create(builder, loc, vectorTripCount, widthValue);
-
-  mlir::Value mainUb = mlir::arith::AddIOp::create(
-      builder, loc, forOp.getLowerBound(), vectorElementCount);
-
-  mlir::Value vectorStep =
-      mlir::arith::MulIOp::create(builder, loc, forOp.getStep(), widthValue);
-
-  auto vectorFor = mlir::scf::ForOp::create(builder, loc, forOp.getLowerBound(),
-                                            mainUb, vectorStep);
-
-  transferUnrollAttrsToVectorLoop(forOp, vectorFor);
-
-  auto rollback = [&]() -> mlir::LogicalResult {
-    vectorFor.erase();
-    return mlir::failure();
-  };
-
-  clearLoopBody(vectorFor);
-  builder.setInsertionPointToEnd(vectorFor.getBody());
-
-  VectorBuildState state(builder, loc, forOp, vectorFor.getInductionVar(),
-                         width);
-
-  if (mlir::failed(vectorizeMapBody(state))) {
-    return rollback();
-  }
-
-  mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{});
-  builder.setInsertionPointAfter(vectorFor);
-
-  buildScalarMapRemainderLoop(builder, loc, forOp, mainUb);
-
-  forOp.erase();
-
-  return mlir::success();
-}
-
-static auto hasOneFloatReduction(mlir::scf::ForOp forOp) -> bool {
-  if (forOp.getNumRegionIterArgs() != 1 || forOp.getNumResults() != 1) {
-    return false;
-  }
-
-  auto yieldOp = getYieldOp(forOp);
-  if (!yieldOp || yieldOp.getNumOperands() != 1) {
-    return false;
-  }
-
-  mlir::Type type = forOp.getRegionIterArg(0).getType();
-  return type.isF32() || type.isF64();
-}
-
-static auto getReductionAdd(mlir::scf::ForOp forOp) -> mlir::arith::AddFOp {
-  auto yieldOp = getYieldOp(forOp);
-  if (!yieldOp || yieldOp.getNumOperands() != 1) {
-    return {};
-  }
-
-  auto addOp = yieldOp.getOperand(0).getDefiningOp<mlir::arith::AddFOp>();
-  if (!addOp) {
-    return {};
-  }
-
-  mlir::Value acc = forOp.getRegionIterArg(0);
-  if (addOp.getLhs() == acc || addOp.getRhs() == acc) {
-    return addOp;
-  }
-
-  return {};
-}
-
-static auto getReductionExpr(mlir::scf::ForOp forOp, mlir::arith::AddFOp addOp)
-    -> mlir::Value {
-  mlir::Value acc = forOp.getRegionIterArg(0);
-  return addOp.getLhs() == acc ? addOp.getRhs() : addOp.getLhs();
-}
-
-static auto buildVectorReductionMainLoop(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::scf::ForOp oldFor,
-    uint32_t width, mlir::Value mainUb, mlir::Value vectorStep,
-    mlir::Value &reducedScalar) -> mlir::LogicalResult {
-  mlir::Type elemType = oldFor.getResult(0).getType();
-
-  mlir::Value zero = createZeroLike(builder, loc, elemType);
-  if (!zero) {
-    return mlir::failure();
-  }
-
-  auto vecType = mlir::VectorType::get({width}, elemType);
-  mlir::Value zeroVec =
-      mlir::vector::BroadcastOp::create(builder, loc, vecType, zero);
-
-  auto vectorFor =
-      mlir::scf::ForOp::create(builder, loc, oldFor.getLowerBound(), mainUb,
-                               vectorStep, mlir::ValueRange{zeroVec});
-
-  transferUnrollAttrsToVectorLoop(oldFor, vectorFor);
-
-  auto rollback = [&]() -> mlir::LogicalResult {
-    vectorFor.erase();
-    return mlir::failure();
-  };
-
-  clearLoopBody(vectorFor);
-  builder.setInsertionPointToEnd(vectorFor.getBody());
-
-  auto addOp = getReductionAdd(oldFor);
-  if (!addOp) {
-    return rollback();
-  }
-
-  mlir::Value scalarExpr = getReductionExpr(oldFor, addOp);
-
-  VectorBuildState state(builder, loc, oldFor, vectorFor.getInductionVar(),
-                         width);
-
-  mlir::Value vectorExpr = vectorizeValue(state, scalarExpr);
-  if (!vectorExpr) {
-    return rollback();
-  }
-
-  mlir::Value vectorAcc = vectorFor.getRegionIterArg(0);
-  mlir::Value vectorSum =
-      mlir::arith::AddFOp::create(builder, loc, vectorAcc, vectorExpr);
-
-  mlir::scf::YieldOp::create(builder, loc, mlir::ValueRange{vectorSum});
-
-  builder.setInsertionPointAfter(vectorFor);
-
-  reducedScalar = mlir::vector::ReductionOp::create(
-                      builder, loc, mlir::vector::CombiningKind::ADD,
-                      vectorFor.getResult(0))
-                      .getResult();
-
-  return mlir::success();
-}
-
-static auto buildScalarReductionRemainderLoop(
-    mlir::OpBuilder &builder, mlir::Location loc, mlir::scf::ForOp oldFor,
-    mlir::Value lowerBound, mlir::Value initValue) -> mlir::scf::ForOp {
-  auto oldYield = getYieldOp(oldFor);
-
-  auto remainderFor =
-      mlir::scf::ForOp::create(builder, loc, lowerBound, oldFor.getUpperBound(),
-                               oldFor.getStep(), mlir::ValueRange{initValue});
-
-  clearLoopBody(remainderFor);
-  builder.setInsertionPointToEnd(remainderFor.getBody());
-
-  mlir::IRMapping mapper;
-  mapper.map(oldFor.getInductionVar(), remainderFor.getInductionVar());
-  mapper.map(oldFor.getRegionIterArg(0), remainderFor.getRegionIterArg(0));
-
-  for (mlir::Operation &op : oldFor.getBody()->without_terminator()) {
-    builder.clone(op, mapper);
-  }
-
-  llvm::SmallVector<mlir::Value, 1> yieldValues;
-  for (mlir::Value value : oldYield.getOperands()) {
-    yieldValues.push_back(mapper.lookupOrDefault(value));
-  }
-
-  mlir::scf::YieldOp::create(builder, loc, yieldValues);
-
-  builder.setInsertionPointAfter(remainderFor);
-  return remainderFor;
-}
-
-static auto vectorizeReductionLoop(mlir::scf::ForOp forOp, uint32_t width)
-    -> mlir::LogicalResult {
-  if (!hasOneFloatReduction(forOp)) {
-    return mlir::failure();
-  }
-
-  if (!isOne(forOp.getStep())) {
-    return mlir::failure();
-  }
-
-  if (!getReductionAdd(forOp)) {
-    return mlir::failure();
-  }
-
-  mlir::OpBuilder builder(forOp);
-  mlir::Location loc = forOp.getLoc();
-
-  mlir::Value widthValue =
-      mlir::arith::ConstantIndexOp::create(builder, loc, width);
-
-  mlir::Value tripCount = mlir::arith::SubIOp::create(
-      builder, loc, forOp.getUpperBound(), forOp.getLowerBound());
-
-  mlir::Value vectorTripCount =
-      mlir::arith::DivSIOp::create(builder, loc, tripCount, widthValue);
-
-  mlir::Value vectorElementCount =
-      mlir::arith::MulIOp::create(builder, loc, vectorTripCount, widthValue);
-
-  mlir::Value mainUb = mlir::arith::AddIOp::create(
-      builder, loc, forOp.getLowerBound(), vectorElementCount);
-
-  mlir::Value vectorStep =
-      mlir::arith::MulIOp::create(builder, loc, forOp.getStep(), widthValue);
-
-  mlir::Value reducedScalar;
-  if (mlir::failed(buildVectorReductionMainLoop(
-          builder, loc, forOp, width, mainUb, vectorStep, reducedScalar))) {
-    return mlir::failure();
-  }
-
-  mlir::Value scalarAfterVector = mlir::arith::AddFOp::create(
-      builder, loc, forOp.getInitArgs()[0], reducedScalar);
-
-  auto remainderFor = buildScalarReductionRemainderLoop(
-      builder, loc, forOp, mainUb, scalarAfterVector);
-
-  forOp.getResult(0).replaceAllUsesWith(remainderFor.getResult(0));
-  forOp.erase();
-
-  return mlir::success();
-}
+} // namespace
 
 struct LoopVectorizePass
     : public impl::LoopVectorizePassBase<LoopVectorizePass> {
-  void runOnOperation() override {
-    llvm::SmallVector<mlir::scf::ForOp, 8> loops;
+  auto getDependentDialects(mlir::DialectRegistry &registry) const
+      -> void override {
+    registry.insert<mlir::affine::AffineDialect, mlir::vector::VectorDialect>();
+  }
 
-    getOperation()->walk([&](mlir::scf::ForOp forOp) {
-      if (forOp->hasAttr("vectorize")) {
-        loops.push_back(forOp);
+  auto vectorizeFunction(mlir::func::FuncOp function,
+                         mlir::PatternApplicator &raiser)
+      -> mlir::LogicalResult {
+    llvm::SmallVector<mlir::scf::ForOp> requested;
+    function.walk([&](mlir::scf::ForOp loop) -> void {
+      if (loop->hasAttr("vectorize")) {
+        requested.push_back(loop);
       }
     });
+    if (requested.empty()) {
+      return mlir::success();
+    }
 
-    for (mlir::scf::ForOp forOp : loops) {
-      uint32_t width = 4;
-
+    llvm::SmallVector<std::pair<mlir::affine::AffineForOp, int64_t>> candidates;
+    for (auto loop : requested) {
+      int64_t width = 4;
       if (auto attr =
-              forOp->getAttrOfType<mlir::IntegerAttr>("vectorize_width")) {
-        width = static_cast<uint32_t>(attr.getInt());
+              loop->getAttrOfType<mlir::IntegerAttr>("vectorize_width")) {
+        width = attr.getInt();
       }
-
-      if (width < 2) {
-        forOp->removeAttr("vectorize");
-        forOp->removeAttr("vectorize_width");
+      loop->removeAttr("vectorize");
+      loop->removeAttr("vectorize_width");
+      if (width < 2 || width > std::numeric_limits<unsigned>::max()) {
         continue;
       }
 
-      if (mlir::succeeded(vectorizeMapLoop(forOp, width))) {
+      RaisedLoop replacement;
+      mlir::PatternRewriter rewriter(&getContext());
+      rewriter.setListener(&replacement);
+      rewriter.setInsertionPoint(loop);
+      if (mlir::failed(raiser.matchAndRewrite(loop, rewriter))) {
+        loop.emitWarning(
+            "cmlir: loop vectorization skipped: non-affine bounds");
         continue;
       }
+      if (!replacement.loop) {
+        return mlir::failure();
+      }
+      candidates.emplace_back(replacement.loop, width);
+    }
+    if (candidates.empty()) {
+      return mlir::success();
+    }
 
-      if (mlir::succeeded(vectorizeReductionLoop(forOp, width))) {
+    mlir::OpPassManager accesses(mlir::func::FuncOp::getOperationName());
+    accesses.addPass(mlir::affine::createRaiseMemrefToAffine());
+    if (mlir::failed(runPipeline(accesses, function))) {
+      return mlir::failure();
+    }
+
+    // Post-order collection processes inner loops before their parents. Only
+    // the explicitly requested loop is passed to the upstream vectorizer.
+    for (auto [loop, width] : candidates) {
+      auto loc = loop.getLoc();
+      llvm::SmallVector<mlir::affine::LoopReduction> reductions;
+      if (!hasSafeAliases(loop, function) || !permitsReduction(loop) ||
+          !mlir::affine::isLoopParallel(loop, &reductions)) {
+        loop.emitWarning(
+            "cmlir: loop vectorization skipped: alias, dependence or "
+            "strict floating-point reduction");
         continue;
       }
+      auto full = prepareFullTile(loop, static_cast<unsigned>(width));
+      if (mlir::failed(full)) {
+        mlir::emitWarning(loc, "cmlir: loop vectorization skipped: "
+                               "cannot isolate full vectors");
+        continue;
+      }
+      loop = *full;
+      mlir::affine::VectorizationStrategy strategy;
+      strategy.vectorSizes.push_back(width);
+      strategy.loopToVectorDim[loop] = 0;
+      if (!reductions.empty()) {
+        strategy.reductionLoops[loop] = reductions;
+      }
+      std::vector<llvm::SmallVector<mlir::affine::AffineForOp, 2>> nest{{loop}};
+      if (mlir::failed(mlir::affine::vectorizeAffineLoopNest(nest, strategy))) {
+        loop.emitWarning("cmlir: loop vectorization skipped: unsupported body");
+      }
+    }
 
-      forOp->emitWarning("cmlir: loop vectorization skipped");
-      forOp->removeAttr("vectorize");
-      forOp->removeAttr("vectorize_width");
+    // Affine is an implementation detail of pragma vectorization. Return to
+    // SCF so callers retain the existing structured output dialect contract.
+    mlir::OpPassManager lower(mlir::func::FuncOp::getOperationName());
+    lower.addPass(mlir::createCanonicalizerPass());
+    lower.addPass(mlir::createLowerAffinePass());
+    return runPipeline(lower, function);
+  }
+
+  auto runOnOperation() -> void override {
+    mlir::RewritePatternSet patterns(&getContext());
+    mlir::populateSCFToAffineConversionPatterns(patterns);
+    mlir::FrozenRewritePatternSet frozen(std::move(patterns));
+    mlir::PatternApplicator raiser(frozen);
+    raiser.applyDefaultCostModel();
+    bool failed = false;
+    getOperation()->walk([&](mlir::func::FuncOp function) -> void {
+      if (!failed) {
+        failed = mlir::failed(vectorizeFunction(function, raiser));
+      }
+    });
+    if (failed) {
+      signalPassFailure();
     }
   }
 };

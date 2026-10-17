@@ -14,11 +14,11 @@ extern llvm::cl::opt<std::string> functionName;
 
 extern llvm::cl::opt<bool> disableOpt;
 extern llvm::cl::opt<bool> dumpStages;
-extern llvm::cl::opt<bool> funcInline;
-extern llvm::cl::opt<bool> struct2Memref;
-extern llvm::cl::opt<bool> raiseMemref2Affine;
-extern llvm::cl::opt<bool> raiseSCF2Affine;
-extern llvm::cl::opt<bool> fma;
+extern llvm::cl::opt<bool> inlinePass;
+extern llvm::cl::opt<bool> structToMemref;
+extern llvm::cl::opt<bool> affineRaiseFromMemref;
+extern llvm::cl::opt<bool> raiseSCFToAffine;
+extern llvm::cl::opt<bool> mathUpliftToFMA;
 
 extern llvm::cl::extrahelp commonHelp;
 

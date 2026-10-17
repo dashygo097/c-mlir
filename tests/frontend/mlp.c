@@ -1,4 +1,4 @@
-// RUN: clang-to-mlir %s -function=mlp --raise-memref-to-affine | FileCheck %s
+// RUN: clang-to-mlir %s -function=mlp --affine-raise-from-memref | FileCheck %s
 
 void mlp(float output[2], const float input[2]) {
   float weights[2][2] = {{0.1f, 0.2f}, {0.3f, 0.4f}};

@@ -1,13 +1,9 @@
 add_mlir_library(CMLIRTransforms
   ArithCastProp.cc
-  ConstProp.cc
-  FMA.cc
   IndexCastProp.cc
   LoopUnroll.cc
   LoopVectorize.cc
   Pipeline.cc
-  RaiseMemref2Affine.cc
-  RaiseSCF2Affine.cc
   Struct2Memref.cc
   DEPENDS MLIRCMLIRTransformsIncGen
   LINK_LIBS PUBLIC
@@ -21,6 +17,7 @@ add_mlir_library(CMLIRTransforms
     MLIRTransformUtils
     MLIRAffineDialect
     MLIRAffineTransforms
+    MLIRAffineToStandard
     MLIRArithDialect
     MLIRArithTransforms
     MLIRBufferizationTransforms
@@ -29,10 +26,13 @@ add_mlir_library(CMLIRTransforms
     MLIRLLVMDialect
     MLIRLLVMIRTransforms
     MLIRMathDialect
+    MLIRMathTransforms
     MLIRMemRefDialect
     MLIRMemRefTransforms
     MLIRSCFDialect
     MLIRSCFTransforms
+    MLIRSCFToAffine
+    MLIRRewrite
     MLIRVectorDialect
 )
 target_include_directories(CMLIRTransforms PUBLIC

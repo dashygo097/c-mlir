@@ -55,28 +55,29 @@ llvm::cl::opt<bool> disableOpt("disable-opt", llvm::cl::init(false),
                                llvm::cl::desc("Disable optimizations"),
                                llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> funcInline("func-inline", llvm::cl::init(false),
+llvm::cl::opt<bool> inlinePass("inline", llvm::cl::init(false),
                                llvm::cl::desc("Enable function inlining"),
                                llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
-    struct2Memref("struct-to-memref", llvm::cl::init(false),
-                  llvm::cl::desc("Enable struct to memref promotion"),
-                  llvm::cl::cat(toolOptions));
+    structToMemref("struct-to-memref", llvm::cl::init(false),
+                   llvm::cl::desc("Enable struct to memref promotion"),
+                   llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> raiseMemref2Affine("raise-memref-to-affine",
-                                       llvm::cl::init(false),
-                                       llvm::cl::desc("Raise memref to affine"),
-                                       llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool>
+    affineRaiseFromMemref("affine-raise-from-memref", llvm::cl::init(false),
+                          llvm::cl::desc("Raise memref to affine"),
+                          llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> raiseSCF2Affine("raise-scf-to-affine",
-                                    llvm::cl::init(false),
-                                    llvm::cl::desc("Raise scf to affine"),
-                                    llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool> raiseSCFToAffine("raise-scf-to-affine",
+                                     llvm::cl::init(false),
+                                     llvm::cl::desc("Raise scf to affine"),
+                                     llvm::cl::cat(toolOptions));
 
-llvm::cl::opt<bool> fma("fma", llvm::cl::init(false),
-                        llvm::cl::desc("Enable fused multiply-add (FMA)"),
-                        llvm::cl::cat(toolOptions));
+llvm::cl::opt<bool> mathUpliftToFMA(
+    "math-uplift-to-fma", llvm::cl::init(false),
+    llvm::cl::desc("Permit floating-point contraction and uplift to math.fma"),
+    llvm::cl::cat(toolOptions));
 
 llvm::cl::extrahelp commonHelp(CommonOptionsParser::HelpMessage);
 
@@ -125,11 +126,11 @@ auto main(int argc, const char **argv) -> int {
   cmlir::PipelineOptions pipeline;
   pipeline.optimize = !options::disableOpt;
   pipeline.dumpStages = options::dumpStages;
-  pipeline.inlineFunctions = options::funcInline;
-  pipeline.promoteStructs = options::struct2Memref;
-  pipeline.raiseMemRefToAffine = options::raiseMemref2Affine;
-  pipeline.raiseSCFToAffine = options::raiseSCF2Affine;
-  pipeline.fuseMultiplyAdd = options::fma;
+  pipeline.inlineFunctions = options::inlinePass;
+  pipeline.promoteStructs = options::structToMemref;
+  pipeline.raiseMemRefToAffine = options::affineRaiseFromMemref;
+  pipeline.raiseSCFToAffine = options::raiseSCFToAffine;
+  pipeline.upliftToFMA = options::mathUpliftToFMA;
   mlir::DefaultTimingManager timing;
   timing.setEnabled(options::pipelineTiming);
   timing.setDisplayMode(mlir::DefaultTimingManager::DisplayMode::List);

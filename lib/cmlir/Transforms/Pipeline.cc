@@ -1,12 +1,15 @@
 #include "cmlir/Transforms/Pipeline.h"
 #include "cmlir/Support/Printing.h"
 #include "cmlir/Transforms/Passes.h"
+#include "mlir/Conversion/SCFToAffine/SCFToAffine.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/Transforms/InlinerInterfaceImpl.h"
+#include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRefMemorySlot.h"
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
@@ -111,8 +114,19 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
     }
   }
 
-  if (options.fuseMultiplyAdd) {
-    pm.addPass(cmlir::createFMAPass());
+  if (options.upliftToFMA) {
+    // This explicit pipeline option permits contraction, without enabling
+    // reassociation or the other fast-math assumptions.
+    module.walk([](mlir::Operation *op) -> void {
+      if (auto add = mlir::dyn_cast<mlir::arith::AddFOp>(op)) {
+        add.setFastmath(add.getFastmath() |
+                        mlir::arith::FastMathFlags::contract);
+      } else if (auto mul = mlir::dyn_cast<mlir::arith::MulFOp>(op)) {
+        mul.setFastmath(mul.getFastmath() |
+                        mlir::arith::FastMathFlags::contract);
+      }
+    });
+    pm.addPass(mlir::math::createMathUpliftToFMA());
   }
   pm.addPass(mlir::createLoopInvariantCodeMotionPass());
   pm.addNestedPass<mlir::func::FuncOp>(
@@ -122,15 +136,25 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
     return error;
   }
 
-  // Analyze and fuse eligible loops before code expansion. Explicit pragma
-  // loops stay in SCF for the transformations that understand their hints.
+  // Consume SCF unroll hints before vectorization uses Affine temporarily.
+  pm.addPass(cmlir::createLoopUnrollPass());
+  pm.addPass(cmlir::createLoopVectorizePass());
+  addValueCleanup(pm);
+  if (auto error =
+          runStage(pm, module, "loop transformations", options.dumpStages)) {
+    return error;
+  }
+
+  // Pragma transformations have already run; upstream decides which loops
+  // can be represented in Affine.
   if (options.raiseSCFToAffine || options.raiseMemRefToAffine) {
     pm.addPass(mlir::memref::createNormalizeMemRefsPass());
     if (options.raiseSCFToAffine) {
-      pm.addPass(cmlir::createRaiseSCF2AffinePass());
+      pm.addPass(mlir::createRaiseSCFToAffinePass());
     }
     if (options.raiseMemRefToAffine) {
-      pm.addPass(cmlir::createRaiseMemref2AffinePass());
+      pm.addNestedPass<mlir::func::FuncOp>(
+          mlir::affine::createRaiseMemrefToAffine());
     }
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::affine::createAffineLoopNormalizePass());
@@ -146,14 +170,7 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
     }
   }
 
-  pm.addPass(cmlir::createLoopVectorizePass());
-  pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(cmlir::createLoopUnrollPass());
   pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-  if (auto error =
-          runStage(pm, module, "loop transformations", options.dumpStages)) {
-    return error;
-  }
 
   pm.addNestedPass<mlir::func::FuncOp>(
       mlir::bufferization::createBufferLoopHoistingPass());
