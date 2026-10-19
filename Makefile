@@ -5,7 +5,7 @@ BUILD_DIR = $(PROJECT_DIR)/build
 # Build configuration
 BUILD_TYPE ?= Release 
 GENERATOR ?= Ninja 
-TEST_TARGET ?= Frontend 
+TEST_TARGET ?= cmlir
 
 # Detect generator command
 ifeq ($(GENERATOR),Ninja)
@@ -54,7 +54,7 @@ clean:
 # Run tests
 test:
 	@echo "==> Running tests..."
-	@cd $(BUILD_DIR) && ninja check-$(TEST_TARGET)
+	@cmake --build "$(BUILD_DIR)" --target check-$(TEST_TARGET)
 
 # Help message
 help:
@@ -72,4 +72,6 @@ help:
 	@echo "                     Current: $(BUILD_TYPE)"
 	@echo "  GENERATOR        - CMake generator (Ninja, 'Unix Makefiles', etc.)"
 	@echo "                     Current: $(GENERATOR)"
+	@echo "  TEST_TARGET      - Test suite (cmlir, Frontend, Transforms, Runtime)"
+	@echo "                     Current: $(TEST_TARGET)"
 	@echo ""

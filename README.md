@@ -65,15 +65,14 @@ pip install lit
 **2. Run tests**
 
 ```bash
-make test # Run the clang-to-mlir regression suite and compiler API checks
+make test
 ```
 
 Or manually follow this:
 
 ```bash
 cd build
-ninja check-frontend
-ninja check-frontend-api # Run only the reusable compiler API checks
+ninja check-cmlir
 ```
 
 ## Examples
