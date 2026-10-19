@@ -9,7 +9,7 @@ namespace cmlir::frontend {
 
 auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
                        clang::BinaryOperatorKind op, mlir::Value lhs,
-                       mlir::Value rhs) -> mlir::Value {
+                       mlir::Value rhs, bool isUnsigned) -> mlir::Value {
   using CBO = clang::BinaryOperatorKind;
 
   switch (op) {
@@ -20,9 +20,11 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   case CBO::BO_MulAssign:
     return clang_mlir::mul(builder, loc, lhs, rhs);
   case CBO::BO_DivAssign:
-    return clang_mlir::divs(builder, loc, lhs, rhs);
+    return isUnsigned ? clang_mlir::divu(builder, loc, lhs, rhs)
+                      : clang_mlir::divs(builder, loc, lhs, rhs);
   case CBO::BO_RemAssign:
-    return clang_mlir::rems(builder, loc, lhs, rhs);
+    return isUnsigned ? clang_mlir::remu(builder, loc, lhs, rhs)
+                      : clang_mlir::rems(builder, loc, lhs, rhs);
   case CBO::BO_AndAssign:
     return clang_mlir::bitAnd(builder, loc, lhs, rhs);
   case CBO::BO_OrAssign:
@@ -32,7 +34,8 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   case CBO::BO_ShlAssign:
     return clang_mlir::shl(builder, loc, lhs, rhs);
   case CBO::BO_ShrAssign:
-    return clang_mlir::shrs(builder, loc, lhs, rhs);
+    return isUnsigned ? clang_mlir::shru(builder, loc, lhs, rhs)
+                      : clang_mlir::shrs(builder, loc, lhs, rhs);
   default:
     llvm::WithColor::error()
         << "clang-to-mlir: unsupported compound assignment: "
@@ -85,10 +88,14 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
 
     mlir::Type lhsType = oldValue.getType();
     mlir::Value computeLHS = oldValue;
+    clang::QualType computationType = assignOp->getLHS()->getType();
 
     if (auto *compOp =
             mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
-      mlir::Type computeType = convertType(compOp->getComputationResultType());
+      // Select operations using the promoted computation type, before the
+      // result is converted back to the storage type of the LHS.
+      computationType = compOp->getComputationLHSType();
+      mlir::Type computeType = convertType(computationType);
       if (!computeType) {
         return mlir::failure();
       }
@@ -103,8 +110,19 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
       }
     }
 
+    if (assignOp->getOpcode() == clang::BO_ShlAssign ||
+        assignOp->getOpcode() == clang::BO_ShrAssign) {
+      rhsValue = clang_mlir::toValue(
+          builder, loc, rhsValue, computeLHS.getType(),
+          assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType());
+      if (!rhsValue) {
+        return mlir::failure();
+      }
+    }
+
     mlir::Value computed = emitCompoundArith(
-        builder, loc, assignOp->getOpcode(), computeLHS, rhsValue);
+        builder, loc, assignOp->getOpcode(), computeLHS, rhsValue,
+        computationType->isUnsignedIntegerOrEnumerationType());
     if (!computed) {
       return mlir::failure();
     }

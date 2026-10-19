@@ -24,6 +24,12 @@ inline auto mul(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                                                                  lhs, rhs);
 }
 
+inline auto divu(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                 mlir::Value rhs) -> mlir::Value {
+  return emitNumericOp<mlir::arith::DivUIOp, mlir::arith::DivFOp>(builder, loc,
+                                                                  lhs, rhs);
+}
+
 inline auto divs(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                  mlir::Value rhs) -> mlir::Value {
   return emitNumericOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(builder, loc,
@@ -33,6 +39,11 @@ inline auto divs(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
 inline auto rems(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                  mlir::Value rhs) -> mlir::Value {
   return emitIntOp<mlir::arith::RemSIOp>(builder, loc, lhs, rhs);
+}
+
+inline auto remu(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                 mlir::Value rhs) -> mlir::Value {
+  return emitIntOp<mlir::arith::RemUIOp>(builder, loc, lhs, rhs);
 }
 
 inline auto neg(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
@@ -88,6 +99,11 @@ inline auto shl(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
 inline auto shrs(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
                  mlir::Value rhs) -> mlir::Value {
   return emitIntOp<mlir::arith::ShRSIOp>(builder, loc, lhs, rhs);
+}
+
+inline auto shru(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+                 mlir::Value rhs) -> mlir::Value {
+  return emitIntOp<mlir::arith::ShRUIOp>(builder, loc, lhs, rhs);
 }
 
 inline auto addi(mlir::OpBuilder &builder, mlir::Location loc,
