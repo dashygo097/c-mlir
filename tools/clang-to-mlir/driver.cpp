@@ -65,6 +65,11 @@ llvm::cl::opt<bool>
                    llvm::cl::cat(toolOptions));
 
 llvm::cl::opt<bool>
+    liftCFToSCF("lift-cf-to-scf", llvm::cl::init(true),
+                llvm::cl::desc("Lift control flow to SCF (enabled by default)"),
+                llvm::cl::cat(toolOptions));
+
+llvm::cl::opt<bool>
     affineRaiseFromMemref("affine-raise-from-memref", llvm::cl::init(false),
                           llvm::cl::desc("Raise memref to affine"),
                           llvm::cl::cat(toolOptions));
@@ -128,6 +133,7 @@ auto main(int argc, const char **argv) -> int {
   pipeline.dumpStages = options::dumpStages;
   pipeline.inlineFunctions = options::inlinePass;
   pipeline.promoteStructs = options::structToMemref;
+  pipeline.liftCFToSCF = options::liftCFToSCF;
   pipeline.raiseMemRefToAffine = options::affineRaiseFromMemref;
   pipeline.raiseSCFToAffine = options::raiseSCFToAffine;
   pipeline.upliftToFMA = options::mathUpliftToFMA;

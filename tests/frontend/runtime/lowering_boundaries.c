@@ -1,12 +1,27 @@
 // RUN: clang-to-mlir %s -function=main -o %t.mlir -- -xc
+// RUN: FileCheck %s --check-prefix=STRUCTURED --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch < %t.mlir
 // RUN: mlir-opt --expand-strided-metadata --convert-scf-to-cf --convert-to-llvm %t.mlir -o %t.llvm.mlir
 // RUN: mlir-translate --mlir-to-llvmir %t.llvm.mlir -o %t.ll
 // RUN: lli %t.ll | FileCheck %s
+// RUN: clang-to-mlir %s -function=main --inline -o %t.inline.mlir -- -xc
+// RUN: FileCheck %s --check-prefix=INLINE --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch < %t.inline.mlir
+// RUN: mlir-opt --expand-strided-metadata --convert-scf-to-cf --convert-to-llvm %t.inline.mlir -o %t.inline.llvm.mlir
+// RUN: mlir-translate --mlir-to-llvmir %t.inline.llvm.mlir -o %t.inline.ll
+// RUN: lli %t.inline.ll | FileCheck %s
 // RUN: clang-to-mlir %s -function=main -disable-opt -o %t.raw.mlir -- -xc
 // RUN: mlir-opt --expand-strided-metadata --convert-scf-to-cf --convert-to-llvm %t.raw.mlir -o %t.raw.llvm.mlir
 // RUN: mlir-translate --mlir-to-llvmir %t.raw.llvm.mlir -o %t.raw.ll
 // RUN: lli %t.raw.ll | FileCheck %s
 #include <stdio.h>
+
+// STRUCTURED-LABEL: func.func @loop_return
+// STRUCTURED: scf.while
+// STRUCTURED: scf.if
+// STRUCTURED-LABEL: func.func @nested
+// STRUCTURED: scf.while
+
+// INLINE-LABEL: func.func @main
+// INLINE: return
 
 int short_circuit(int flag) {
   int x = 0;

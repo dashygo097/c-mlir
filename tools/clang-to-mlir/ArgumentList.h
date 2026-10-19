@@ -16,6 +16,7 @@ extern llvm::cl::opt<bool> disableOpt;
 extern llvm::cl::opt<bool> dumpStages;
 extern llvm::cl::opt<bool> inlinePass;
 extern llvm::cl::opt<bool> structToMemref;
+extern llvm::cl::opt<bool> liftCFToSCF;
 extern llvm::cl::opt<bool> affineRaiseFromMemref;
 extern llvm::cl::opt<bool> raiseSCFToAffine;
 extern llvm::cl::opt<bool> mathUpliftToFMA;

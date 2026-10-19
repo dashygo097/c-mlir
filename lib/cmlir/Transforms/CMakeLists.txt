@@ -21,6 +21,7 @@ add_mlir_library(CMLIRTransforms
     MLIRArithDialect
     MLIRArithTransforms
     MLIRBufferizationTransforms
+    MLIRControlFlowToSCF
     MLIRFuncDialect
     MLIRFuncInlinerExtension
     MLIRLLVMDialect

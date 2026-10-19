@@ -17,6 +17,8 @@ struct PipelineOptions {
   bool dumpStages = false;
   bool inlineFunctions = false;
   bool promoteStructs = false;
+  // Recover structured control flow after SSA promotion and optional inlining.
+  bool liftCFToSCF = true;
   bool raiseSCFToAffine = false;
   bool raiseMemRefToAffine = false;
   // Explicitly permit floating-point contraction, without reassociation.

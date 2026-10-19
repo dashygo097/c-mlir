@@ -1,6 +1,8 @@
 // RUN: split-file %s %t
 // RUN: clang-to-mlir %t/max2.c | FileCheck %s --check-prefix=CHECK2
-// RUN: clang-to-mlir %t/max3.c | FileCheck %s --check-prefix=CHECK3
+// RUN: clang-to-mlir %t/max3.c | FileCheck %s --check-prefix=CHECK3 --implicit-check-not=cf.cond_br --implicit-check-not=cf.br
+// RUN: clang-to-mlir %t/max3.c --lift-cf-to-scf=false | FileCheck %s --check-prefix=CFG
+// RUN: clang-to-mlir %t/max3.c --disable-opt | FileCheck %s --check-prefix=CFG
 // RUN: clang-to-mlir %t/max4.c | FileCheck %s --check-prefix=CHECK4
 
 //--- max2.c
@@ -32,22 +34,29 @@ int max3(int a, int b, int c) {
 // CHECK3: } else {
 // CHECK3: scf.yield %[[false]] : i1
 // CHECK3: }
-// CHECK3: cf.cond_br %[[V2]], ^bb1(%arg0 : i32), ^bb2
-// CHECK3: ^bb1(%[[V3:.*]]: i32):
-// CHECK3: return %[[V3]] : i32
-// CHECK3: ^bb2:
-// CHECK3: %[[V4:.*]] = arith.cmpi sgt, %arg1, %arg2 : i32
-// CHECK3: cf.cond_br %[[V4]], ^bb1(%arg1 : i32), ^bb1(%arg2 : i32)
+// CHECK3: %[[RESULT:.*]] = scf.if %[[V2]] -> (i32) {
+// CHECK3: scf.yield %arg0 : i32
+// CHECK3: } else {
+// CHECK3: %[[MAX_BC:.*]] = arith.maxsi %arg1, %arg2 : i32
+// CHECK3: scf.yield %[[MAX_BC]] : i32
+// CHECK3: }
+// CHECK3: return %[[RESULT]] : i32
+
+// CFG-LABEL: func.func @max3
+// CFG: cf.cond_br
 
 //--- max4.c
 int max4(int a, int b, int c, int d) {
   int max = a;
-  if (b > max)
+  if (b > max) {
     max = b;
-  if (c > max)
+  }
+  if (c > max) {
     max = c;
-  if (d > max)
+  }
+  if (d > max) {
     return d;
+  }
   return max;
 }
 

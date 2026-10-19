@@ -1,6 +1,7 @@
 #include "cmlir/Transforms/Pipeline.h"
 #include "cmlir/Support/Printing.h"
 #include "cmlir/Transforms/Passes.h"
+#include "mlir/Conversion/ControlFlowToSCF/ControlFlowToSCF.h"
 #include "mlir/Conversion/SCFToAffine/SCFToAffine.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -110,6 +111,17 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options)
     addStorageCleanup(pm);
     if (auto error =
             runStage(pm, module, "struct promotion", options.dumpStages)) {
+      return error;
+    }
+  }
+
+  if (options.liftCFToSCF) {
+    // Inlining can introduce new CFG edges. Structure them before loop passes;
+    // directly lowered SCF loops and their pragma attributes remain intact.
+    pm.addPass(mlir::createLiftControlFlowToSCFPass());
+    addValueCleanup(pm);
+    if (auto error =
+            runStage(pm, module, "control flow lifting", options.dumpStages)) {
       return error;
     }
   }
