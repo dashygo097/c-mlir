@@ -72,6 +72,6 @@ help:
 	@echo "                     Current: $(BUILD_TYPE)"
 	@echo "  GENERATOR        - CMake generator (Ninja, 'Unix Makefiles', etc.)"
 	@echo "                     Current: $(GENERATOR)"
-	@echo "  TEST_TARGET      - Test suite (cmlir, Frontend, Transforms, Runtime)"
+	@echo "  TEST_TARGET      - Test suite (cmlir, Frontend, Transforms, Pipelines, Runtime)"
 	@echo "                     Current: $(TEST_TARGET)"
 	@echo ""

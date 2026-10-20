@@ -1,6 +1,9 @@
 // RUN: clang-to-mlir %s --lift-cf-to-scf --function=max3 -- | FileCheck %s --check-prefix=CHECK3 --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
+// RUN: clang-to-mlir --disable-opt %s --function=max3 -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{lift-cf-to-scf=true})' | FileCheck %s --check-prefix=CHECK3 --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
 // RUN: clang-to-mlir %s --lift-cf-to-scf --function=fibonacci -- | FileCheck %s --check-prefix=FIB --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
+// RUN: clang-to-mlir --disable-opt %s --function=fibonacci -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{lift-cf-to-scf=true})' | FileCheck %s --check-prefix=FIB --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
 // RUN: clang-to-mlir %s --lift-cf-to-scf --function=reduce_sum_nonzero -- | FileCheck %s --check-prefix=CONT --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
+// RUN: clang-to-mlir --disable-opt %s --function=reduce_sum_nonzero -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{lift-cf-to-scf=true})' | FileCheck %s --check-prefix=CONT --implicit-check-not=cf.br --implicit-check-not=cf.cond_br --implicit-check-not=cf.switch
 
 int max3(int a, int b, int c) {
   if (a > b && a > c) {

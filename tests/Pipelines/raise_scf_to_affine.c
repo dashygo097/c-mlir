@@ -1,4 +1,5 @@
 // RUN: clang-to-mlir %s --raise-scf-to-affine -- | FileCheck %s
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{raise-scf-to-affine=true})' | FileCheck %s
 
 void vec_add(float *c, const float *a, const float *b, int n) {
   for (int i = 0; i < n; i++) {

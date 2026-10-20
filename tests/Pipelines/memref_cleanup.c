@@ -1,4 +1,5 @@
 // RUN: clang-to-mlir %s -- | FileCheck %s --implicit-check-not=llvm.
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --implicit-check-not=llvm.
 
 int read(int *pointer, int offset) { return *((pointer + offset + 1) - 1); }
 

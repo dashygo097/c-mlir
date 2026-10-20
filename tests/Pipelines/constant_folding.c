@@ -1,9 +1,14 @@
 // RUN: split-file %s %t
 // RUN: clang-to-mlir %t/matrix_sum.c --affine-raise-from-memref -- | FileCheck %s --check-prefix=MATRIX
+// RUN: clang-to-mlir --disable-opt %t/matrix_sum.c -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s --check-prefix=MATRIX
 // RUN: clang-to-mlir %t/init_list0.c --affine-raise-from-memref -- | FileCheck %s --check-prefix=CHECK0
+// RUN: clang-to-mlir --disable-opt %t/init_list0.c -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s --check-prefix=CHECK0
 // RUN: clang-to-mlir %t/init_list1.c --affine-raise-from-memref -- | FileCheck %s --check-prefix=CHECK1
+// RUN: clang-to-mlir --disable-opt %t/init_list1.c -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s --check-prefix=CHECK1
 // RUN: clang-to-mlir %t/init_list2.c --affine-raise-from-memref -- | FileCheck %s --check-prefix=CHECK2
+// RUN: clang-to-mlir --disable-opt %t/init_list2.c -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s --check-prefix=CHECK2
 // RUN: clang-to-mlir %t/init_list3.c --affine-raise-from-memref -- | FileCheck %s --check-prefix=CHECK3
+// RUN: clang-to-mlir --disable-opt %t/init_list3.c -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s --check-prefix=CHECK3
 
 //--- matrix_sum.c
 int matrix_sum() {

@@ -1,4 +1,5 @@
 // RUN: clang-to-mlir %s --affine-raise-from-memref -- | FileCheck %s
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{affine-raise-from-memref=true})' | FileCheck %s
 
 void mlp(float output[2], const float input[2]) {
   float weights[2][2] = {{0.1f, 0.2f}, {0.3f, 0.4f}};

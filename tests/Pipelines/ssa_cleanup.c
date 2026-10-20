@@ -1,8 +1,13 @@
 // RUN: clang-to-mlir %s --function=dot -- | FileCheck %s --check-prefix=DOT
+// RUN: clang-to-mlir --disable-opt %s --function=dot -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=DOT
 // RUN: clang-to-mlir %s --function=do_while -- | FileCheck %s --check-prefix=DO
+// RUN: clang-to-mlir --disable-opt %s --function=do_while -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=DO
 // RUN: clang-to-mlir %s --function=_while -- | FileCheck %s --check-prefix=WHILE
+// RUN: clang-to-mlir --disable-opt %s --function=_while -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=WHILE
 // RUN: clang-to-mlir %s --function=reduce_sum64 -- | FileCheck %s
+// RUN: clang-to-mlir --disable-opt %s --function=reduce_sum64 -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s
 // RUN: clang-to-mlir %s --function=vec_add -- | FileCheck %s --check-prefix=VEC
+// RUN: clang-to-mlir --disable-opt %s --function=vec_add -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=VEC
 
 float reduce_sum64(float a[64]) {
   float result = 0.0f;

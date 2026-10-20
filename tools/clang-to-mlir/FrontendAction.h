@@ -2,7 +2,7 @@
 #define CLANG_TO_MLIR_FRONTEND_ACTION_H
 
 #include "cmlir/Frontend/Frontend.h"
-#include "cmlir/Transforms/Pipeline.h"
+#include "cmlir/Pipelines/Pipelines.h"
 #include "mlir/IR/MLIRContext.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"

@@ -1,5 +1,7 @@
 // RUN: clang-to-mlir %s --function=max2 -- | FileCheck %s --check-prefix=CHECK2
+// RUN: clang-to-mlir --disable-opt %s --function=max2 -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=CHECK2
 // RUN: clang-to-mlir %s --function=max4 -- | FileCheck %s --check-prefix=CHECK4
+// RUN: clang-to-mlir --disable-opt %s --function=max4 -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=CHECK4
 
 int max2(int a, int b) {
   return a > b ? a : b;

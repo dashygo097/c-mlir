@@ -1,4 +1,5 @@
 #include "cmlir/Transforms/Passes.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Pass/Pass.h"
@@ -11,7 +12,7 @@ namespace cmlir {
 
 struct LoopUnrollPass : public impl::LoopUnrollPassBase<LoopUnrollPass> {
 
-  void runOnOperation() override {
+  auto runOnOperation() -> void override {
     auto op = getOperation();
 
     llvm::SmallVector<mlir::scf::ForOp, 8> loops;

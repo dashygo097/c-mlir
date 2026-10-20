@@ -1,5 +1,7 @@
 // RUN: clang-to-mlir %s --math-uplift-to-fma -- -xc | FileCheck %s --check-prefix=FUSED
+// RUN: clang-to-mlir --disable-opt %s -- -xc | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{math-uplift-to-fma=true})' | FileCheck %s --check-prefix=FUSED
 // RUN: clang-to-mlir %s -- -xc | FileCheck %s --check-prefix=STRICT
+// RUN: clang-to-mlir --disable-opt %s -- -xc | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=STRICT
 
 float mul_add(float a, float b, float c) { return a * b + c; }
 

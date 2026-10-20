@@ -60,8 +60,12 @@ struct ArithCastPropPass
                  ExactIntegerRoundTrip<mlir::arith::FPToUIOp,
                                        mlir::arith::UIToFPOp, false>>(
         &getContext());
-    if (mlir::failed(
-            mlir::applyPatternsGreedily(getOperation(), std::move(patterns)))) {
+    // Index round trips were proved against the target data layout above.
+    // Generic op folding can assume a 64-bit index and bypass that proof.
+    mlir::GreedyRewriteConfig config;
+    config.enableFolding(false);
+    if (mlir::failed(mlir::applyPatternsGreedily(
+            getOperation(), std::move(patterns), config))) {
       signalPassFailure();
     }
   }

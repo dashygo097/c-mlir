@@ -1,4 +1,5 @@
 // RUN: clang-to-mlir %s --struct-to-memref -- | FileCheck %s
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{struct-to-memref=true})' | FileCheck %s
 
 struct Point {
   float x;

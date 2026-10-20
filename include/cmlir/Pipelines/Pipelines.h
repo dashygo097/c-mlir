@@ -1,11 +1,13 @@
-#ifndef CMLIR_TRANSFORMS_PIPELINE_H
-#define CMLIR_TRANSFORMS_PIPELINE_H
+#ifndef CMLIR_PIPELINES_PIPELINES_H
+#define CMLIR_PIPELINES_PIPELINES_H
 
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/Support/Error.h"
 
 namespace mlir {
 
+class DialectRegistry;
+class OpPassManager;
 class TimingScope;
 
 } // namespace mlir
@@ -27,6 +29,17 @@ struct PipelineOptions {
   mlir::TimingScope *timingScope = nullptr;
 };
 
+// Register the external models needed by the shared pipeline.
+auto registerPipelineInterfaces(mlir::DialectRegistry &registry) -> void;
+
+// Append the default pass sequence without executing it. Execution controls
+// (optimize, dumpStages and timingScope) belong to runPipeline only.
+auto buildDefaultPipeline(mlir::OpPassManager &pm,
+                          const PipelineOptions &options = {}) -> void;
+
+// Register default-pipeline and its transformation options.
+auto registerPipelines() -> void;
+
 // Always verifies, including when optimization is disabled. A failed pipeline
 // may have already modified the module; use a clone when rollback is required.
 auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options = {})
@@ -34,4 +47,4 @@ auto runPipeline(mlir::ModuleOp module, const PipelineOptions &options = {})
 
 } // namespace cmlir
 
-#endif // CMLIR_TRANSFORMS_PIPELINE_H
+#endif // CMLIR_PIPELINES_PIPELINES_H

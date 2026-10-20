@@ -1,5 +1,7 @@
 // RUN: clang-to-mlir %s -- | FileCheck %s --check-prefix=CHECKUNROLL
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=CHECKUNROLL
 // RUN: clang-to-mlir %s --raise-scf-to-affine -- | FileCheck %s --check-prefix=CHECKUNROLLAFFINE
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{raise-scf-to-affine=true})' | FileCheck %s --check-prefix=CHECKUNROLLAFFINE
 
 float reduce_sum64(float a[64]) {
   float result = 0.0f;

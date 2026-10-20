@@ -148,11 +148,11 @@ inline auto subf(mlir::OpBuilder &builder, mlir::Location loc,
 
 inline auto inc(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
     -> mlir::Value {
-  if (!value || !isIntegerLikeType(value.getType())) {
+  if (!value) {
     return nullptr;
   }
 
-  return addi(builder, loc, value, 1);
+  return add(builder, loc, value, oneConst(builder, loc, value.getType()));
 }
 
 inline auto dec(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
@@ -161,7 +161,7 @@ inline auto dec(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
     return nullptr;
   }
 
-  return subi(builder, loc, value, 1);
+  return sub(builder, loc, value, oneConst(builder, loc, value.getType()));
 }
 
 } // namespace clang_mlir

@@ -1,9 +1,9 @@
 add_mlir_library(CMLIRTransforms
   ArithCastProp.cc
+  EnableFPContract.cc
   IndexCastProp.cc
   LoopUnroll.cc
   LoopVectorize.cc
-  Pipeline.cc
   Struct2Memref.cc
   DEPENDS MLIRCMLIRTransformsIncGen
   LINK_LIBS PUBLIC
@@ -20,14 +20,9 @@ add_mlir_library(CMLIRTransforms
     MLIRAffineToStandard
     MLIRArithDialect
     MLIRArithTransforms
-    MLIRBufferizationTransforms
-    MLIRControlFlowToSCF
     MLIRFuncDialect
-    MLIRFuncInlinerExtension
     MLIRLLVMDialect
-    MLIRLLVMIRTransforms
     MLIRMathDialect
-    MLIRMathTransforms
     MLIRMemRefDialect
     MLIRMemRefTransforms
     MLIRSCFDialect

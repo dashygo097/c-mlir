@@ -1,5 +1,7 @@
 // RUN: clang-to-mlir %s -- | FileCheck %s --check-prefix=CHECKVEC
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=CHECKVEC
 // RUN: clang-to-mlir %s --raise-scf-to-affine -- | FileCheck %s --check-prefix=CHECKVECAFFINE
+// RUN: clang-to-mlir --disable-opt %s -- | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{raise-scf-to-affine=true})' | FileCheck %s --check-prefix=CHECKVECAFFINE
 
 void vec_add_vec(float *__restrict c, const float *a, const float *b, int n) {
 #pragma cmlir loop vectorize(enable) vectorize_width(4)

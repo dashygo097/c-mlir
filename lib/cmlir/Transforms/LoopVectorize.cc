@@ -139,7 +139,9 @@ struct LoopVectorizePass
     : public impl::LoopVectorizePassBase<LoopVectorizePass> {
   auto getDependentDialects(mlir::DialectRegistry &registry) const
       -> void override {
-    registry.insert<mlir::affine::AffineDialect, mlir::vector::VectorDialect>();
+    registry.insert<mlir::affine::AffineDialect, mlir::arith::ArithDialect,
+                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                    mlir::vector::VectorDialect>();
   }
 
   auto vectorizeFunction(mlir::func::FuncOp function,
