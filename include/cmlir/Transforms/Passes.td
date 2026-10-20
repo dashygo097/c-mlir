@@ -4,10 +4,10 @@
 include "mlir/Pass/PassBase.td"
 
 // Common optimization passes.
-def ArithCastPropPass
-    : Pass<"arith-cast-prop"> {
+def ArithFoldCastsPass
+    : Pass<"arith-fold-casts"> {
   let summary = "Eliminate provably exact arithmetic cast round trips.";
-  let constructor = "cmlir::createArithCastPropPass()";
+  let constructor = "cmlir::createArithFoldCastsPass()";
   let dependentDialects = ["mlir::arith::ArithDialect"];
   let description = [{
     Eliminate matching signed or unsigned integer-to-float-to-integer casts

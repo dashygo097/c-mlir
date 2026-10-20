@@ -21,7 +21,7 @@ int pipeline(int value) {
 // TIMING-DAG: SROA
 // TIMING-DAG: Mem2Reg
 // TIMING-DAG: SCCPPass
-// TIMING-DAG: ArithCastPropPass
+// TIMING-DAG: ArithFoldCastsPass
 // QUIET-NOT: Execution time report
 // STAGES: // clang-to-mlir stage: AST lowering
 // STAGES: // clang-to-mlir stage: SSA cleanup

@@ -41,7 +41,7 @@ auto addStorageCleanup(mlir::OpPassManager &pm) -> void {
   pm.addPass(mlir::createSROA());
   pm.addPass(mlir::createMem2Reg());
   pm.addPass(mlir::createSCCPPass());
-  pm.addPass(cmlir::createArithCastPropPass());
+  pm.addPass(cmlir::createArithFoldCastsPass());
   addValueCleanup(pm);
 }
 

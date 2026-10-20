@@ -1,7 +1,6 @@
 add_mlir_library(CMLIRTransforms
-  ArithCastProp.cc
+  ArithFoldCasts.cc
   EnableFPContract.cc
-  IndexCastProp.cc
   LoopUnroll.cc
   LoopVectorize.cc
   Struct2Memref.cc

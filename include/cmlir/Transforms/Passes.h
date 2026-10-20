@@ -7,7 +7,7 @@
 namespace cmlir {
 
 // Common optimization passes
-auto createArithCastPropPass() -> std::unique_ptr<mlir::Pass>;
+auto createArithFoldCastsPass() -> std::unique_ptr<mlir::Pass>;
 
 // Explicit floating-point policy; permits contraction without reassociation.
 auto createEnableFPContractPass() -> std::unique_ptr<mlir::Pass>;
