@@ -64,7 +64,7 @@ auto ASTLowering::emitAddress(clang::Expr *expr)
       }
     }
   }
-  mlir::Type element = convertType(expr->getType());
+  mlir::Type element = types.convertType(expr->getType());
   if (base && mlir::isa<mlir::LLVM::LLVMPointerType>(base.getType()) &&
       expr->getType()->isPointerType()) {
     element = mlir::LLVM::LLVMPointerType::get(builder.getContext());

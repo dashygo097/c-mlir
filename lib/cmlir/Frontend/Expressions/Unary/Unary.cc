@@ -51,7 +51,7 @@ auto ASTLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
     return clang_mlir::toValue(
         builder, loc,
         mlir::arith::XOrIOp::create(builder, loc, value, one).getResult(),
-        convertType(unOp->getType()), false);
+        types.convertType(unOp->getType()), false);
   }
 
   case CUO::UO_Not: {

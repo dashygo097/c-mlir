@@ -24,13 +24,6 @@ public:
   ~ASTLowering() = default;
 
   auto emitDeclaration(clang::Decl *decl) -> bool;
-
-  [[nodiscard]] auto failed() const -> bool {
-    return context.source().failed();
-  }
-
-  auto setTrace(bool value) -> void { trace = value; }
-
   auto emitFunction(clang::FunctionDecl *decl) -> bool;
   auto emitVariable(clang::VarDecl *decl) -> bool;
   auto emitRecord(clang::RecordDecl *decl) -> bool;
@@ -45,7 +38,12 @@ public:
   auto emitContinue(clang::ContinueStmt *stmt) -> bool;
   auto emitCFGLoop(clang::Expr *condition, clang::Stmt *body,
                    clang::Expr *increment, bool bodyFirst) -> bool;
-  auto hasControlExit(const clang::Stmt *stmt) const -> bool;
+
+  auto setTrace(bool value) -> void { trace = value; }
+
+  [[nodiscard]] auto failed() const -> bool {
+    return context.source().failed();
+  }
 
 private:
   clang_mlir::Context &context;
@@ -55,14 +53,6 @@ private:
   TypeLowering types;
   CallLowering calls;
   bool trace = false;
-
-  auto convertType(clang::QualType type) -> mlir::Type {
-    auto result = types.convertType(type);
-    if (!result && !context.source().failed()) {
-      context.source().error({}, "type lowering failed");
-    }
-    return result;
-  }
 
   auto emitAddress(clang::Expr *expr) -> mlir::FailureOr<clang_mlir::Address>;
   auto emitArrayAddress(clang::ArraySubscriptExpr *expr)

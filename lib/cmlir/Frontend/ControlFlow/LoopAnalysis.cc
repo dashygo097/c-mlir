@@ -99,6 +99,22 @@ auto invariant(const clang::Stmt *expr, const clang::Stmt *body) -> bool {
 
 } // namespace
 
+auto hasControlExit(const clang::Stmt *stmt) -> bool {
+  if (!stmt) {
+    return false;
+  }
+  if (llvm::isa<clang::ReturnStmt, clang::BreakStmt, clang::ContinueStmt,
+                clang::SwitchStmt>(stmt)) {
+    return true;
+  }
+  for (auto *child : stmt->children()) {
+    if (hasControlExit(child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 auto analyseForLoop(clang::ForStmt *stmt, clang::ASTContext &ast)
     -> std::optional<ForLoopPlan> {
   auto *init = llvm::dyn_cast_or_null<clang::DeclStmt>(stmt->getInit());

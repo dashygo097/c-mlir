@@ -20,6 +20,9 @@ struct ForLoopPlan {
 auto analyseForLoop(clang::ForStmt *, clang::ASTContext &)
     -> std::optional<ForLoopPlan>;
 
+// Conservatively identify loop bodies that require CFG lowering.
+auto hasControlExit(const clang::Stmt *stmt) -> bool;
+
 } // namespace cmlir::frontend::control
 
 #endif // CMLIR_FRONTEND_LOOP_ANALYSIS_H

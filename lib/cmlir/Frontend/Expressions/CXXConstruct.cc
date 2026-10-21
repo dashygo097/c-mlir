@@ -13,7 +13,7 @@ auto ASTLowering::generateCXXConstructExpr(
   clang::QualType type = constructExpr->getType();
 
   if (type->isStructureOrClassType()) {
-    mlir::Type structType = convertType(type);
+    mlir::Type structType = types.convertType(type);
     auto llvmStructType =
         mlir::dyn_cast<mlir::LLVM::LLVMStructType>(structType);
 
@@ -64,7 +64,7 @@ auto ASTLowering::generateCXXConstructExpr(
   }
 
   if (constructExpr->getNumArgs() == 0) {
-    mlir::Type mlirType = convertType(type);
+    mlir::Type mlirType = types.convertType(type);
 
     if (auto intType = mlir::dyn_cast<mlir::IntegerType>(mlirType)) {
       return clang_mlir::intConst(builder, loc, intType, 0);

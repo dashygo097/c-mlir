@@ -28,7 +28,7 @@ auto ASTLowering::generateLogicalOperator(clang::BinaryOperator *expr)
                              clang_mlir::boolConst(builder, loc, !isAnd));
   builder.setInsertionPointAfter(branch);
   return clang_mlir::toValue(builder, loc, branch.getResult(0),
-                             convertType(expr->getType()), false);
+                             types.convertType(expr->getType()), false);
 }
 
 } // namespace cmlir::frontend

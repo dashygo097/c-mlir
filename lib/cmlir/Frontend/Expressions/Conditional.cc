@@ -12,7 +12,7 @@ auto ASTLowering::generateConditionalOperator(
   mlir::Value condition = generateExpr(condOp->getCond());
   mlir::Value condBool = clang_mlir::toBool(builder, loc, condition);
 
-  mlir::Type targetType = convertType(condOp->getType());
+  mlir::Type targetType = types.convertType(condOp->getType());
 
   auto ifOp = mlir::scf::IfOp::create(builder, loc, targetType, condBool,
                                       /*hasElse=*/true);

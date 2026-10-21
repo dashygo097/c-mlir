@@ -11,7 +11,7 @@ auto ASTLowering::generateCStyleCastExpr(clang::CStyleCastExpr *castExpr)
   clang::Expr *subExpr = castExpr->getSubExpr();
 
   mlir::Value value = generateExpr(subExpr);
-  mlir::Type targetType = convertType(castExpr->getType());
+  mlir::Type targetType = types.convertType(castExpr->getType());
 
   switch (castExpr->getCastKind()) {
   case clang::CK_IntegralCast:

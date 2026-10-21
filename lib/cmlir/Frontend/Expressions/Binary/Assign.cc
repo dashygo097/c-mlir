@@ -72,7 +72,7 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
   mlir::Value resultValue = rhsValue;
 
   if (assignOp->getOpcode() != clang::BO_Assign) {
-    mlir::Type lhsElemType = convertType(assignOp->getLHS()->getType());
+    mlir::Type lhsElemType = types.convertType(assignOp->getLHS()->getType());
     if (!lhsElemType) {
       return mlir::failure();
     }
@@ -95,7 +95,7 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
       // Select operations using the promoted computation type, before the
       // result is converted back to the storage type of the LHS.
       computationType = compOp->getComputationLHSType();
-      mlir::Type computeType = convertType(computationType);
+      mlir::Type computeType = types.convertType(computationType);
       if (!computeType) {
         return mlir::failure();
       }
@@ -153,7 +153,7 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
         }
       }
     } else {
-      mlir::Type lhsType = convertType(assignOp->getLHS()->getType());
+      mlir::Type lhsType = types.convertType(assignOp->getLHS()->getType());
       if (!lhsType) {
         return mlir::failure();
       }

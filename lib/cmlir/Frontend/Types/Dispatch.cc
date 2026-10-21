@@ -1,5 +1,4 @@
 #include "TypeLowering.h"
-#include "llvm/Support/WithColor.h"
 
 namespace cmlir::frontend {
 
@@ -8,7 +7,11 @@ auto TypeLowering::convertType(clang::QualType type) -> mlir::Type {
 
 #define REGISTER_TYPE(type)                                                    \
   if (auto *node = mlir::dyn_cast<clang::type>(typePtr)) {                     \
-    return convert##type(mlir::cast<clang::type>(node));                       \
+    auto result = convert##type(node);                                         \
+    if (!result && !context.source().failed()) {                               \
+      context.source().error({}, "type lowering failed");                      \
+    }                                                                          \
+    return result;                                                             \
   }
 
   REGISTER_TYPE(BuiltinType)
@@ -20,8 +23,7 @@ auto TypeLowering::convertType(clang::QualType type) -> mlir::Type {
 
 #undef REGISTER_TYPE
 
-  llvm::WithColor::error() << "clang-to-mlir: unsupported type: "
-                           << type.getAsString();
+  context.source().error({}, "unsupported type: " + type.getAsString());
   return nullptr;
 }
 

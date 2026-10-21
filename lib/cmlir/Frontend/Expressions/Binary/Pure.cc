@@ -96,35 +96,35 @@ auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ult : IP::slt,
                               FP::OLT, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
   case CBO::BO_LE:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ule : IP::sle,
                               FP::OLE, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
   case CBO::BO_GT:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ugt : IP::sgt,
                               FP::OGT, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
   case CBO::BO_GE:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::uge : IP::sge,
                               FP::OGE, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
   case CBO::BO_EQ:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, IP::eq, FP::OEQ, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
   case CBO::BO_NE:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, IP::ne, FP::UNE, lhs, rhs),
-        convertType(binOp->getType()), false);
+        types.convertType(binOp->getType()), false);
 
   default:
     llvm::WithColor::error()

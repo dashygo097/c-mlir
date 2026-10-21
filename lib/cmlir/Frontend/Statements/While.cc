@@ -1,3 +1,4 @@
+#include "../ControlFlow/LoopAnalysis.h"
 #include "../Lowering.h"
 #include "clang-mlir/Casts.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -5,7 +6,7 @@
 namespace cmlir::frontend {
 
 auto ASTLowering::emitWhile(clang::WhileStmt *stmt) -> bool {
-  if (hasControlExit(stmt->getBody())) {
+  if (control::hasControlExit(stmt->getBody())) {
     return emitCFGLoop(stmt->getCond(), stmt->getBody(), nullptr, false);
   }
   auto &builder = context.builder();

@@ -12,7 +12,7 @@ auto ASTLowering::generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
   mlir::Location loc = context.source().location(castExpr->getExprLoc());
   clang::Expr *subExpr = castExpr->getSubExpr();
 
-  mlir::Type targetType = convertType(castExpr->getType());
+  mlir::Type targetType = types.convertType(castExpr->getType());
 
   using CK = clang::CastKind;
 

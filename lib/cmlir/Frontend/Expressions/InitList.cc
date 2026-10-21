@@ -49,7 +49,7 @@ auto ASTLowering::generateInitListExpr(clang::InitListExpr *initList)
   mlir::Location loc = builder.getUnknownLoc();
 
   clang::QualType clangType = initList->getType();
-  mlir::Type mlirType = convertType(clangType);
+  mlir::Type mlirType = types.convertType(clangType);
 
   auto memrefType = mlir::dyn_cast<mlir::MemRefType>(mlirType);
   if (!memrefType) {

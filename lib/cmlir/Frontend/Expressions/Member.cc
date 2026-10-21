@@ -59,7 +59,7 @@ auto ASTLowering::generateMemberExpr(clang::MemberExpr *memberExpr)
 
   uint32_t fieldIndex = *fieldIndexOpt;
 
-  mlir::Type structType = convertType(baseType);
+  mlir::Type structType = types.convertType(baseType);
   auto llvmStructType =
       mlir::dyn_cast_or_null<mlir::LLVM::LLVMStructType>(structType);
   if (!llvmStructType) {

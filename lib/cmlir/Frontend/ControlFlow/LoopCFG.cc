@@ -5,22 +5,6 @@
 
 namespace cmlir::frontend {
 
-auto ASTLowering::hasControlExit(const clang::Stmt *stmt) const -> bool {
-  if (!stmt) {
-    return false;
-  }
-  if (llvm::isa<clang::ReturnStmt, clang::BreakStmt, clang::ContinueStmt,
-                clang::SwitchStmt>(stmt)) {
-    return true;
-  }
-  for (auto *child : stmt->children()) {
-    if (hasControlExit(child)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 auto ASTLowering::emitCFGLoop(clang::Expr *condition, clang::Stmt *body,
                               clang::Expr *increment, bool bodyFirst) -> bool {
   auto &builder = context.builder();

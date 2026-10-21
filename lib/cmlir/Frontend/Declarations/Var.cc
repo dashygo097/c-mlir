@@ -107,7 +107,7 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
   }
 
   if (clangType->isStructureType()) {
-    mlir::Type mlirType = convertType(clangType);
+    mlir::Type mlirType = types.convertType(clangType);
     auto structType = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(mlirType);
     if (!structType) {
       llvm::WithColor::error() << "clang-to-mlir: expected struct type\n";
@@ -212,7 +212,7 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
         }
       }
 
-      mlir::Type elemType = convertType(cur);
+      mlir::Type elemType = types.convertType(cur);
       if (!elemType) {
         llvm::WithColor::error() << "clang-to-mlir: failed to convert VLA "
                                     "element type for variable: "
@@ -239,7 +239,7 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
     }
   }
 
-  mlir::Type mlirType = convertType(clangType);
+  mlir::Type mlirType = types.convertType(clangType);
   if (!mlirType) {
     llvm::WithColor::error()
         << "clang-to-mlir: failed to convert type for variable: "

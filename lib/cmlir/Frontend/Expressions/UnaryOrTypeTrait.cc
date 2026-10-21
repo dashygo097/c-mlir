@@ -21,7 +21,7 @@ auto ASTLowering::generateUnaryExprOrTypeTraitExpr(
     qty = qty.getCanonicalType();
     clang::TypeInfo ti = astCtx.getTypeInfo(qty);
     uint64_t sizeBytes = ti.Width / 8;
-    mlir::Type resultType = convertType(expr->getType());
+    mlir::Type resultType = types.convertType(expr->getType());
     if (!resultType) {
       resultType = builder.getI64Type();
     }
@@ -39,7 +39,7 @@ auto ASTLowering::generateUnaryExprOrTypeTraitExpr(
     qty = qty.getCanonicalType();
     clang::TypeInfo ti = astCtx.getTypeInfo(qty);
     uint64_t alignBytes = ti.Align / 8;
-    mlir::Type resultType = convertType(expr->getType());
+    mlir::Type resultType = types.convertType(expr->getType());
     if (!resultType) {
       resultType = builder.getI64Type();
     }

@@ -107,7 +107,7 @@ auto ForLoopEmitter::emit(clang::ForStmt *forStmt, const SimpleLoopInfo &info)
 } // namespace
 
 auto ASTLowering::emitFor(clang::ForStmt *stmt) -> bool {
-  if (hasControlExit(stmt->getBody())) {
+  if (control::hasControlExit(stmt->getBody())) {
     if (stmt->getInit() && !emitStatement(stmt->getInit())) {
       return false;
     }
@@ -125,7 +125,7 @@ auto ASTLowering::emitFor(clang::ForStmt *stmt) -> bool {
   if (!emitStatement(stmt->getInit())) {
     return false;
   }
-  auto inductionType = convertType(plan->induction->getType());
+  auto inductionType = types.convertType(plan->induction->getType());
   auto address =
       clang_mlir::Address::get(function.locals[plan->induction], inductionType);
   if (mlir::failed(address)) {
