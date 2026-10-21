@@ -13,6 +13,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRefMemorySlot.h"
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -90,6 +91,11 @@ auto populatePipeline(
     pm.addPass(cmlir::createEnableFPContractPass());
     pm.addPass(mlir::math::createMathUpliftToFMA());
   }
+  // Simplify cross-dialect loop operations, then fold induction arithmetic
+  // into the range before unrolling, vectorization and optional Affine raising.
+  pm.addPass(mlir::createSCFForLoopCanonicalizationPass());
+  pm.addPass(mlir::createForLoopRangeFoldingPass());
+  addValueCleanup(pm);
   pm.addPass(mlir::createLoopInvariantCodeMotionPass());
   pm.addNestedPass<mlir::func::FuncOp>(
       mlir::bufferization::createBufferHoistingPass());

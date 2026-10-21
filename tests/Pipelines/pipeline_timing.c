@@ -25,5 +25,6 @@ int pipeline(int value) {
 // QUIET-NOT: Execution time report
 // STAGES: // clang-to-mlir stage: AST lowering
 // STAGES: // clang-to-mlir stage: SSA cleanup
+// STAGES: // clang-to-mlir stage: loop preparation
 // STAGES: // clang-to-mlir stage: loop transformations
 // STAGES: // clang-to-mlir stage: final cleanup

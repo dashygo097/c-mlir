@@ -9,6 +9,7 @@ add_mlir_library(CMLIRPipelines
     MLIRFuncInlinerExtension
     MLIRLLVMIRTransforms
     MLIRMathTransforms
+    MLIRSCFTransforms
     MLIRSCFToAffine
 )
 target_include_directories(CMLIRPipelines PUBLIC
