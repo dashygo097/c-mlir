@@ -1,5 +1,6 @@
 add_library(CMLIRFrontend STATIC
   Frontend.cc
+  Initialization.cc
   Declarations/Dispatch.cc
   Declarations/Function.cc
   Declarations/Record.cc
@@ -10,7 +11,7 @@ add_library(CMLIRFrontend STATIC
   Expressions/Binary/Assign.cc
   Expressions/Binary/Binary.cc
   Expressions/Binary/Pure.cc
-  Expressions/CStyleCast.cc
+  Expressions/Cast.cc
   Expressions/CXXConstruct.cc
   Expressions/CXXThis.cc
   Calls/Call.cc
@@ -23,7 +24,6 @@ add_library(CMLIRFrontend STATIC
   Expressions/Conditional.cc
   Expressions/DeclRef.cc
   Expressions/Dispatch.cc
-  Expressions/ImplicitCast.cc
   Expressions/InitList.cc
   Expressions/Literals.cc
   Expressions/Logical.cc

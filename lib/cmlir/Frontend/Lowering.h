@@ -60,13 +60,15 @@ private:
       -> mlir::FailureOr<clang_mlir::Address>;
   auto emitAssignmentAddress(clang::BinaryOperator *assignOp)
       -> mlir::FailureOr<clang_mlir::Address>;
+  auto emitMemberAddress(clang::MemberExpr *expr)
+      -> mlir::FailureOr<clang_mlir::Address>;
   auto generateAddrOfUnaryOperator(clang::Expr *expr) -> mlir::Value;
   auto generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr)
       -> mlir::Value;
   auto generateAssignmentBinaryOperator(clang::BinaryOperator *expr)
       -> mlir::Value;
   auto generateBinaryOperator(clang::BinaryOperator *binOp) -> mlir::Value;
-  auto generateCStyleCastExpr(clang::CStyleCastExpr *castExpr) -> mlir::Value;
+  auto generateCastExpr(clang::CastExpr *expr) -> mlir::Value;
   auto generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
       -> mlir::Value;
   auto generateCXXConstructExpr(clang::CXXConstructExpr *constructExpr)
@@ -80,8 +82,6 @@ private:
   auto generateDeclRefExpr(clang::DeclRefExpr *declRef) -> mlir::Value;
   auto generateExpr(clang::Expr *expr) -> mlir::Value;
   auto generateFloatingLiteral(clang::FloatingLiteral *floatLit) -> mlir::Value;
-  auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
-      -> mlir::Value;
   auto generateIncDecUnaryOperator(clang::UnaryOperator *expr) -> mlir::Value;
   auto generateInitListExpr(clang::InitListExpr *initList) -> mlir::Value;
   auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
@@ -94,10 +94,9 @@ private:
       -> mlir::Value;
   auto generateUnaryOperator(clang::UnaryOperator *unOp) -> mlir::Value;
   auto loadLValue(clang::Expr *expr) -> mlir::Value;
-  auto storeInitListValues(clang::InitListExpr *list, mlir::Value memref)
-      -> bool;
-  auto storeInitListValues(clang::InitListExpr *list, mlir::Value memref,
-                           llvm::SmallVector<mlir::Value, 4> &indices) -> bool;
+  auto initializeObject(clang::QualType type, clang::Expr *initializer,
+                        mlir::Value storage,
+                        llvm::ArrayRef<mlir::Value> indices = {}) -> bool;
 };
 
 } // namespace cmlir::frontend

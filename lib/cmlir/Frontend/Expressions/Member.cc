@@ -1,96 +1,64 @@
 #include "../Lowering.h"
-#include "clang-mlir/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "clang/AST/Expr.h"
-#include "llvm/Support/WithColor.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateMemberExpr(clang::MemberExpr *memberExpr)
-    -> mlir::Value {
-  mlir::OpBuilder &builder = context.builder();
-  mlir::Location loc = context.source().location(memberExpr->getExprLoc());
-
-  clang::Expr *base = memberExpr->getBase();
-  mlir::Value baseValue = generateExpr(base);
-  if (!baseValue) {
-    return nullptr;
-  }
-
-  auto *fieldDecl =
-      mlir::dyn_cast<clang::FieldDecl>(memberExpr->getMemberDecl());
-  if (!fieldDecl) {
-    llvm::WithColor::error() << "clang-to-mlir: Member is not a field\n";
-    return nullptr;
-  }
-
-  clang::QualType baseType = base->getType().getCanonicalType();
-
-  if (memberExpr->isArrow()) {
-    if (!baseType->isPointerType()) {
-      llvm::WithColor::error()
-          << "clang-to-mlir: arrow member base is not pointer type\n";
-      return nullptr;
+auto ASTLowering::emitMemberAddress(clang::MemberExpr *expr)
+    -> mlir::FailureOr<clang_mlir::Address> {
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  auto *base = expr->getBase();
+  mlir::Value pointer;
+  auto type = base->getType();
+  if (expr->isArrow()) {
+    type = type->getPointeeType();
+    pointer = generateExpr(base);
+  } else {
+    auto address = emitAddress(base);
+    if (mlir::failed(address)) {
+      return mlir::failure();
     }
-
-    baseType = baseType->getPointeeType().getCanonicalType();
+    pointer = address->materialize(builder, loc);
   }
-
-  const auto *recordType = baseType->getAs<clang::RecordType>();
-  if (!recordType) {
-    llvm::WithColor::error()
-        << "clang-to-mlir: Base is not a struct or class type\n";
-    return nullptr;
+  auto *field = llvm::dyn_cast<clang::FieldDecl>(expr->getMemberDecl());
+  auto layout = types.convertStorageType(type);
+  auto index = field ? types.getFieldIndex(type->getAsRecordDecl(), field)
+                     : std::nullopt;
+  if (!pointer || !layout || !index ||
+      !llvm::isa<mlir::LLVM::LLVMPointerType>(pointer.getType())) {
+    context.source().error(expr->getExprLoc(), "invalid member address");
+    return mlir::failure();
   }
+  auto fieldPointer = mlir::LLVM::GEPOp::create(
+      builder, loc, pointer.getType(), layout, pointer,
+      llvm::ArrayRef<mlir::LLVM::GEPArg>{0, static_cast<int32_t>(*index)});
+  return clang_mlir::Address::get(fieldPointer,
+                                  types.convertStorageType(field->getType()));
+}
 
-  const clang::RecordDecl *recordDecl = recordType->getDecl();
-  const clang::RecordDecl *definition = recordDecl->getDefinition();
-  if (!definition) {
-    definition = recordDecl;
+auto ASTLowering::generateMemberExpr(clang::MemberExpr *expr) -> mlir::Value {
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  if (expr->isGLValue() || expr->isArrow() || expr->getType()->isArrayType()) {
+    auto address = emitMemberAddress(expr);
+    if (mlir::failed(address)) {
+      return {};
+    }
+    return expr->getType()->isArrayType() ? address->materialize(builder, loc)
+                                          : address->load(builder, loc);
   }
-
-  std::optional<uint32_t> fieldIndexOpt =
-      types.getFieldIndex(definition, fieldDecl);
-  if (!fieldIndexOpt) {
-    llvm::WithColor::error()
-        << "clang-to-mlir: field not found in struct/class\n";
-    return nullptr;
+  auto *base = expr->getBase();
+  auto value = generateExpr(base);
+  auto *field = llvm::dyn_cast<clang::FieldDecl>(expr->getMemberDecl());
+  auto index =
+      field ? types.getFieldIndex(base->getType()->getAsRecordDecl(), field)
+            : std::nullopt;
+  if (!value || !index ||
+      !llvm::isa<mlir::LLVM::LLVMStructType>(value.getType())) {
+    context.source().error(expr->getExprLoc(), "invalid member value");
+    return {};
   }
-
-  uint32_t fieldIndex = *fieldIndexOpt;
-
-  mlir::Type structType = types.convertType(baseType);
-  auto llvmStructType =
-      mlir::dyn_cast_or_null<mlir::LLVM::LLVMStructType>(structType);
-  if (!llvmStructType) {
-    llvm::WithColor::error() << "clang-to-mlir: expected LLVM struct type\n";
-    return nullptr;
-  }
-
-  if (mlir::isa<mlir::LLVM::LLVMPointerType>(baseValue.getType())) {
-    auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-
-    llvm::SmallVector<mlir::Value, 2> indices;
-    indices.push_back(
-        clang_mlir::intConst(builder, loc, builder.getI32Type(), 0));
-    indices.push_back(
-        clang_mlir::intConst(builder, loc, builder.getI32Type(), fieldIndex));
-
-    auto fieldPtr = mlir::LLVM::GEPOp::create(
-        builder, loc, ptrType, llvmStructType, baseValue, indices);
-
-    return fieldPtr.getResult();
-  }
-
-  if (mlir::isa<mlir::LLVM::LLVMStructType>(baseValue.getType())) {
-    auto fieldValue =
-        mlir::LLVM::ExtractValueOp::create(builder, loc, baseValue, fieldIndex);
-    return fieldValue.getResult();
-  }
-
-  llvm::WithColor::error()
-      << "clang-to-mlir: unsupported base type for member access\n";
-  return nullptr;
+  return mlir::LLVM::ExtractValueOp::create(builder, loc, value, *index);
 }
 
 } // namespace cmlir::frontend

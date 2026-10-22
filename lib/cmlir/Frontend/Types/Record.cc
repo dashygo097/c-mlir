@@ -60,7 +60,7 @@ auto TypeLowering::convertRecordType(const clang::RecordType *type)
                              "bitfield layouts are unsupported");
       return {};
     }
-    mlir::Type fieldType = convertRecordFieldType(field->getType());
+    mlir::Type fieldType = convertStorageType(field->getType());
     if (!fieldType) {
       llvm::WithColor::error()
           << "clang-to-mlir: failed to convert field type: "
@@ -79,60 +79,6 @@ auto TypeLowering::convertRecordType(const clang::RecordType *type)
   recordFieldTable[definition] = std::move(fields);
 
   return structType;
-}
-
-auto TypeLowering::convertRecordFieldType(clang::QualType clangType)
-    -> mlir::Type {
-  auto &builder = context.builder();
-  if (clangType.isNull()) {
-    return nullptr;
-  }
-
-  clangType = clangType.getCanonicalType();
-
-  if (auto *arrayType =
-          mlir::dyn_cast<clang::ConstantArrayType>(clangType.getTypePtr())) {
-    mlir::Type elementType =
-        convertRecordFieldType(arrayType->getElementType());
-
-    if (!elementType) {
-      return nullptr;
-    }
-
-    uint64_t numElements = arrayType->getSize().getZExtValue();
-    return mlir::LLVM::LLVMArrayType::get(elementType, numElements);
-  }
-
-  if (mlir::isa<clang::ArrayType>(clangType.getTypePtr())) {
-    llvm::WithColor::error() << "clang-to-mlir: non-constant array field is "
-                                "not supported in record: "
-                             << "\n";
-    return nullptr;
-  }
-
-  if (clangType->isPointerType() || clangType->isReferenceType() ||
-      clangType->isFunctionPointerType() || clangType->isBlockPointerType()) {
-    return mlir::LLVM::LLVMPointerType::get(builder.getContext());
-  }
-
-  if (auto *nestedRecordType =
-          mlir::dyn_cast<clang::RecordType>(clangType.getTypePtr())) {
-    return convertRecordType(nestedRecordType);
-  }
-
-  mlir::Type fieldType = convertType(clangType);
-  if (!fieldType) {
-    return nullptr;
-  }
-
-  if (mlir::isa<mlir::MemRefType>(fieldType)) {
-    llvm::WithColor::error()
-        << "clang-to-mlir: memref field is invalid inside LLVM struct field in "
-        << "\n";
-    return nullptr;
-  }
-
-  return fieldType;
 }
 
 } // namespace cmlir::frontend

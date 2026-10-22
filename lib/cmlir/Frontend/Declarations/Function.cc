@@ -166,21 +166,15 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
       funcOp.setArgAttr(value.getArgNumber(), "cmlir.restrict",
                         builder.getUnitAttr());
     }
-    if ((value.getType().isIntOrFloat() || value.getType().isIndex()) &&
-        needsStorage(decl->getBody(), param)) {
+    if (mlir::isa<mlir::LLVM::LLVMStructType>(value.getType()) ||
+        ((value.getType().isIntOrFloat() || value.getType().isIndex() ||
+          mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) &&
+         needsStorage(decl->getBody(), param))) {
       function.locals[param] =
-          clang_mlir::createScalarSlot(builder, builder.getUnknownLoc(), value);
-    } else if (mlir::isa<mlir::LLVM::LLVMStructType>(value.getType()) &&
-               needsStorage(decl->getBody(), param)) {
-      auto one = mlir::arith::ConstantIntOp::create(
-          builder, builder.getUnknownLoc(), 1, 64);
-      auto slot = mlir::LLVM::AllocaOp::create(
-          builder, builder.getUnknownLoc(),
-          mlir::LLVM::LLVMPointerType::get(builder.getContext()),
-          value.getType(), one);
-      mlir::LLVM::StoreOp::create(builder, builder.getUnknownLoc(), value,
-                                  slot);
-      function.locals[param] = slot;
+          clang_mlir::createLocalSlot(builder, builder.getUnknownLoc(), value);
+      if (!function.locals[param]) {
+        return false;
+      }
     } else {
       function.parameters[param] = value;
     }

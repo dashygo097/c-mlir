@@ -85,6 +85,9 @@ auto TypeLowering::convertArrayType(const clang::ArrayType *type)
 }
 
 auto TypeLowering::convertStorageType(clang::QualType type) -> mlir::Type {
+  if (type.isNull()) {
+    return {};
+  }
   type = type.getCanonicalType();
   if (auto *array =
           llvm::dyn_cast<clang::ConstantArrayType>(type.getTypePtr())) {
@@ -93,10 +96,19 @@ auto TypeLowering::convertStorageType(clang::QualType type) -> mlir::Type {
                          element, array->getSize().getZExtValue())
                    : mlir::Type{};
   }
-  if (type->isPointerType() || type->isReferenceType()) {
+  if (type->isPointerType()) {
     return mlir::LLVM::LLVMPointerType::get(context.builder().getContext());
   }
+  if (type->isArrayType()) {
+    context.source().error({},
+                           "inline array storage requires a constant extent");
+    return {};
+  }
   return convertType(type);
+}
+
+auto TypeLowering::convertObjectType(clang::QualType type) -> mlir::Type {
+  return type->isArrayType() ? convertType(type) : convertStorageType(type);
 }
 
 } // namespace cmlir::frontend

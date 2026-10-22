@@ -24,7 +24,8 @@ auto ASTLowering::generateDeclRefExpr(clang::DeclRefExpr *declRef)
     }
 
     if (function.locals.count(varDecl)) {
-      return function.locals[varDecl];
+      return varDecl->getType()->isArrayType() ? function.locals[varDecl]
+                                               : loadLValue(declRef);
     }
 
     llvm::WithColor::error()

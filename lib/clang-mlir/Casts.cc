@@ -1,4 +1,5 @@
 #include "clang-mlir/Casts.h"
+#include "clang-mlir/MemrefABI.h"
 
 namespace clang_mlir {
 
@@ -447,6 +448,10 @@ auto toValue(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value,
 
   if (srcType == targetType) {
     return value;
+  }
+
+  if (auto memref = mlir::dyn_cast<mlir::MemRefType>(targetType)) {
+    return coerceMemRef(builder, loc, value, memref);
   }
 
   if (targetType.isInteger(1)) {

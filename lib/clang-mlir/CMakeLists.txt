@@ -1,6 +1,7 @@
 add_library(ClangMLIRSupport STATIC Source.cc Address.cc Regions.cc Casts.cc MemrefABI.cc FloatingPoint.cc)
 target_include_directories(ClangMLIRSupport PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(ClangMLIRSupport PUBLIC clangAST clangBasic MLIRIR MLIRArithDialect MLIRMemRefDialect MLIRLLVMDialect MLIRControlFlowDialect MLIRSCFDialect)
+target_link_libraries(ClangMLIRSupport PRIVATE MLIRLLVMCommonConversion)
 
 llvm_update_compile_flags(ClangMLIRSupport)
 

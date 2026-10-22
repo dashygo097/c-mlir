@@ -29,7 +29,7 @@ public:
       -> mlir::Type;
   [[nodiscard]] auto convertEnumType(const clang::EnumType *type) -> mlir::Type;
 
-  auto convertRecordFieldType(clang::QualType type) -> mlir::Type;
+  auto convertObjectType(clang::QualType type) -> mlir::Type;
   auto convertStorageType(clang::QualType type) -> mlir::Type;
   auto getFieldIndex(const clang::RecordDecl *, const clang::FieldDecl *)
       -> std::optional<uint32_t>;

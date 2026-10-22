@@ -4,59 +4,49 @@
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateConditionalOperator(
-    clang::ConditionalOperator *condOp) -> mlir::Value {
-  mlir::OpBuilder &builder = context.builder();
-  mlir::Location loc = context.source().location(condOp->getExprLoc());
-
-  mlir::Value condition = generateExpr(condOp->getCond());
-  mlir::Value condBool = clang_mlir::toBool(builder, loc, condition);
-
-  mlir::Type targetType = types.convertType(condOp->getType());
-
-  auto ifOp = mlir::scf::IfOp::create(builder, loc, targetType, condBool,
-                                      /*hasElse=*/true);
-
-  {
+auto ASTLowering::generateConditionalOperator(clang::ConditionalOperator *expr)
+    -> mlir::Value {
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  auto condition =
+      clang_mlir::toBool(builder, loc, generateExpr(expr->getCond()));
+  auto target = expr->getType()->isPointerType()
+                    ? types.convertStorageType(expr->getType())
+                    : types.convertType(expr->getType());
+  if (!condition || !target) {
+    return {};
+  }
+  bool hasResult = !llvm::isa<mlir::NoneType>(target);
+  auto selection = mlir::scf::IfOp::create(
+      builder, loc, hasResult ? mlir::TypeRange{target} : mlir::TypeRange{},
+      condition, true);
+  for (auto [block, arm] :
+       {std::pair{selection.thenBlock(), expr->getTrueExpr()},
+        std::pair{selection.elseBlock(), expr->getFalseExpr()}}) {
     mlir::OpBuilder::InsertionGuard guard(builder);
-    mlir::Block *thenBlock = &ifOp.getThenRegion().front();
-    builder.setInsertionPointToStart(thenBlock);
-
-    auto *trueExpr = condOp->getTrueExpr();
-    mlir::Value trueValue =
-        trueExpr->isGLValue() ? loadLValue(trueExpr) : generateExpr(trueExpr);
-    if (!trueValue) {
+    if (!block->empty() && llvm::isa<mlir::scf::YieldOp>(block->back())) {
+      block->back().erase();
+    }
+    builder.setInsertionPointToStart(block);
+    auto value = arm->isGLValue() ? loadLValue(arm) : generateExpr(arm);
+    if (context.source().failed()) {
       return {};
     }
-    trueValue = clang_mlir::toValue(builder, loc, trueValue, targetType, true);
-
-    mlir::scf::YieldOp::create(builder, loc, trueValue);
-  }
-
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    mlir::Block *elseBlock = &ifOp.getElseRegion().front();
-    builder.setInsertionPointToStart(elseBlock);
-
-    mlir::Value falseValue;
-    if (condOp->getFalseExpr()) {
-      auto *falseExpr = condOp->getFalseExpr();
-      falseValue = falseExpr->isGLValue() ? loadLValue(falseExpr)
-                                          : generateExpr(falseExpr);
-      if (!falseValue) {
+    if (hasResult) {
+      value = clang_mlir::toValue(
+          builder, loc, value, target,
+          arm->getType()->isSignedIntegerOrEnumerationType());
+      if (!value) {
+        context.source().error(arm->getExprLoc(),
+                               "cannot convert conditional result");
         return {};
       }
-      falseValue =
-          clang_mlir::toValue(builder, loc, falseValue, targetType, true);
-    } else {
-      falseValue = clang_mlir::intConst(builder, loc, targetType, 0);
     }
-
-    mlir::scf::YieldOp::create(builder, loc, falseValue);
+    mlir::scf::YieldOp::create(
+        builder, loc, hasResult ? mlir::ValueRange{value} : mlir::ValueRange{});
   }
-
-  builder.setInsertionPointAfter(ifOp);
-  return ifOp.getResult(0);
+  builder.setInsertionPointAfter(selection);
+  return hasResult ? selection.getResult(0) : mlir::Value{};
 }
 
 } // namespace cmlir::frontend

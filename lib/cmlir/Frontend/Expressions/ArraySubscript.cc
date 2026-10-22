@@ -81,8 +81,10 @@ auto ASTLowering::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr)
   if (mlir::failed(address)) {
     return {};
   }
-  return address->materialize(context.builder(),
-                              context.source().location(expr->getExprLoc()));
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  return expr->getType()->isArrayType() ? address->materialize(builder, loc)
+                                        : address->load(builder, loc);
 }
 
 } // namespace cmlir::frontend

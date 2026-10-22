@@ -19,7 +19,7 @@ auto ASTLowering::generateIntegerLiteral(clang::IntegerLiteral *intLit)
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = builder.getUnknownLoc();
 
-  int64_t value = intLit->getValue().getSExtValue();
+  auto value = intLit->getValue();
   mlir::Type type = types.convertType(intLit->getType());
 
   return clang_mlir::intConst(builder, loc, type, value);
@@ -33,7 +33,7 @@ auto ASTLowering::generateFloatingLiteral(clang::FloatingLiteral *floatLit)
   auto value = floatLit->getValue();
   mlir::Type type = types.convertType(floatLit->getType());
 
-  return clang_mlir::floatConst(builder, loc, type, value.convertToDouble());
+  return clang_mlir::floatConst(builder, loc, type, value);
 }
 
 auto ASTLowering::generateCharacterLiteral(clang::CharacterLiteral *charLit)

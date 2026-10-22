@@ -17,16 +17,16 @@ int zero(void) {
 
 // CHECK-LABEL: func.func @zero
 // CHECK: arith.constant 0 : i32
-// CHECK: memref.store
+// CHECK-COUNT-2: memref.store
 // CHECK: memref.load
 
 int partial(void) {
   int a[3] = {1, 2};
-  return a[1];
+  return a[2];
 }
 
 // CHECK-LABEL: func.func @partial
-// CHECK-COUNT-2: memref.store
+// CHECK-COUNT-3: memref.store
 // CHECK: memref.load
 
 int full(void) {

@@ -7,6 +7,8 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Value.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APSInt.h"
 
 namespace clang_mlir {
 
@@ -25,18 +27,26 @@ inline auto boolConst(mlir::OpBuilder &builder, mlir::Location loc, bool value)
 }
 
 inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
-                     mlir::Type type, int64_t value) -> mlir::Value {
-  if (type.isIndex()) {
-    return indexConst(builder, loc, value);
-  }
-
-  if (!mlir::isa<mlir::IntegerType>(type)) {
+                     mlir::Type type, const llvm::APInt &value) -> mlir::Value {
+  if (!type || (!type.isIndex() && !mlir::isa<mlir::IntegerType>(type))) {
     return nullptr;
   }
-
+  unsigned width = type.isIndex() ? 64 : type.getIntOrFloatBitWidth();
+  if (value.getBitWidth() != width) {
+    return nullptr;
+  }
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getIntegerAttr(type, value))
       .getResult();
+}
+
+inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
+                     mlir::Type type, int64_t value) -> mlir::Value {
+  if (!type || (!type.isIndex() && !mlir::isa<mlir::IntegerType>(type))) {
+    return nullptr;
+  }
+  unsigned width = type.isIndex() ? 64 : type.getIntOrFloatBitWidth();
+  return intConst(builder, loc, type, llvm::APInt(width, value, true));
 }
 
 inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
@@ -48,20 +58,33 @@ inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
   }
   auto bits = value.isSigned() ? value.sextOrTrunc(intType.getWidth())
                                : value.zextOrTrunc(intType.getWidth());
-  return mlir::arith::ConstantOp::create(builder, loc, type,
-                                         builder.getIntegerAttr(type, bits))
-      .getResult();
+  return intConst(builder, loc, type, bits);
 }
 
 inline auto floatConst(mlir::OpBuilder &builder, mlir::Location loc,
-                       mlir::Type type, double value) -> mlir::Value {
-  if (!mlir::isa<mlir::FloatType>(type)) {
+                       mlir::Type type, const llvm::APFloat &value)
+    -> mlir::Value {
+  auto floating = mlir::dyn_cast_or_null<mlir::FloatType>(type);
+  if (!floating || &floating.getFloatSemantics() != &value.getSemantics()) {
     return nullptr;
   }
 
   return mlir::arith::ConstantOp::create(builder, loc, type,
                                          builder.getFloatAttr(type, value))
       .getResult();
+}
+
+inline auto floatConst(mlir::OpBuilder &builder, mlir::Location loc,
+                       mlir::Type type, double value) -> mlir::Value {
+  auto floating = mlir::dyn_cast_or_null<mlir::FloatType>(type);
+  if (!floating) {
+    return nullptr;
+  }
+  llvm::APFloat number(value);
+  bool losesInfo;
+  number.convert(floating.getFloatSemantics(),
+                 llvm::APFloat::rmNearestTiesToEven, &losesInfo);
+  return floatConst(builder, loc, type, number);
 }
 
 inline auto numericConst(mlir::OpBuilder &builder, mlir::Location loc,
@@ -94,7 +117,8 @@ inline auto allOnesConst(mlir::OpBuilder &builder, mlir::Location loc,
     return nullptr;
   }
 
-  return intConst(builder, loc, type, -1);
+  unsigned width = type.isIndex() ? 64 : type.getIntOrFloatBitWidth();
+  return intConst(builder, loc, type, llvm::APInt::getAllOnes(width));
 }
 
 } // namespace clang_mlir

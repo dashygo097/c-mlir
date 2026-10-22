@@ -32,8 +32,10 @@ private:
   llvm::SmallVector<mlir::Value, 4> indices;
 };
 
-// Shared scalar storage construction, with type checks before emitting stores.
-auto createScalarSlot(mlir::OpBuilder &, mlir::Location, mlir::Value initial)
+// Select storage from the lowered object type, independently of AST syntax.
+auto createLocalStorage(mlir::OpBuilder &, mlir::Location, mlir::Type,
+                        mlir::ValueRange dynamicSizes = {}) -> mlir::Value;
+auto createLocalSlot(mlir::OpBuilder &, mlir::Location, mlir::Value initial)
     -> mlir::Value;
 auto getLLVMOffsetPointer(mlir::OpBuilder &, mlir::Location, mlir::Value base,
                           mlir::Type element,

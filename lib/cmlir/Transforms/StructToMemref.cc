@@ -2,6 +2,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -21,6 +23,9 @@ namespace cmlir {
 static auto isStructElemSameType(mlir::LLVM::LLVMStructType structType)
     -> bool {
   if (structType.getBody().empty()) {
+    return false;
+  }
+  if (!mlir::MemRefType::isValidElementType(structType.getBody()[0])) {
     return false;
   }
 
@@ -61,6 +66,10 @@ struct LLVMStructFuncArgToMemrefPattern
                        mlir::PatternRewriter &rewriter) const
       -> mlir::LogicalResult override {
     mlir::FunctionType funcType = funcOp.getFunctionType();
+    if (!mlir::SymbolTable::symbolKnownUseEmpty(funcOp,
+                                                funcOp->getParentOp())) {
+      return mlir::failure();
+    }
     bool anyChanged = false;
 
     llvm::SmallVector<mlir::Type> newInputTypes;
@@ -71,9 +80,20 @@ struct LLVMStructFuncArgToMemrefPattern
       mlir::LLVM::LLVMStructType structType = nullptr;
 
       if (auto st = mlir::dyn_cast<mlir::LLVM::LLVMStructType>(argType)) {
-        structType = st;
+        if (!hasBody ||
+            llvm::all_of(funcOp.front().getArgument(idx).getUsers(),
+                         [](mlir::Operation *user) -> bool {
+                           return llvm::isa<mlir::LLVM::ExtractValueOp>(user);
+                         })) {
+          structType = st;
+        }
       } else if (hasBody && mlir::isa<mlir::LLVM::LLVMPointerType>(argType)) {
-        structType = inferStructTypeFromPtr(funcOp.front().getArgument(idx));
+        auto arg = funcOp.front().getArgument(idx);
+        if (llvm::all_of(arg.getUsers(), [](mlir::Operation *user) -> bool {
+              return llvm::isa<mlir::LLVM::GEPOp>(user);
+            })) {
+          structType = inferStructTypeFromPtr(arg);
+        }
       }
 
       if (structType && isStructElemSameType(structType)) {
@@ -133,11 +153,9 @@ struct LLVMAllocaStructToMemrefPattern
     mlir::Value arraySizeVal = allocaOp.getArraySize();
     int64_t arraySize = -1;
 
-    if (auto constOp = arraySizeVal.getDefiningOp<mlir::LLVM::ConstantOp>()) {
-      if (auto intAttr =
-              mlir::dyn_cast<mlir::IntegerAttr>(constOp.getValue())) {
-        arraySize = intAttr.getInt();
-      }
+    mlir::IntegerAttr size;
+    if (mlir::matchPattern(arraySizeVal, mlir::m_Constant(&size))) {
+      arraySize = size.getInt();
     }
 
     mlir::MemRefType memrefType;
@@ -150,20 +168,21 @@ struct LLVMAllocaStructToMemrefPattern
           elemType);
     }
 
-    for (mlir::Operation *user :
-         llvm::make_early_inc_range(allocaOp->getUsers())) {
-      if (auto storeOp = mlir::dyn_cast<mlir::LLVM::StoreOp>(user)) {
-        if (storeOp.getAddr() == allocaOp.getResult()) {
-          rewriter.eraseOp(storeOp);
-        }
+    for (mlir::Operation *user : allocaOp->getUsers()) {
+      // Whole-object accesses need aggregate conversion. Never discard an
+      // initializer merely because field accesses can use memrefs.
+      if (!llvm::isa<mlir::LLVM::GEPOp>(user)) {
+        return mlir::failure();
       }
     }
 
     if (arraySize > 0) {
       rewriter.replaceOpWithNewOp<mlir::memref::AllocaOp>(allocaOp, memrefType);
     } else {
-      rewriter.replaceOpWithNewOp<mlir::memref::AllocOp>(
-          allocaOp, memrefType, mlir::ValueRange{arraySizeVal});
+      auto count = mlir::arith::IndexCastOp::create(
+          rewriter, allocaOp.getLoc(), rewriter.getIndexType(), arraySizeVal);
+      rewriter.replaceOpWithNewOp<mlir::memref::AllocaOp>(
+          allocaOp, memrefType, mlir::ValueRange{count.getResult()});
     }
 
     return mlir::success();

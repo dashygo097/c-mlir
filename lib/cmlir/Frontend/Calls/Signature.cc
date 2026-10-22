@@ -50,7 +50,9 @@ auto lowerFunctionSignature(TypeLowering &types,
     }
     inputs.push_back(type);
   }
-  auto result = convert(decl.getReturnType());
+  auto result = decl.getReturnType()->isPointerType()
+                    ? types.convertStorageType(decl.getReturnType())
+                    : convert(decl.getReturnType());
   if (!result) {
     return mlir::failure();
   }

@@ -110,19 +110,71 @@ auto Address::store(mlir::OpBuilder &builder, mlir::Location loc,
   if (mlir::isa<mlir::MemRefType>(base.getType())) {
     mlir::memref::StoreOp::create(builder, loc, value, base, indices);
   } else {
-    mlir::LLVM::StoreOp::create(builder, loc, value, materialize(builder, loc));
+    auto pointer = materialize(builder, loc);
+    if (auto record = llvm::dyn_cast<mlir::LLVM::LLVMStructType>(element)) {
+      // Field stores expose aggregate initialization to upstream SROA. Whole
+      // aggregate stores currently block LLVM's destructuring interfaces.
+      for (auto [index, type] : llvm::enumerate(record.getBody())) {
+        auto fieldPointer = mlir::LLVM::GEPOp::create(
+            builder, loc, pointer.getType(), record, pointer,
+            llvm::ArrayRef<mlir::LLVM::GEPArg>{0, static_cast<int32_t>(index)});
+        auto fieldValue =
+            mlir::LLVM::ExtractValueOp::create(builder, loc, value, index);
+        auto field = Address::get(fieldPointer, type);
+        if (mlir::failed(field) ||
+            mlir::failed(field->store(builder, loc, fieldValue))) {
+          return mlir::failure();
+        }
+      }
+    } else {
+      mlir::LLVM::StoreOp::create(builder, loc, value, pointer);
+    }
   }
   return mlir::success();
 }
 
-auto createScalarSlot(mlir::OpBuilder &builder, mlir::Location loc,
-                      mlir::Value initial) -> mlir::Value {
-  if (!initial || !mlir::MemRefType::isValidElementType(initial.getType())) {
+auto createLocalStorage(mlir::OpBuilder &builder, mlir::Location loc,
+                        mlir::Type type, mlir::ValueRange dynamicSizes)
+    -> mlir::Value {
+  if (!type) {
     return {};
   }
-  auto slot = mlir::memref::AllocaOp::create(
-      builder, loc, mlir::MemRefType::get({}, initial.getType()));
-  mlir::memref::StoreOp::create(builder, loc, initial, slot);
+  if (auto memref = mlir::dyn_cast<mlir::MemRefType>(type)) {
+    if (memref.getNumDynamicDims() != dynamicSizes.size()) {
+      return {};
+    }
+    return mlir::memref::AllocaOp::create(builder, loc, memref, dynamicSizes);
+  }
+  if (!dynamicSizes.empty()) {
+    return {};
+  }
+  if (mlir::MemRefType::isValidElementType(type)) {
+    return mlir::memref::AllocaOp::create(builder, loc,
+                                          mlir::MemRefType::get({}, type));
+  }
+  if (mlir::LLVM::isCompatibleType(type)) {
+    // LLVM's memory-slot interfaces recognize LLVM constants when proving
+    // this is a single object, enabling upstream SROA and mem2reg.
+    auto one = mlir::LLVM::ConstantOp::create(
+        builder, loc, builder.getI64Type(), builder.getI64IntegerAttr(1));
+    return mlir::LLVM::AllocaOp::create(
+        builder, loc, mlir::LLVM::LLVMPointerType::get(builder.getContext()),
+        type, one);
+  }
+  return {};
+}
+
+auto createLocalSlot(mlir::OpBuilder &builder, mlir::Location loc,
+                     mlir::Value initial) -> mlir::Value {
+  if (!initial) {
+    return {};
+  }
+  auto slot = createLocalStorage(builder, loc, initial.getType());
+  auto address = Address::get(slot, initial.getType());
+  if (mlir::failed(address) ||
+      mlir::failed(address->store(builder, loc, initial))) {
+    return {};
+  }
   return slot;
 }
 

@@ -18,6 +18,8 @@ auto ASTLowering::emitReturn(clang::ReturnStmt *stmt) -> bool {
           builder, loc, value, results.front(),
           expr->getType()->isSignedIntegerOrEnumerationType());
       if (!value) {
+        context.source().error(expr->getExprLoc(),
+                               "cannot convert function return value");
         return false;
       }
     }

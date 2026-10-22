@@ -58,8 +58,11 @@ auto ASTLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
 
   case CUO::UO_Deref: {
     auto address = emitAddress(unOp);
-    return mlir::succeeded(address) ? address->materialize(builder, loc)
-                                    : mlir::Value{};
+    if (mlir::failed(address)) {
+      return {};
+    }
+    return unOp->getType()->isArrayType() ? address->materialize(builder, loc)
+                                          : address->load(builder, loc);
   }
 
   case CUO::UO_AddrOf:

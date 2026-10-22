@@ -25,7 +25,17 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
   llvm::SmallVector<CallArg, 8> arguments;
   if (auto *memberCall = llvm::dyn_cast<clang::CXXMemberCallExpr>(expr)) {
     auto *object = memberCall->getImplicitObjectArgument();
-    auto value = generateExpr(object);
+    mlir::Value value;
+    if (object->isGLValue() && !object->getType()->isPointerType()) {
+      auto address = emitAddress(object);
+      if (mlir::failed(address)) {
+        return {};
+      }
+      value = address->materialize(
+          context.builder(), context.source().location(expr->getExprLoc()));
+    } else {
+      value = generateExpr(object);
+    }
     if (!value) {
       return {};
     }
@@ -34,12 +44,7 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
     if (mlir::isa<mlir::LLVM::LLVMStructType>(value.getType())) {
       auto &builder = context.builder();
       auto loc = context.source().location(expr->getExprLoc());
-      auto one = mlir::arith::ConstantIntOp::create(builder, loc, 1, 64);
-      auto pointer = mlir::LLVM::AllocaOp::create(
-          builder, loc, mlir::LLVM::LLVMPointerType::get(builder.getContext()),
-          value.getType(), one);
-      mlir::LLVM::StoreOp::create(builder, loc, value, pointer);
-      value = pointer;
+      value = clang_mlir::createLocalSlot(builder, loc, value);
     }
     arguments.push_back({value, object->getType()});
   }

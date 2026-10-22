@@ -23,6 +23,13 @@ auto ASTLowering::generateExpr(clang::Expr *expr) -> mlir::Value {
   clang_mlir::Source::TraceScope frame(
       context.source(), expr->getStmtClassName(), expr->getExprLoc(), trace);
 
+  if (auto *temporary = llvm::dyn_cast<clang::MaterializeTemporaryExpr>(expr)) {
+    return generateExpr(temporary->getSubExpr());
+  }
+  if (auto *cleanup = llvm::dyn_cast<clang::ExprWithCleanups>(expr)) {
+    return generateExpr(cleanup->getSubExpr());
+  }
+
 #define REGISTER_EXPR_CONVERSION(ExprType)                                     \
   if (auto *node = mlir::dyn_cast<clang::ExprType>(expr)) {                    \
     auto result = generate##ExprType(node);                                    \
@@ -41,8 +48,7 @@ auto ASTLowering::generateExpr(clang::Expr *expr) -> mlir::Value {
   REGISTER_EXPR_CONVERSION(CharacterLiteral)
   REGISTER_EXPR_CONVERSION(StringLiteral)
   REGISTER_EXPR_CONVERSION(DeclRefExpr)
-  REGISTER_EXPR_CONVERSION(ImplicitCastExpr)
-  REGISTER_EXPR_CONVERSION(CStyleCastExpr)
+  REGISTER_EXPR_CONVERSION(CastExpr)
   REGISTER_EXPR_CONVERSION(ArraySubscriptExpr)
   REGISTER_EXPR_CONVERSION(UnaryOperator)
   REGISTER_EXPR_CONVERSION(BinaryOperator)

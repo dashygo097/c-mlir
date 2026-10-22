@@ -15,9 +15,8 @@ auto reinterpretScalarMemRefAsPointerMemRef(mlir::OpBuilder &builder,
                                             mlir::Value value,
                                             mlir::MemRefType dstType)
     -> mlir::Value;
-auto coerceMemRefForCall(mlir::OpBuilder &builder, mlir::Location loc,
-                         mlir::Value value, mlir::MemRefType dstType)
-    -> mlir::Value;
+auto coerceMemRef(mlir::OpBuilder &builder, mlir::Location loc,
+                  mlir::Value value, mlir::MemRefType dstType) -> mlir::Value;
 
 } // namespace clang_mlir
 
