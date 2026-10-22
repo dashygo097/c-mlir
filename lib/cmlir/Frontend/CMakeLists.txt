@@ -4,6 +4,7 @@ add_library(CMLIRFrontend STATIC
   Declarations/Function.cc
   Declarations/Record.cc
   Declarations/Var.cc
+  Declarations/Enum.cc
   Expressions/Address.cc
   Expressions/ArraySubscript.cc
   Expressions/Binary/Assign.cc
@@ -53,6 +54,7 @@ add_library(CMLIRFrontend STATIC
   Types/Record.cc
   Types/Reference.cc
   Types/Typedef.cc
+  Types/Enum.cc
 )
 target_include_directories(CMLIRFrontend PUBLIC
   ${PROJECT_SOURCE_DIR}/include

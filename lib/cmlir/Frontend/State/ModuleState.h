@@ -10,7 +10,6 @@ namespace cmlir::frontend {
 
 struct ModuleState {
   llvm::DenseSet<const clang::FunctionDecl *> emittedFunctions;
-  llvm::DenseMap<const clang::VarDecl *, mlir::memref::GlobalOp> globalVars;
 };
 
 } // namespace cmlir::frontend

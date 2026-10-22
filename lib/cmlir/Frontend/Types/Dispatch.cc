@@ -20,6 +20,7 @@ auto TypeLowering::convertType(clang::QualType type) -> mlir::Type {
   REGISTER_TYPE(TypedefType)
   REGISTER_TYPE(RecordType)
   REGISTER_TYPE(ReferenceType)
+  REGISTER_TYPE(EnumType)
 
 #undef REGISTER_TYPE
 

@@ -27,6 +27,7 @@ public:
   auto emitFunction(clang::FunctionDecl *decl) -> bool;
   auto emitVariable(clang::VarDecl *decl) -> bool;
   auto emitRecord(clang::RecordDecl *decl) -> bool;
+  auto emitEnum(clang::EnumDecl *decl) -> bool;
   auto emitStatement(clang::Stmt *stmt) -> bool;
   auto emitReturn(clang::ReturnStmt *stmt) -> bool;
   auto emitIf(clang::IfStmt *stmt) -> bool;

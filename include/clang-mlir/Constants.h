@@ -39,6 +39,20 @@ inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
       .getResult();
 }
 
+inline auto intConst(mlir::OpBuilder &builder, mlir::Location loc,
+                     mlir::Type type, const llvm::APSInt &value)
+    -> mlir::Value {
+  auto intType = mlir::dyn_cast_or_null<mlir::IntegerType>(type);
+  if (!intType) {
+    return nullptr;
+  }
+  auto bits = value.isSigned() ? value.sextOrTrunc(intType.getWidth())
+                               : value.zextOrTrunc(intType.getWidth());
+  return mlir::arith::ConstantOp::create(builder, loc, type,
+                                         builder.getIntegerAttr(type, bits))
+      .getResult();
+}
+
 inline auto floatConst(mlir::OpBuilder &builder, mlir::Location loc,
                        mlir::Type type, double value) -> mlir::Value {
   if (!mlir::isa<mlir::FloatType>(type)) {

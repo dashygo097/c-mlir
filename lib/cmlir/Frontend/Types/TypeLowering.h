@@ -27,13 +27,14 @@ public:
       -> mlir::Type;
   [[nodiscard]] auto convertReferenceType(const clang::ReferenceType *type)
       -> mlir::Type;
+  [[nodiscard]] auto convertEnumType(const clang::EnumType *type) -> mlir::Type;
 
+  auto convertRecordFieldType(clang::QualType type) -> mlir::Type;
   auto convertStorageType(clang::QualType type) -> mlir::Type;
   auto getFieldIndex(const clang::RecordDecl *, const clang::FieldDecl *)
       -> std::optional<uint32_t>;
 
 private:
-  auto convertRecordFieldType(clang::QualType type) -> mlir::Type;
   clang_mlir::Context &context;
   llvm::DenseMap<const clang::RecordDecl *, mlir::Type> recordTypeTable;
   llvm::DenseMap<const clang::RecordDecl *,

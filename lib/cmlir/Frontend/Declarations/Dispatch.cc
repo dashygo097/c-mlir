@@ -17,6 +17,9 @@ auto ASTLowering::emitDeclaration(clang::Decl *decl) -> bool {
   if (auto *record = llvm::dyn_cast<clang::RecordDecl>(decl)) {
     return emitRecord(record);
   }
+  if (auto *_enum = llvm::dyn_cast<clang::EnumDecl>(decl)) {
+    return emitEnum(_enum);
+  }
   if (auto *var = llvm::dyn_cast<clang::VarDecl>(decl)) {
     return emitVariable(var);
   }
