@@ -3,7 +3,7 @@ add_mlir_library(CMLIRTransforms
   EnableFPContract.cc
   LoopUnroll.cc
   LoopVectorize.cc
-  Struct2Memref.cc
+  StructToMemref.cc
   DEPENDS MLIRCMLIRTransformsIncGen
   LINK_LIBS PUBLIC
     CMLIRSupport

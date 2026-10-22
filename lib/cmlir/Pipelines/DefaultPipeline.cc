@@ -70,7 +70,7 @@ auto populatePipeline(
   }
 
   if (options.promoteStructs) {
-    pm.addPass(cmlir::createStruct2MemrefPass());
+    pm.addPass(cmlir::createStructToMemrefPass());
     addStorageCleanup(pm);
     if (mlir::failed(finishStage("struct promotion"))) {
       return mlir::failure();

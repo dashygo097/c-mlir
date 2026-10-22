@@ -1,4 +1,4 @@
-// RUN: cmlir-opt %s --struct2memref | FileCheck %s
+// RUN: cmlir-opt %s --struct-to-memref | FileCheck %s
 
 // CHECK-LABEL: func.func @homogeneous
 // CHECK-SAME: %[[ARG:.*]]: memref<?x2xf32>

@@ -17,7 +17,7 @@ auto createLoopUnrollPass() -> std::unique_ptr<mlir::Pass>;
 auto createLoopVectorizePass() -> std::unique_ptr<mlir::Pass>;
 
 // Representation conversion passes (optional).
-auto createStruct2MemrefPass() -> std::unique_ptr<mlir::Pass>;
+auto createStructToMemrefPass() -> std::unique_ptr<mlir::Pass>;
 
 #define GEN_PASS_REGISTRATION
 #include "cmlir/Transforms/Passes.h.inc"

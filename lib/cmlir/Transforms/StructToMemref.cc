@@ -5,7 +5,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#define GEN_PASS_DEF_STRUCT2MEMREFPASS
+#define GEN_PASS_DEF_STRUCTTOMEMREFPASS
 #include "cmlir/Transforms/Passes.h.inc"
 
 namespace cmlir {
@@ -110,7 +110,7 @@ struct LLVMStructFuncArgToMemrefPattern
 // %ptr = llvm.alloca %structType, %arraySize
 // =>
 // %memref = memref.alloca %arraySize x numFields x elemType
-struct LLVMAllocaStruct2MemrefPattern
+struct LLVMAllocaStructToMemrefPattern
     : public mlir::OpRewritePattern<mlir::LLVM::AllocaOp> {
   using mlir::OpRewritePattern<mlir::LLVM::AllocaOp>::OpRewritePattern;
 
@@ -302,15 +302,15 @@ struct LLVMExtractValue2MemrefPattern
   }
 };
 
-struct Struct2MemrefPass
-    : public impl::Struct2MemrefPassBase<Struct2MemrefPass> {
+struct StructToMemrefPass
+    : public impl::StructToMemrefPassBase<StructToMemrefPass> {
 
   void runOnOperation() override {
     auto op = getOperation();
     mlir::RewritePatternSet patterns(&getContext());
 
     patterns.add<LLVMStructFuncArgToMemrefPattern>(&getContext());
-    patterns.add<LLVMAllocaStruct2MemrefPattern>(&getContext());
+    patterns.add<LLVMAllocaStructToMemrefPattern>(&getContext());
     patterns.add<LLVMStoreField2MemrefPattern>(&getContext());
     patterns.add<LLVMLoadField2MemrefPattern>(&getContext());
     patterns.add<LLVMExtractValue2MemrefPattern>(&getContext());
@@ -328,8 +328,8 @@ struct Struct2MemrefPass
   }
 };
 
-auto createStruct2MemrefPass() -> std::unique_ptr<mlir::Pass> {
-  return std::make_unique<Struct2MemrefPass>();
+auto createStructToMemrefPass() -> std::unique_ptr<mlir::Pass> {
+  return std::make_unique<StructToMemrefPass>();
 }
 
 } // namespace cmlir

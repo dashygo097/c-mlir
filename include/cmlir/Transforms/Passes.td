@@ -55,10 +55,10 @@ def LoopVectorizePass
 }
 
 // Representation conversion passes (optional).
-def Struct2MemrefPass
-    : Pass<"struct2memref"> {
+def StructToMemrefPass
+    : Pass<"struct-to-memref"> {
   let summary = "Convert struct types to memref types.";
-  let constructor = "cmlir::createStruct2MemrefPass()";
+  let constructor = "cmlir::createStructToMemrefPass()";
   let dependentDialects = ["mlir::arith::ArithDialect", "mlir::memref::MemRefDialect"];
   let description = [{
     This pass converts struct types to memref types by performing the following steps:
