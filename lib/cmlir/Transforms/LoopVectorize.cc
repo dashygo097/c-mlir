@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/UB/IR/UBOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Pass/PassManager.h"
@@ -107,20 +108,20 @@ auto permitsReduction(mlir::affine::AffineForOp loop) -> bool {
   return true;
 }
 
-auto prepareFullTile(mlir::affine::AffineForOp loop, unsigned width)
+auto prepareVectorLoop(mlir::affine::AffineForOp loop, unsigned width)
     -> mlir::FailureOr<mlir::affine::AffineForOp> {
   if (loop.getStepAsInt() != 1) {
     return mlir::failure();
+  }
+  // Upstream masks partial reduction vectors. Only result-free loops need
+  // tiling to isolate full vectors and retain a scalar tail.
+  if (loop.getNumResults() != 0) {
+    return loop;
   }
   if (auto trips = loop.getStaticTripCount()) {
     if (trips->urem(width) == 0) {
       return loop;
     }
-  }
-  // Tiling utilities currently do not support loop-carried results. Keep
-  // reductions scalar unless the entire trip count is a multiple of width.
-  if (loop.getNumResults() != 0) {
-    return mlir::failure();
   }
   llvm::SmallVector<mlir::affine::AffineForOp> band{loop}, tiled, full;
   if (mlir::failed(mlir::affine::tilePerfectlyNested(band, {width}, &tiled))) {
@@ -141,7 +142,7 @@ struct LoopVectorizePass
       -> void override {
     registry.insert<mlir::affine::AffineDialect, mlir::arith::ArithDialect,
                     mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect>();
+                    mlir::ub::UBDialect, mlir::vector::VectorDialect>();
   }
 
   auto vectorizeFunction(mlir::func::FuncOp function,
@@ -206,13 +207,13 @@ struct LoopVectorizePass
             "strict floating-point reduction");
         continue;
       }
-      auto full = prepareFullTile(loop, static_cast<unsigned>(width));
-      if (mlir::failed(full)) {
+      auto prepared = prepareVectorLoop(loop, static_cast<unsigned>(width));
+      if (mlir::failed(prepared)) {
         mlir::emitWarning(loc, "cmlir: loop vectorization skipped: "
                                "cannot isolate full vectors");
         continue;
       }
-      loop = *full;
+      loop = *prepared;
       mlir::affine::VectorizationStrategy strategy;
       strategy.vectorSizes.push_back(width);
       strategy.loopToVectorDim[loop] = 0;

@@ -88,7 +88,6 @@ auto populatePipeline(
   }
 
   if (options.upliftToFMA) {
-    pm.addPass(cmlir::createEnableFPContractPass());
     pm.addPass(mlir::math::createMathUpliftToFMA());
   }
   // Simplify cross-dialect loop operations, then fold induction arithmetic

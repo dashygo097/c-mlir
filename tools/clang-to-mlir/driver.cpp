@@ -81,7 +81,7 @@ llvm::cl::opt<bool> raiseSCFToAffine("raise-scf-to-affine",
 
 llvm::cl::opt<bool> mathUpliftToFMA(
     "math-uplift-to-fma", llvm::cl::init(false),
-    llvm::cl::desc("Permit floating-point contraction and uplift to math.fma"),
+    llvm::cl::desc("Uplift permitted floating-point contractions to math.fma"),
     llvm::cl::cat(toolOptions));
 
 llvm::cl::extrahelp commonHelp(CommonOptionsParser::HelpMessage);

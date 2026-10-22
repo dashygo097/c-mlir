@@ -1,4 +1,4 @@
-// RUN: cmlir-opt %s --loop-vectorize | FileCheck %s
+// RUN: cmlir-opt %s --loop-vectorize --verify-each | FileCheck %s
 
 // Only the hinted loop is selected; restrict permits independent streams.
 // CHECK-LABEL: func.func @selected
@@ -120,6 +120,53 @@ func.func @reassociated_reduction(%a: memref<16xf32>) -> f32 {
     scf.yield %next : f32
   } {vectorize, vectorize_width = 4 : i64}
   return %sum : f32
+}
+
+// A partial final vector must not contribute out-of-range elements.
+// CHECK-LABEL: func.func @reduction_tail(
+// CHECK: scf.for
+// CHECK: vector.create_mask {{.*}} : vector<4xi1>
+// CHECK: vector.transfer_read {{.*}} : memref<7xi32>, vector<4xi32>
+// CHECK: arith.select {{.*}} : vector<4xi1>, vector<4xi32>
+// CHECK: arith.addi {{.*}} : vector<4xi32>
+// CHECK: %[[SUM:.*]] = vector.reduction <add>, {{.*}} : vector<4xi32> into i32
+// CHECK: %[[RESULT:.*]] = arith.addi %[[SUM]], %arg1 : i32
+// CHECK: return %[[RESULT]] : i32
+func.func @reduction_tail(%a: memref<7xi32>, %initial: i32) -> i32 {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c7 = arith.constant 7 : index
+  %sum = scf.for %i = %c0 to %c7 step %c1 iter_args(%acc = %initial) -> i32 {
+    %x = memref.load %a[%i] : memref<7xi32>
+    %next = arith.addi %acc, %x : i32
+    scf.yield %next : i32
+  } {vectorize, vectorize_width = 4 : i64}
+  return %sum : i32
+}
+
+// Dynamic reductions share the tail mask and retain their own initial values.
+// CHECK-LABEL: func.func @dynamic_reductions(
+// CHECK: %[[LOOP:.*]]:2 = scf.for
+// CHECK: %[[MASK:.*]] = vector.create_mask {{.*}} : vector<4xi1>
+// CHECK: vector.transfer_read {{.*}} : memref<?xi32>, vector<4xi32>
+// CHECK: arith.select %[[MASK]]
+// CHECK: arith.select %[[MASK]]
+// CHECK: %[[SUM:.*]] = vector.reduction <add>, %[[LOOP]]#0 : vector<4xi32> into i32
+// CHECK: %[[SUM_RESULT:.*]] = arith.addi %[[SUM]], %arg2 : i32
+// CHECK: %[[XOR:.*]] = vector.reduction <xor>, %[[LOOP]]#1 : vector<4xi32> into i32
+// CHECK: %[[XOR_RESULT:.*]] = arith.xori %[[XOR]], %arg3 : i32
+// CHECK: return %[[SUM_RESULT]], %[[XOR_RESULT]] : i32, i32
+func.func @dynamic_reductions(%a: memref<?xi32>, %n: index, %sum_initial: i32, %xor_initial: i32) -> (i32, i32) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %result:2 = scf.for %i = %c0 to %n step %c1
+      iter_args(%sum = %sum_initial, %xor = %xor_initial) -> (i32, i32) {
+    %x = memref.load %a[%i] : memref<?xi32>
+    %next_sum = arith.addi %sum, %x : i32
+    %next_xor = arith.xori %xor, %x : i32
+    scf.yield %next_sum, %next_xor : i32, i32
+  } {vectorize, vectorize_width = 4 : i64}
+  return %result#0, %result#1 : i32, i32
 }
 
 // Width one is consumed without requesting vectorization.

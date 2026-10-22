@@ -23,7 +23,7 @@ struct PipelineOptions {
   bool liftCFToSCF = true;
   bool raiseSCFToAffine = false;
   bool raiseMemRefToAffine = false;
-  // Explicitly permit floating-point contraction, without reassociation.
+  // Fuse operations only when their existing flags permit contraction.
   bool upliftToFMA = false;
   // Optional caller-owned scope; it must outlive runPipeline.
   mlir::TimingScope *timingScope = nullptr;

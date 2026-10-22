@@ -1,5 +1,6 @@
 #include "../Lowering.h"
 #include "CallLowering.h"
+#include "clang-mlir/FloatingPoint.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
@@ -56,6 +57,17 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
                              "function call lowering failed");
     }
     return {};
+  }
+  if (*result) {
+    if (auto operation =
+            mlir::dyn_cast_if_present<mlir::arith::ArithFastMathInterface>(
+                (*result).getDefiningOp())) {
+      auto flags =
+          clang_mlir::getFastMathFlags(*expr, context.ast().getLangOpts());
+      operation->setAttr(
+          operation.getFastMathAttrName(),
+          mlir::arith::FastMathFlagsAttr::get(&context.ir(), flags));
+    }
   }
   return *result;
 }

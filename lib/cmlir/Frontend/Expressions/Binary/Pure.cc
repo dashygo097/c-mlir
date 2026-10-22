@@ -2,6 +2,7 @@
 #include "../PointerArithmetic.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
+#include "clang-mlir/FloatingPoint.h"
 #include "clang-mlir/Numerics.h"
 #include "clang-mlir/Operators.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -46,6 +47,9 @@ auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
         binOp->getOpcode() == clang::BO_Sub);
   }
 
+  auto flags =
+      clang_mlir::getFastMathFlags(*binOp, context.ast().getLangOpts());
+
   using CBO = clang::BinaryOperatorKind;
   using IP = mlir::arith::CmpIPredicate;
   using FP = mlir::arith::CmpFPredicate;
@@ -65,14 +69,14 @@ auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
   switch (binOp->getOpcode()) {
   // Arithmetic
   case CBO::BO_Add:
-    return clang_mlir::add(builder, loc, lhs, rhs);
+    return clang_mlir::add(builder, loc, lhs, rhs, flags);
   case CBO::BO_Sub:
-    return clang_mlir::sub(builder, loc, lhs, rhs);
+    return clang_mlir::sub(builder, loc, lhs, rhs, flags);
   case CBO::BO_Mul:
-    return clang_mlir::mul(builder, loc, lhs, rhs);
+    return clang_mlir::mul(builder, loc, lhs, rhs, flags);
   case CBO::BO_Div:
-    return isUnsigned ? clang_mlir::divu(builder, loc, lhs, rhs)
-                      : clang_mlir::divs(builder, loc, lhs, rhs);
+    return isUnsigned ? clang_mlir::divu(builder, loc, lhs, rhs, flags)
+                      : clang_mlir::divs(builder, loc, lhs, rhs, flags);
   case CBO::BO_Rem:
     return isUnsigned ? clang_mlir::remu(builder, loc, lhs, rhs)
                       : clang_mlir::rems(builder, loc, lhs, rhs);
@@ -95,35 +99,35 @@ auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ult : IP::slt,
-                              FP::OLT, lhs, rhs),
+                              FP::OLT, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
   case CBO::BO_LE:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ule : IP::sle,
-                              FP::OLE, lhs, rhs),
+                              FP::OLE, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
   case CBO::BO_GT:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::ugt : IP::sgt,
-                              FP::OGT, lhs, rhs),
+                              FP::OGT, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
   case CBO::BO_GE:
     return clang_mlir::toValue(
         builder, loc,
         clang_mlir::emitCmpOp(builder, loc, isUnsigned ? IP::uge : IP::sge,
-                              FP::OGE, lhs, rhs),
+                              FP::OGE, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
   case CBO::BO_EQ:
     return clang_mlir::toValue(
         builder, loc,
-        clang_mlir::emitCmpOp(builder, loc, IP::eq, FP::OEQ, lhs, rhs),
+        clang_mlir::emitCmpOp(builder, loc, IP::eq, FP::OEQ, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
   case CBO::BO_NE:
     return clang_mlir::toValue(
         builder, loc,
-        clang_mlir::emitCmpOp(builder, loc, IP::ne, FP::UNE, lhs, rhs),
+        clang_mlir::emitCmpOp(builder, loc, IP::ne, FP::UNE, lhs, rhs, flags),
         types.convertType(binOp->getType()), false);
 
   default:

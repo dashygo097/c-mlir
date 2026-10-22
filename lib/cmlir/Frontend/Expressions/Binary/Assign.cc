@@ -1,5 +1,6 @@
 #include "../../Lowering.h"
 #include "clang-mlir/Casts.h"
+#include "clang-mlir/FloatingPoint.h"
 #include "clang-mlir/Numerics.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
@@ -9,19 +10,20 @@ namespace cmlir::frontend {
 
 auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
                        clang::BinaryOperatorKind op, mlir::Value lhs,
-                       mlir::Value rhs, bool isUnsigned) -> mlir::Value {
+                       mlir::Value rhs, bool isUnsigned,
+                       mlir::arith::FastMathFlags flags) -> mlir::Value {
   using CBO = clang::BinaryOperatorKind;
 
   switch (op) {
   case CBO::BO_AddAssign:
-    return clang_mlir::add(builder, loc, lhs, rhs);
+    return clang_mlir::add(builder, loc, lhs, rhs, flags);
   case CBO::BO_SubAssign:
-    return clang_mlir::sub(builder, loc, lhs, rhs);
+    return clang_mlir::sub(builder, loc, lhs, rhs, flags);
   case CBO::BO_MulAssign:
-    return clang_mlir::mul(builder, loc, lhs, rhs);
+    return clang_mlir::mul(builder, loc, lhs, rhs, flags);
   case CBO::BO_DivAssign:
-    return isUnsigned ? clang_mlir::divu(builder, loc, lhs, rhs)
-                      : clang_mlir::divs(builder, loc, lhs, rhs);
+    return isUnsigned ? clang_mlir::divu(builder, loc, lhs, rhs, flags)
+                      : clang_mlir::divs(builder, loc, lhs, rhs, flags);
   case CBO::BO_RemAssign:
     return isUnsigned ? clang_mlir::remu(builder, loc, lhs, rhs)
                       : clang_mlir::rems(builder, loc, lhs, rhs);
@@ -122,7 +124,8 @@ auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
 
     mlir::Value computed = emitCompoundArith(
         builder, loc, assignOp->getOpcode(), computeLHS, rhsValue,
-        computationType->isUnsignedIntegerOrEnumerationType());
+        computationType->isUnsignedIntegerOrEnumerationType(),
+        clang_mlir::getFastMathFlags(*assignOp, context.ast().getLangOpts()));
     if (!computed) {
       return mlir::failure();
     }

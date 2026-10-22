@@ -26,7 +26,8 @@ struct DefaultPipelineOptions
       llvm::cl::desc("Raise memory accesses to Affine"), llvm::cl::init(false)};
   Option<bool> upliftToFMA{
       *this, "math-uplift-to-fma",
-      llvm::cl::desc("Permit FP contraction and uplift to math.fma"),
+      llvm::cl::desc(
+          "Uplift permitted floating-point contractions to math.fma"),
       llvm::cl::init(false)};
 };
 

@@ -49,7 +49,46 @@ float strict_sum(const float *a, int n) {
 // POLICY-NOT: vector.
 // POLICY-LABEL: func.func @strict_sum(
 // POLICY-NOT: vector.
+// POLICY-LABEL: func.func @sum4(
+// POLICY: vector.create_mask
+// POLICY: vector.reduction <add>
+// POLICY-LABEL: func.func @sum3(
+// POLICY: vector.create_mask
+// POLICY: vector.reduction <add>
+// POLICY-LABEL: func.func @sum_and_xor(
+// POLICY: vector.create_mask
+// POLICY: vector.reduction <add>
+// POLICY: vector.reduction <xor>
 // POLICY-LABEL: func.func @check(
+
+unsigned sum4(const unsigned *a, int n, unsigned initial) {
+  unsigned result = initial;
+#pragma cmlir loop vectorize(enable) vectorize_width(4)
+  for (int i = 0; i < n; ++i) {
+    result += a[i];
+  }
+  return result;
+}
+
+unsigned sum3(const unsigned *a, int n, unsigned initial) {
+  unsigned result = initial;
+#pragma cmlir loop vectorize(enable) vectorize_width(3)
+  for (int i = 3; i < n; ++i) {
+    result += a[i];
+  }
+  return result;
+}
+
+unsigned sum_and_xor(const unsigned *a, int n) {
+  unsigned sum = 17;
+  unsigned bits = 165;
+#pragma cmlir loop vectorize(enable) vectorize_width(4)
+  for (int i = 0; i < n; ++i) {
+    sum += a[i];
+    bits ^= a[i];
+  }
+  return sum + bits;
+}
 
 int check(int n) {
   float a[32], b[32], out[32];
@@ -97,6 +136,29 @@ int main() {
   float cancellation[4] = {1.0e20f, 1.0f, -1.0e20f, 3.0f};
   if (strict_sum(cancellation, 4) != 3) {
     ++errors;
+  }
+  unsigned data[23];
+  for (int i = 0; i < 23; ++i) {
+    data[i] = 0xfffffff0u + i;
+  }
+  // Cover empty loops, partial vectors, nonzero lower bounds, nonzero seeds,
+  // multiple reductions and unsigned wrapping. Extra elements must be masked
+  // even when they are inside the backing allocation.
+  for (int n = -1; n <= 19; ++n) {
+    unsigned expected = 17;
+    unsigned expected3 = 23;
+    unsigned bits = 165;
+    for (int i = 0; i < n; ++i) {
+      expected += data[i];
+      bits ^= data[i];
+      if (i >= 3) {
+        expected3 += data[i];
+      }
+    }
+    if (sum4(data, n, 17) != expected || sum3(data, n, 23) != expected3 ||
+        sum_and_xor(data, n) != expected + bits) {
+      ++errors;
+    }
   }
   printf("vector boundaries: %d\n", errors);
   return errors;

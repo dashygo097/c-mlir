@@ -1,5 +1,7 @@
-// RUN: clang-to-mlir %s --math-uplift-to-fma -- -xc | FileCheck %s --check-prefix=FUSED
-// RUN: clang-to-mlir --disable-opt %s -- -xc | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{math-uplift-to-fma=true})' | FileCheck %s --check-prefix=FUSED
+// RUN: clang-to-mlir %s --math-uplift-to-fma -- -xc -ffp-contract=fast | FileCheck %s --check-prefix=FUSED
+// RUN: clang-to-mlir --disable-opt %s -- -xc -ffp-contract=fast | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{math-uplift-to-fma=true})' | FileCheck %s --check-prefix=FUSED
+// RUN: clang-to-mlir %s --math-uplift-to-fma -- -xc -ffp-contract=off | FileCheck %s --check-prefix=STRICT --implicit-check-not=fastmath --implicit-check-not=math.fma
+// RUN: clang-to-mlir --disable-opt %s -- -xc -ffp-contract=off | cmlir-opt --pass-pipeline='builtin.module(default-pipeline{math-uplift-to-fma=true})' | FileCheck %s --check-prefix=STRICT --implicit-check-not=fastmath --implicit-check-not=math.fma
 // RUN: clang-to-mlir %s -- -xc | FileCheck %s --check-prefix=STRICT
 // RUN: clang-to-mlir --disable-opt %s -- -xc | cmlir-opt --pass-pipeline='builtin.module(default-pipeline)' | FileCheck %s --check-prefix=STRICT
 

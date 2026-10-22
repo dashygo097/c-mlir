@@ -28,6 +28,7 @@ add_mlir_library(CMLIRTransforms
     MLIRSCFTransforms
     MLIRSCFToAffine
     MLIRRewrite
+    MLIRUBDialect
     MLIRVectorDialect
 )
 target_include_directories(CMLIRTransforms PUBLIC

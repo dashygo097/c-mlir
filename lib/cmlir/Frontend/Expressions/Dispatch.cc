@@ -11,6 +11,14 @@ auto ASTLowering::generateExpr(clang::Expr *expr) -> mlir::Value {
   if (!expr) {
     return nullptr;
   }
+  if (expr->getType()->isFloatingType() &&
+      expr->getFPFeaturesInEffect(context.ast().getLangOpts())
+          .isFPConstrained()) {
+    context.source().error(
+        expr->getExprLoc(),
+        "constrained floating-point expressions are unsupported");
+    return nullptr;
+  }
 
   clang_mlir::Source::TraceScope frame(
       context.source(), expr->getStmtClassName(), expr->getExprLoc(), trace);

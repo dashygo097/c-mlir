@@ -81,8 +81,7 @@ private:
   auto generateFloatingLiteral(clang::FloatingLiteral *floatLit) -> mlir::Value;
   auto generateImplicitCastExpr(clang::ImplicitCastExpr *castExpr)
       -> mlir::Value;
-  auto generateIncDecUnaryOperator(clang::Expr *expr, bool increment,
-                                   bool prefix) -> mlir::Value;
+  auto generateIncDecUnaryOperator(clang::UnaryOperator *expr) -> mlir::Value;
   auto generateInitListExpr(clang::InitListExpr *initList) -> mlir::Value;
   auto generateIntegerLiteral(clang::IntegerLiteral *intLit) -> mlir::Value;
   auto generateLogicalOperator(clang::BinaryOperator *expr) -> mlir::Value;

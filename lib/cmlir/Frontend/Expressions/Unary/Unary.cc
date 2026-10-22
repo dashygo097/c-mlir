@@ -1,6 +1,7 @@
 #include "../../Lowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
+#include "clang-mlir/FloatingPoint.h"
 #include "clang-mlir/Numerics.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -24,20 +25,16 @@ auto ASTLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
 
   case CUO::UO_Minus: {
     mlir::Value value = generateExpr(subExpr);
-    return clang_mlir::neg(builder, loc, value);
+    return clang_mlir::neg(
+        builder, loc, value,
+        clang_mlir::getFastMathFlags(*unOp, context.ast().getLangOpts()));
   }
 
   case CUO::UO_PreInc:
-    return generateIncDecUnaryOperator(subExpr, true, true);
-
   case CUO::UO_PostInc:
-    return generateIncDecUnaryOperator(subExpr, true, false);
-
   case CUO::UO_PreDec:
-    return generateIncDecUnaryOperator(subExpr, false, true);
-
   case CUO::UO_PostDec:
-    return generateIncDecUnaryOperator(subExpr, false, false);
+    return generateIncDecUnaryOperator(unOp);
 
   case CUO::UO_LNot: {
     mlir::Value value = generateExpr(subExpr);

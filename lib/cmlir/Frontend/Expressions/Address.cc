@@ -1,5 +1,6 @@
 #include "../Lowering.h"
 #include "clang-mlir/Constants.h"
+#include "clang-mlir/FloatingPoint.h"
 #include "clang-mlir/Numerics.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -46,8 +47,11 @@ auto ASTLowering::emitAddress(clang::Expr *expr)
         return mlir::failure();
       }
       auto old = address->load(builder, loc);
-      auto value = unary->isIncrementOp() ? clang_mlir::inc(builder, loc, old)
-                                          : clang_mlir::dec(builder, loc, old);
+      auto flags =
+          clang_mlir::getFastMathFlags(*unary, context.ast().getLangOpts());
+      auto value = unary->isIncrementOp()
+                       ? clang_mlir::inc(builder, loc, old, flags)
+                       : clang_mlir::dec(builder, loc, old, flags);
       if (!value || mlir::failed(address->store(builder, loc, value))) {
         return mlir::failure();
       }

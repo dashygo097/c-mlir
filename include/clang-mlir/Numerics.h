@@ -6,34 +6,49 @@
 
 namespace clang_mlir {
 
-inline auto add(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                mlir::Value rhs) -> mlir::Value {
-  return emitNumericOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(builder, loc,
-                                                                 lhs, rhs);
+inline auto
+add(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+    mlir::Value rhs,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
+    -> mlir::Value {
+  return emitNumericOp<mlir::arith::AddIOp, mlir::arith::AddFOp>(
+      builder, loc, lhs, rhs, flags);
 }
 
-inline auto sub(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                mlir::Value rhs) -> mlir::Value {
-  return emitNumericOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(builder, loc,
-                                                                 lhs, rhs);
+inline auto
+sub(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+    mlir::Value rhs,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
+    -> mlir::Value {
+  return emitNumericOp<mlir::arith::SubIOp, mlir::arith::SubFOp>(
+      builder, loc, lhs, rhs, flags);
 }
 
-inline auto mul(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                mlir::Value rhs) -> mlir::Value {
-  return emitNumericOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(builder, loc,
-                                                                 lhs, rhs);
+inline auto
+mul(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+    mlir::Value rhs,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
+    -> mlir::Value {
+  return emitNumericOp<mlir::arith::MulIOp, mlir::arith::MulFOp>(
+      builder, loc, lhs, rhs, flags);
 }
 
-inline auto divu(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
-  return emitNumericOp<mlir::arith::DivUIOp, mlir::arith::DivFOp>(builder, loc,
-                                                                  lhs, rhs);
+inline auto
+divu(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+     mlir::Value rhs,
+     mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
+    -> mlir::Value {
+  return emitNumericOp<mlir::arith::DivUIOp, mlir::arith::DivFOp>(
+      builder, loc, lhs, rhs, flags);
 }
 
-inline auto divs(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
-                 mlir::Value rhs) -> mlir::Value {
-  return emitNumericOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(builder, loc,
-                                                                  lhs, rhs);
+inline auto
+divs(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
+     mlir::Value rhs,
+     mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
+    -> mlir::Value {
+  return emitNumericOp<mlir::arith::DivSIOp, mlir::arith::DivFOp>(
+      builder, loc, lhs, rhs, flags);
 }
 
 inline auto rems(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
@@ -46,7 +61,9 @@ inline auto remu(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhs,
   return emitIntOp<mlir::arith::RemUIOp>(builder, loc, lhs, rhs);
 }
 
-inline auto neg(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
+inline auto
+neg(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
     -> mlir::Value {
   if (!value) {
     return nullptr;
@@ -60,7 +77,7 @@ inline auto neg(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
   }
 
   if (isFloatType(type)) {
-    return emitFloatOp<mlir::arith::NegFOp>(builder, loc, value);
+    return emitFloatOp<mlir::arith::NegFOp>(builder, loc, value, flags);
   }
 
   return nullptr;
@@ -146,22 +163,28 @@ inline auto subf(mlir::OpBuilder &builder, mlir::Location loc,
              floatConst(builder, loc, value.getType(), amount));
 }
 
-inline auto inc(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
+inline auto
+inc(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
     -> mlir::Value {
   if (!value) {
     return nullptr;
   }
 
-  return add(builder, loc, value, oneConst(builder, loc, value.getType()));
+  return add(builder, loc, value, oneConst(builder, loc, value.getType()),
+             flags);
 }
 
-inline auto dec(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value)
+inline auto
+dec(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value,
+    mlir::arith::FastMathFlags flags = mlir::arith::FastMathFlags::none)
     -> mlir::Value {
-  if (!value || !isIntegerLikeType(value.getType())) {
+  if (!value) {
     return nullptr;
   }
 
-  return sub(builder, loc, value, oneConst(builder, loc, value.getType()));
+  return sub(builder, loc, value, oneConst(builder, loc, value.getType()),
+             flags);
 }
 
 } // namespace clang_mlir
