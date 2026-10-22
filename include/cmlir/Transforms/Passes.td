@@ -18,18 +18,6 @@ def ArithFoldCastsPass
   }];
 }
 
-// Explicit semantic policy, used only when the caller permits contraction.
-def EnableFPContractPass : Pass<"enable-fp-contract"> {
-  let summary = "Permit floating-point contraction on arith addf and mulf.";
-  let constructor = "cmlir::createEnableFPContractPass()";
-  let dependentDialects = ["mlir::arith::ArithDialect"];
-  let description = [{
-    Add the contract fast-math flag without changing other fast-math flags.
-    This explicitly relaxes floating-point semantics; it is not enabled by
-    default and does not permit reassociation.
-  }];
-}
-
 // Loop optimization passes.
 def LoopUnrollPass
     : Pass<"loop-unroll"> {
