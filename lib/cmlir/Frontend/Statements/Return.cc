@@ -9,7 +9,23 @@ auto ASTLowering::emitReturn(clang::ReturnStmt *stmt) -> bool {
   auto results = function.operation.getFunctionType().getResults();
   mlir::Value value;
   if (auto *expr = stmt->getRetValue()) {
-    value = generateExpr(expr);
+    if (results.empty()) {
+      if (mlir::failed(expressions.emitDiscarded(*expr))) {
+        return false;
+      }
+    } else if (function.declaration->getReturnType()->isReferenceType()) {
+      auto address = expressions.emitAddress(*expr);
+      if (mlir::failed(address)) {
+        return false;
+      }
+      value = address->materialize(builder, loc);
+    } else {
+      auto emitted = expressions.emitValue(*expr);
+      if (mlir::failed(emitted)) {
+        return false;
+      }
+      value = *emitted;
+    }
     if (!results.empty()) {
       if (!value) {
         return false;

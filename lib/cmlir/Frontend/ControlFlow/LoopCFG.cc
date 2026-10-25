@@ -24,9 +24,16 @@ auto ASTLowering::emitCFGLoop(clang::Expr *condition, clang::Stmt *body,
   builder.setInsertionPointToEnd(entry);
   mlir::cf::BranchOp::create(builder, loc, bodyFirst ? bodyBlock : header);
   builder.setInsertionPointToStart(header);
-  auto cond = condition
-                  ? clang_mlir::toBool(builder, loc, generateExpr(condition))
-                  : clang_mlir::boolConst(builder, loc, true);
+  mlir::Value cond;
+  if (condition) {
+    auto value = expressions.emitValue(*condition);
+    if (mlir::failed(value)) {
+      return false;
+    }
+    cond = clang_mlir::toBool(builder, loc, *value);
+  } else {
+    cond = clang_mlir::boolConst(builder, loc, true);
+  }
   if (!cond) {
     return false;
   }
@@ -44,7 +51,7 @@ auto ASTLowering::emitCFGLoop(clang::Expr *condition, clang::Stmt *body,
     mlir::cf::BranchOp::create(builder, loc, latch);
   }
   builder.setInsertionPointToStart(latch);
-  if (increment && !generateExpr(increment)) {
+  if (increment && mlir::failed(expressions.emitDiscarded(*increment))) {
     return false;
   }
   mlir::cf::BranchOp::create(builder, loc, header);

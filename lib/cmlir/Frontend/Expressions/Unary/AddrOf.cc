@@ -1,8 +1,8 @@
-#include "../../Lowering.h"
+#include "../ExpressionLowering.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateAddrOfUnaryOperator(clang::Expr *expr)
+auto ExpressionLowering::generateAddrOfUnaryOperator(clang::Expr *expr)
     -> mlir::Value {
   // &*p does not access the pointed-to object, including when p is null.
   if (auto *unary =
@@ -11,7 +11,7 @@ auto ASTLowering::generateAddrOfUnaryOperator(clang::Expr *expr)
       return generateExpr(unary->getSubExpr());
     }
   }
-  auto address = emitAddress(expr);
+  auto address = addressOf(expr);
   if (mlir::failed(address)) {
     return {};
   }

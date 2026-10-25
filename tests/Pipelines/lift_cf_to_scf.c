@@ -67,7 +67,7 @@ float reduce_sum_nonzero(float *a, int n) {
   return result;
 }
 
-// CONT: func.func @reduce_sum_nonzero(%arg0: memref<?xf32>, %arg1: i32) -> f32
+// CONT: func.func @reduce_sum_nonzero(%arg0: memref<?xf32, strided<[1], offset: ?>>, %arg1: i32) -> f32
 // CONT-DAG: %[[cst:.+]] = arith.constant 0.000000e+00 : f32
 // CONT-DAG: %[[c0_i32:.+]] = arith.constant 0 : i32
 // CONT-DAG: %[[c1_i32:.+]] = arith.constant 1 : i32
@@ -77,12 +77,12 @@ float reduce_sum_nonzero(float *a, int n) {
 // CONT: } do {
 // CONT: ^bb0(%[[BODY_SUM:.*]]: f32, %[[BODY_IV:.*]]: i32):
 // CONT: %[[INDEX:.*]] = arith.index_cast %[[BODY_IV]] : i32 to index
-// CONT: %[[ELEMENT:.*]] = memref.load %arg0[%[[INDEX]]] : memref<?xf32>
+// CONT: %[[ELEMENT:.*]] = memref.load %arg0[%[[INDEX]]] : memref<?xf32, strided<[1], offset: ?>>
 // CONT: %[[SKIP:.*]] = arith.cmpf oeq, %[[ELEMENT]], %[[cst]] : f32
 // CONT: %[[NEXT_SUM:.*]] = scf.if %[[SKIP]] -> (f32) {
 // CONT: scf.yield %[[BODY_SUM]] : f32
 // CONT: } else {
-// CONT: %[[VALUE:.*]] = memref.load %arg0[%[[INDEX]]] : memref<?xf32>
+// CONT: %[[VALUE:.*]] = memref.load %arg0[%[[INDEX]]] : memref<?xf32, strided<[1], offset: ?>>
 // CONT: %[[ADDED:.*]] = arith.addf %[[BODY_SUM]], %[[VALUE]] : f32
 // CONT: scf.yield %[[ADDED]] : f32
 // CONT: }

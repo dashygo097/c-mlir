@@ -17,7 +17,11 @@ auto ASTLowering::emitDo(clang::DoStmt *stmt) -> bool {
   if (!emitStatement(stmt->getBody())) {
     return false;
   }
-  auto cond = clang_mlir::toBool(builder, loc, generateExpr(stmt->getCond()));
+  auto value = expressions.emitValue(*stmt->getCond());
+  if (mlir::failed(value)) {
+    return false;
+  }
+  auto cond = clang_mlir::toBool(builder, loc, *value);
   if (!cond) {
     return false;
   }

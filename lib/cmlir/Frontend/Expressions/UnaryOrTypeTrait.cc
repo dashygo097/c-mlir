@@ -1,10 +1,10 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "clang/AST/Expr.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateUnaryExprOrTypeTraitExpr(
+auto ExpressionLowering::generateUnaryExprOrTypeTraitExpr(
     clang::UnaryExprOrTypeTraitExpr *expr) -> mlir::Value {
 
   clang::ASTContext &astCtx = context.ast();

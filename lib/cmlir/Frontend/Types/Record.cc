@@ -55,6 +55,11 @@ auto TypeLowering::convertRecordType(const clang::RecordType *type)
   std::vector<const clang::FieldDecl *> fields;
 
   for (auto *field : definition->fields()) {
+    if (field->getType()->isReferenceType()) {
+      context.source().error(field->getLocation(),
+                             "reference member layouts are unsupported");
+      return {};
+    }
     if (field->isBitField()) {
       context.source().error(field->getLocation(),
                              "bitfield layouts are unsupported");

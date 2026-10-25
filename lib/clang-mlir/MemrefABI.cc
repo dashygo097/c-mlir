@@ -23,7 +23,11 @@ auto reinterpretScalarMemRefAsPointerMemRef(mlir::OpBuilder &builder,
   auto srcType = mlir::dyn_cast<mlir::MemRefType>(value.getType());
   if (!srcType || !memrefIsScalarAddressToPointer(srcType, dstType) ||
       srcType.getMemorySpace() != dstType.getMemorySpace() ||
-      !dstType.getLayout().isIdentity()) {
+      !mlir::memref::CastOp::areCastCompatible(
+          mlir::MemRefType::get({1}, dstType.getElementType(),
+                                mlir::MemRefLayoutAttrInterface{},
+                                dstType.getMemorySpace()),
+          dstType)) {
     return nullptr;
   }
 
@@ -104,6 +108,29 @@ auto reinterpretScalarMemRefAsPointerMemRef(mlir::OpBuilder &builder,
 
 auto coerceMemRef(mlir::OpBuilder &builder, mlir::Location loc,
                   mlir::Value value, mlir::MemRefType dstType) -> mlir::Value {
+  if (mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) {
+    if (!dstType.hasStaticShape() ||
+        mlir::isa<mlir::BaseMemRefType>(dstType.getElementType())) {
+      return {};
+    }
+    auto contiguous = mlir::MemRefType::get(
+        dstType.getShape(), dstType.getElementType(),
+        mlir::MemRefLayoutAttrInterface{}, dstType.getMemorySpace());
+    if (!mlir::memref::CastOp::areCastCompatible(contiguous, dstType)) {
+      return {};
+    }
+    mlir::LLVMTypeConverter converter(builder.getContext());
+    auto descriptor = mlir::MemRefDescriptor::fromStaticShape(
+        builder, loc, converter, contiguous, value);
+    auto view = mlir::UnrealizedConversionCastOp::create(
+                    builder, loc, mlir::TypeRange{contiguous},
+                    mlir::ValueRange{descriptor})
+                    .getResult(0);
+    return contiguous == dstType
+               ? view
+               : mlir::memref::CastOp::create(builder, loc, dstType, view)
+                     .getResult();
+  }
   auto srcType = mlir::dyn_cast<mlir::MemRefType>(value.getType());
   if (!srcType) {
     return nullptr;

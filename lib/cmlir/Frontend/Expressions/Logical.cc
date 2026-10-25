@@ -1,10 +1,10 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateLogicalOperator(clang::BinaryOperator *expr)
+auto ExpressionLowering::generateLogicalOperator(clang::BinaryOperator *expr)
     -> mlir::Value {
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getOperatorLoc());

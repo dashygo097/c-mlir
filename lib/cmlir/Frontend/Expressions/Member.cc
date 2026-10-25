@@ -1,9 +1,9 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::emitMemberAddress(clang::MemberExpr *expr)
+auto ExpressionLowering::emitMemberAddress(clang::MemberExpr *expr)
     -> mlir::FailureOr<clang_mlir::Address> {
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getExprLoc());
@@ -14,7 +14,7 @@ auto ASTLowering::emitMemberAddress(clang::MemberExpr *expr)
     type = type->getPointeeType();
     pointer = generateExpr(base);
   } else {
-    auto address = emitAddress(base);
+    auto address = addressOf(base);
     if (mlir::failed(address)) {
       return mlir::failure();
     }
@@ -36,7 +36,8 @@ auto ASTLowering::emitMemberAddress(clang::MemberExpr *expr)
                                   types.convertStorageType(field->getType()));
 }
 
-auto ASTLowering::generateMemberExpr(clang::MemberExpr *expr) -> mlir::Value {
+auto ExpressionLowering::generateMemberExpr(clang::MemberExpr *expr)
+    -> mlir::Value {
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getExprLoc());
   if (expr->isGLValue() || expr->isArrow() || expr->getType()->isArrayType()) {

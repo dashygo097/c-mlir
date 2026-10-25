@@ -7,12 +7,12 @@ void vec_add(float *c, const float *a, const float *b, int n) {
   }
 }
 
-// CHECK: func.func @vec_add(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: i32)
+// CHECK: func.func @vec_add(%arg0: memref<?xf32, strided<[1], offset: ?>>, %arg1: memref<?xf32, strided<[1], offset: ?>>, %arg2: memref<?xf32, strided<[1], offset: ?>>, %arg3: i32)
 // CHECK: %[[N:.*]] = arith.index_cast %arg3 : i32 to index
 // CHECK: affine.for %[[I:.*]] = 0 to %[[N]] {
-// CHECK:   %[[A:.*]] = memref.load %arg1[%[[I]]] : memref<?xf32>
-// CHECK:   %[[B:.*]] = memref.load %arg2[%[[I]]] : memref<?xf32>
+// CHECK:   %[[A:.*]] = memref.load %arg1[%[[I]]] : memref<?xf32, strided<[1], offset: ?>>
+// CHECK:   %[[B:.*]] = memref.load %arg2[%[[I]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK:   %[[SUM:.*]] = arith.addf %[[A]], %[[B]] : f32
-// CHECK:   memref.store %[[SUM]], %arg0[%[[I]]] : memref<?xf32>
+// CHECK:   memref.store %[[SUM]], %arg0[%[[I]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK: }
 // CHECK: return

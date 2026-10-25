@@ -18,7 +18,7 @@ auto Address::get(mlir::Value base, mlir::Type element,
     }
   }
   if (auto memref = mlir::dyn_cast<mlir::MemRefType>(base.getType())) {
-    if (memref.getRank() != static_cast<int64_t>(indices.size()) ||
+    if (memref.getRank() < static_cast<int64_t>(indices.size()) ||
         memref.getElementType() != element) {
       return mlir::failure();
     }
@@ -86,8 +86,19 @@ auto Address::materialize(mlir::OpBuilder &builder, mlir::Location loc) const
     sizes.push_back(builder.getIndexAttr(1));
     strides.push_back(builder.getIndexAttr(1));
   }
+  for (int64_t i = indices.size(); i < type.getRank(); ++i) {
+    offsets.push_back(builder.getIndexAttr(0));
+    sizes.push_back(
+        type.isDynamicDim(i)
+            ? mlir::OpFoldResult(
+                  mlir::memref::DimOp::create(builder, loc, base, i)
+                      .getResult())
+            : mlir::OpFoldResult(builder.getIndexAttr(type.getDimSize(i))));
+    strides.push_back(builder.getIndexAttr(1));
+  }
   auto result = mlir::memref::SubViewOp::inferRankReducedResultType(
-      llvm::ArrayRef<int64_t>{}, type, offsets, sizes, strides);
+      type.getShape().drop_front(indices.size()), type, offsets, sizes,
+      strides);
   return mlir::memref::SubViewOp::create(builder, loc, result, base, offsets,
                                          sizes, strides);
 }
@@ -95,6 +106,10 @@ auto Address::materialize(mlir::OpBuilder &builder, mlir::Location loc) const
 auto Address::load(mlir::OpBuilder &builder, mlir::Location loc) const
     -> mlir::Value {
   if (mlir::isa<mlir::MemRefType>(base.getType())) {
+    if (mlir::cast<mlir::MemRefType>(base.getType()).getRank() !=
+        static_cast<int64_t>(indices.size())) {
+      return {};
+    }
     return mlir::memref::LoadOp::create(builder, loc, base, indices);
   }
   return mlir::LLVM::LoadOp::create(builder, loc, element,
@@ -108,6 +123,10 @@ auto Address::store(mlir::OpBuilder &builder, mlir::Location loc,
     return mlir::failure();
   }
   if (mlir::isa<mlir::MemRefType>(base.getType())) {
+    if (mlir::cast<mlir::MemRefType>(base.getType()).getRank() !=
+        static_cast<int64_t>(indices.size())) {
+      return mlir::failure();
+    }
     mlir::memref::StoreOp::create(builder, loc, value, base, indices);
   } else {
     auto pointer = materialize(builder, loc);
@@ -169,7 +188,13 @@ auto createLocalSlot(mlir::OpBuilder &builder, mlir::Location loc,
   if (!initial) {
     return {};
   }
-  auto slot = createLocalStorage(builder, loc, initial.getType());
+  auto type = initial.getType();
+  // Store the value itself. For a memref this is a descriptor slot, rather
+  // than another allocation of its underlying element buffer.
+  auto slotType = mlir::MemRefType::isValidElementType(type)
+                      ? mlir::Type(mlir::MemRefType::get({}, type))
+                      : type;
+  auto slot = createLocalStorage(builder, loc, slotType);
   auto address = Address::get(slot, initial.getType());
   if (mlir::failed(address) ||
       mlir::failed(address->store(builder, loc, initial))) {

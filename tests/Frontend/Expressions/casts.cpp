@@ -23,6 +23,6 @@ const char *message(void) { return "ok"; }
 
 int *identity(int *value) { return value; }
 
-// CHECK-LABEL: func.func @identity(%arg0: memref<?xi32>) -> !llvm.ptr
+// CHECK-LABEL: func.func @identity(%arg0: memref<?xi32, strided<[1], offset: ?>>) -> !llvm.ptr
 // CHECK: memref.extract_aligned_pointer_as_index %arg0
 // CHECK: return {{.*}} : !llvm.ptr

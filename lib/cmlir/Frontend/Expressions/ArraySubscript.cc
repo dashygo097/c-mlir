@@ -1,4 +1,4 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -6,7 +6,7 @@
 
 namespace cmlir::frontend {
 
-auto ASTLowering::emitArrayAddress(clang::ArraySubscriptExpr *expr)
+auto ExpressionLowering::emitArrayAddress(clang::ArraySubscriptExpr *expr)
     -> mlir::FailureOr<clang_mlir::Address> {
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getExprLoc());
@@ -75,8 +75,8 @@ auto ASTLowering::emitArrayAddress(clang::ArraySubscriptExpr *expr)
   return clang_mlir::Address::get(base, memref.getElementType(), indices);
 }
 
-auto ASTLowering::generateArraySubscriptExpr(clang::ArraySubscriptExpr *expr)
-    -> mlir::Value {
+auto ExpressionLowering::generateArraySubscriptExpr(
+    clang::ArraySubscriptExpr *expr) -> mlir::Value {
   auto address = emitArrayAddress(expr);
   if (mlir::failed(address)) {
     return {};

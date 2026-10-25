@@ -11,19 +11,21 @@ namespace cmlir::frontend {
 
 namespace {
 
-auto references(const clang::Stmt *stmt, const clang::VarDecl *var) -> bool {
-  if (!stmt) {
+auto references(const clang::Expr *expr, const clang::VarDecl *var) -> bool {
+  if (!expr) {
     return false;
   }
-  if (auto *ref = llvm::dyn_cast<clang::DeclRefExpr>(stmt)) {
-    if (ref->getDecl() == var) {
-      return true;
-    }
+  expr = expr->IgnoreParens();
+  if (auto *ref = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
+    return ref->getDecl() == var;
   }
-  for (auto *child : stmt->children()) {
-    if (references(child, var)) {
-      return true;
-    }
+  if (auto *cast = llvm::dyn_cast<clang::CastExpr>(expr)) {
+    return cast->getCastKind() == clang::CK_NoOp &&
+           references(cast->getSubExpr(), var);
+  }
+  if (auto *conditional = llvm::dyn_cast<clang::ConditionalOperator>(expr)) {
+    return references(conditional->getTrueExpr(), var) ||
+           references(conditional->getFalseExpr(), var);
   }
   return false;
 }
@@ -43,8 +45,26 @@ auto needsStorage(const clang::Stmt *stmt, const clang::VarDecl *var) -> bool {
       return true;
     }
   }
-  if (llvm::isa<clang::CallExpr>(stmt) && references(stmt, var)) {
-    return true;
+  if (auto *call = llvm::dyn_cast<clang::CallExpr>(stmt)) {
+    if (auto *callee = call->getDirectCallee()) {
+      for (unsigned i = 0; i < call->getNumArgs() && i < callee->getNumParams();
+           ++i) {
+        if (callee->getParamDecl(i)->getType()->isReferenceType() &&
+            references(call->getArg(i), var)) {
+          return true;
+        }
+      }
+    }
+  }
+  if (auto *declarations = llvm::dyn_cast<clang::DeclStmt>(stmt)) {
+    for (auto *decl : declarations->decls()) {
+      if (auto *binding = llvm::dyn_cast<clang::VarDecl>(decl)) {
+        if (binding->getType()->isReferenceType() &&
+            references(binding->getInit(), var)) {
+          return true;
+        }
+      }
+    }
   }
   for (auto *child : stmt->children()) {
     if (needsStorage(child, var)) {
@@ -148,6 +168,7 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
   auto savedFunction = std::move(function);
   function = FunctionState{};
   function.operation = funcOp;
+  function.declaration = decl;
   auto reset =
       llvm::scope_exit([&]() -> void { function = std::move(savedFunction); });
 
@@ -162,14 +183,16 @@ auto ASTLowering::emitFunction(clang::FunctionDecl *decl) -> bool {
   for (uint32_t i = 0; i < decl->getNumParams(); ++i) {
     auto *param = decl->getParamDecl(i);
     auto value = entryBlock->getArgument(argIdx++);
+    if (param->getType()->isReferenceType()) {
+      function.locals[param] = value;
+      continue;
+    }
     if (param->getType().isRestrictQualified()) {
       funcOp.setArgAttr(value.getArgNumber(), "cmlir.restrict",
                         builder.getUnitAttr());
     }
     if (mlir::isa<mlir::LLVM::LLVMStructType>(value.getType()) ||
-        ((value.getType().isIntOrFloat() || value.getType().isIndex() ||
-          mlir::isa<mlir::LLVM::LLVMPointerType>(value.getType())) &&
-         needsStorage(decl->getBody(), param))) {
+        needsStorage(decl->getBody(), param)) {
       function.locals[param] =
           clang_mlir::createLocalSlot(builder, builder.getUnknownLoc(), value);
       if (!function.locals[param]) {

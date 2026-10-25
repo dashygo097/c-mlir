@@ -1,8 +1,8 @@
-#include "../../Lowering.h"
+#include "../ExpressionLowering.h"
+#include "../PointerArithmetic.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/FloatingPoint.h"
 #include "clang-mlir/Numerics.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "clang/AST/OperationKinds.h"
 #include "llvm/Support/WithColor.h"
 
@@ -46,147 +46,123 @@ auto emitCompoundArith(mlir::OpBuilder &builder, mlir::Location loc,
   }
 }
 
-auto ASTLowering::emitAssignmentAddress(clang::BinaryOperator *assignOp)
-    -> mlir::FailureOr<clang_mlir::Address> {
-  mlir::OpBuilder &builder = context.builder();
-  mlir::Location loc = context.source().location(assignOp->getExprLoc());
-
-  mlir::Value rhsValue;
-  // C++17 sequences the RHS before the LHS, including compound assignment.
+auto ExpressionLowering::emitAssignmentLValue(clang::BinaryOperator &expr,
+                                              mlir::Type resultType,
+                                              LValueConsumer consume)
+    -> mlir::FailureOr<mlir::Value> {
+  // C++17 sequences the RHS before all LHS evaluation, including its condition.
+  mlir::Value rhs;
   if (context.ast().getLangOpts().CPlusPlus17) {
-    rhsValue = generateExpr(assignOp->getRHS());
-    if (!rhsValue) {
+    rhs = generateExpr(expr.getRHS());
+    if (!rhs) {
       return mlir::failure();
     }
   }
-  auto address = emitAddress(assignOp->getLHS());
-  if (mlir::failed(address)) {
-    return mlir::failure();
-  }
+  return emitLValue(
+      expr.getLHS(), resultType,
+      [&](const LValueResult &result) -> mlir::FailureOr<mlir::Value> {
+        const auto *object = std::get_if<ObjectResult>(&result);
+        if (!object) {
+          return mlir::failure();
+        }
+        auto value = storeAssignment(&expr, object->address,
+                                     rhs ? rhs : generateExpr(expr.getRHS()));
+        if (!value) {
+          return mlir::failure();
+        }
+        return consume(ObjectResult{object->address, value});
+      });
+}
 
+auto ExpressionLowering::storeAssignment(clang::BinaryOperator *assignOp,
+                                         const clang_mlir::Address &address,
+                                         mlir::Value rhsValue) -> mlir::Value {
+  auto &builder = context.builder();
+  auto loc = context.source().location(assignOp->getExprLoc());
   if (!rhsValue) {
-    rhsValue = generateExpr(assignOp->getRHS());
+    return {};
   }
-  if (!rhsValue) {
-    return mlir::failure();
-  }
-
   mlir::Value resultValue = rhsValue;
 
   if (assignOp->getOpcode() != clang::BO_Assign) {
-    mlir::Type lhsElemType = types.convertType(assignOp->getLHS()->getType());
-    if (!lhsElemType) {
-      return mlir::failure();
-    }
-
-    if (assignOp->getLHS()->getType()->isPointerType()) {
-      lhsElemType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-    }
-
-    mlir::Value oldValue = address->load(builder, loc);
+    mlir::Value oldValue = address.load(builder, loc);
     if (!oldValue) {
-      return mlir::failure();
+      return {};
     }
 
-    mlir::Type lhsType = oldValue.getType();
-    mlir::Value computeLHS = oldValue;
-    clang::QualType computationType = assignOp->getLHS()->getType();
-
-    if (auto *compOp =
-            mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
-      // Select operations using the promoted computation type, before the
-      // result is converted back to the storage type of the LHS.
-      computationType = compOp->getComputationLHSType();
-      mlir::Type computeType = types.convertType(computationType);
-      if (!computeType) {
-        return mlir::failure();
-      }
-
-      bool isSigned =
-          compOp->getLHS()->getType()->isSignedIntegerOrEnumerationType();
-
-      computeLHS =
-          clang_mlir::toValue(builder, loc, computeLHS, computeType, isSigned);
-      if (!computeLHS) {
-        return mlir::failure();
-      }
-    }
-
-    if (assignOp->getOpcode() == clang::BO_ShlAssign ||
-        assignOp->getOpcode() == clang::BO_ShrAssign) {
-      rhsValue = clang_mlir::toValue(
-          builder, loc, rhsValue, computeLHS.getType(),
-          assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType());
-      if (!rhsValue) {
-        return mlir::failure();
-      }
-    }
-
-    mlir::Value computed = emitCompoundArith(
-        builder, loc, assignOp->getOpcode(), computeLHS, rhsValue,
-        computationType->isUnsignedIntegerOrEnumerationType(),
-        clang_mlir::getFastMathFlags(*assignOp, context.ast().getLangOpts()));
-    if (!computed) {
-      return mlir::failure();
-    }
-
-    resultValue = computed;
-
-    if (auto *compOp =
-            mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
-      bool isSigned =
-          compOp->getLHS()->getType()->isSignedIntegerOrEnumerationType();
-
-      resultValue =
-          clang_mlir::toValue(builder, loc, computed, lhsType, isSigned);
-      if (!resultValue) {
-        return mlir::failure();
-      }
-    }
-  }
-
-  if (assignOp->getOpcode() == clang::BO_Assign) {
     if (assignOp->getLHS()->getType()->isPointerType()) {
-      auto ptrType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-
-      if (!mlir::isa<mlir::LLVM::LLVMPointerType>(resultValue.getType())) {
-        resultValue = clang_mlir::toPointer(builder, loc, resultValue, ptrType);
-        if (!resultValue) {
-          return mlir::failure();
-        }
+      auto element = types.convertStorageType(
+          assignOp->getLHS()->getType()->getPointeeType());
+      if (!element) {
+        return {};
       }
+      resultValue = emitPointerOffset(
+          builder, loc, oldValue, rhsValue, element,
+          assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType(),
+          assignOp->getOpcode() == clang::BO_SubAssign);
     } else {
-      mlir::Type lhsType = types.convertType(assignOp->getLHS()->getType());
-      if (!lhsType) {
-        return mlir::failure();
-      }
+      mlir::Value computeLHS = oldValue;
+      clang::QualType computationType = assignOp->getLHS()->getType();
 
-      if (resultValue.getType() != lhsType) {
+      if (auto *compOp =
+              mlir::dyn_cast<clang::CompoundAssignOperator>(assignOp)) {
+        computationType = compOp->getComputationLHSType();
+        mlir::Type computeType = types.convertType(computationType);
+        if (!computeType) {
+          return {};
+        }
+
         bool isSigned =
-            assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType();
+            compOp->getLHS()->getType()->isSignedIntegerOrEnumerationType();
 
-        if (mlir::Value casted = clang_mlir::toValue(builder, loc, resultValue,
-                                                     lhsType, isSigned)) {
-          resultValue = casted;
+        computeLHS = clang_mlir::toValue(builder, loc, computeLHS, computeType,
+                                         isSigned);
+        if (!computeLHS) {
+          return {};
         }
       }
+
+      if (assignOp->getOpcode() == clang::BO_ShlAssign ||
+          assignOp->getOpcode() == clang::BO_ShrAssign) {
+        rhsValue = clang_mlir::toValue(
+            builder, loc, rhsValue, computeLHS.getType(),
+            assignOp->getRHS()->getType()->isSignedIntegerOrEnumerationType());
+        if (!rhsValue) {
+          return {};
+        }
+      }
+
+      mlir::Value computed = emitCompoundArith(
+          builder, loc, assignOp->getOpcode(), computeLHS, rhsValue,
+          computationType->isUnsignedIntegerOrEnumerationType(),
+          clang_mlir::getFastMathFlags(*assignOp, context.ast().getLangOpts()));
+      if (!computed) {
+        return {};
+      }
+
+      resultValue = computed;
     }
   }
 
-  if (mlir::failed(address->store(builder, loc, resultValue))) {
-    return mlir::failure();
-  }
-  return *address;
-}
-
-auto ASTLowering::generateAssignmentBinaryOperator(clang::BinaryOperator *expr)
-    -> mlir::Value {
-  auto address = emitAssignmentAddress(expr);
-  if (mlir::failed(address)) {
+  auto sourceType = assignOp->getOpcode() == clang::BO_Assign
+                        ? assignOp->getRHS()->getType()
+                        : assignOp->getLHS()->getType();
+  resultValue =
+      clang_mlir::toValue(builder, loc, resultValue, address.elementType(),
+                          sourceType->isSignedIntegerOrEnumerationType());
+  if (!resultValue) {
     return {};
   }
-  return address->load(context.builder(),
-                       context.source().location(expr->getOperatorLoc()));
+
+  if (mlir::failed(address.store(builder, loc, resultValue))) {
+    return {};
+  }
+  return resultValue;
+}
+
+auto ExpressionLowering::generateAssignmentBinaryOperator(
+    clang::BinaryOperator *expr) -> mlir::Value {
+  return loadLValue(expr);
 }
 
 } // namespace cmlir::frontend

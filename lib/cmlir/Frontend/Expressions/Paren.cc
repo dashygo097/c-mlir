@@ -1,8 +1,8 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateParenExpr(clang::ParenExpr *parenExpr)
+auto ExpressionLowering::generateParenExpr(clang::ParenExpr *parenExpr)
     -> mlir::Value {
   return generateExpr(parenExpr->getSubExpr());
 }

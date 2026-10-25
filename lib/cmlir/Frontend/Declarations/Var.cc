@@ -1,3 +1,4 @@
+#include "../Initialization.h"
 #include "../Lowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang/AST/ExprCXX.h"
@@ -19,7 +20,37 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
     return false;
   }
 
+  if (decl->getType()->isReferenceType()) {
+    auto address = expressions.emitAddress(*decl->getInit());
+    if (mlir::failed(address)) {
+      return false;
+    }
+    function.locals[decl] = address->materialize(
+        context.builder(), context.source().location(decl->getLocation()));
+    return static_cast<bool>(function.locals[decl]);
+  }
+  if (decl->getType()->isPointerType() && decl->hasInit()) {
+    auto initial = expressions.emitValue(*decl->getInit());
+    if (mlir::failed(initial)) {
+      return false;
+    }
+    auto &builder = context.builder();
+    auto loc = context.source().location(decl->getLocation());
+    auto value = *initial;
+    if (mlir::isa<mlir::MemRefType>(value.getType())) {
+      value = clang_mlir::toValue(builder, loc, value,
+                                  types.convertType(decl->getType()));
+    }
+    function.locals[decl] = clang_mlir::createLocalSlot(builder, loc, value);
+    return static_cast<bool>(function.locals[decl]);
+  }
   auto type = types.convertObjectType(decl->getType());
+  if (decl->getType()->isPointerType()) {
+    auto valueType = types.convertType(decl->getType());
+    if (valueType && mlir::MemRefType::isValidElementType(valueType)) {
+      type = mlir::MemRefType::get({}, valueType);
+    }
+  }
   if (!type) {
     return false;
   }
@@ -29,8 +60,11 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
   for (auto current = decl->getType(); current->isArrayType();) {
     auto *array = context.ast().getAsArrayType(current);
     if (auto *variable = llvm::dyn_cast<clang::VariableArrayType>(array)) {
-      auto size = clang_mlir::toIndex(builder, loc,
-                                      generateExpr(variable->getSizeExpr()));
+      auto value = expressions.emitValue(*variable->getSizeExpr());
+      if (mlir::failed(value)) {
+        return false;
+      }
+      auto size = clang_mlir::toIndex(builder, loc, *value);
       if (!size) {
         return false;
       }
@@ -47,7 +81,8 @@ auto ASTLowering::emitVariable(clang::VarDecl *decl) -> bool {
   }
   function.locals[decl] = storage;
   return !decl->hasInit() ||
-         initializeObject(decl->getType(), decl->getInit(), storage);
+         ObjectInitialization(context, types, expressions)
+             .emit(decl->getType(), decl->getInit(), storage);
 }
 
 } // namespace cmlir::frontend

@@ -1,10 +1,10 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Constants.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateDeclRefExpr(clang::DeclRefExpr *declRef)
+auto ExpressionLowering::generateDeclRefExpr(clang::DeclRefExpr *declRef)
     -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = context.source().location(declRef->getExprLoc());
@@ -24,7 +24,7 @@ auto ASTLowering::generateDeclRefExpr(clang::DeclRefExpr *declRef)
     }
 
     if (function.locals.count(varDecl)) {
-      return varDecl->getType()->isArrayType() ? function.locals[varDecl]
+      return declRef->getType()->isArrayType() ? function.locals[varDecl]
                                                : loadLValue(declRef);
     }
 

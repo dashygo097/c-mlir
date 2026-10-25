@@ -1,5 +1,6 @@
 #include "../Types/TypeLowering.h"
 #include "CallLowering.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/Basic/SourceManager.h"
 
@@ -18,8 +19,21 @@ auto lowerFunctionSignature(TypeLowering &types,
                             const clang::FunctionDecl &decl,
                             CallConvention convention)
     -> mlir::FailureOr<mlir::FunctionType> {
+  bool nativeABI =
+      convention == CallConvention::External ||
+      (decl.getASTContext().getLangOpts().CPlusPlus && decl.isExternC());
   auto convert = [&](clang::QualType type) -> mlir::Type {
-    if (convention == CallConvention::Internal) {
+    if (type->isReferenceType()) {
+      auto address = types.convertType(type);
+      if (!address) {
+        return {};
+      }
+      if (nativeABI) {
+        return mlir::LLVM::LLVMPointerType::get(address.getContext());
+      }
+      return address;
+    }
+    if (!nativeABI) {
       return types.convertType(type);
     }
     // Aggregate ABI classification needs target-specific handling. Reject it

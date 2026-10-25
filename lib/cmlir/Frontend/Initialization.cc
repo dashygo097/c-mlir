@@ -1,4 +1,5 @@
-#include "Lowering.h"
+#include "Initialization.h"
+#include "Expressions/ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -6,14 +7,9 @@
 
 namespace cmlir::frontend {
 
-// A null initializer requests zero initialization of this subobject. Callers
-// leave default-initialized objects alone instead of passing a null
-// initializer.
-auto ASTLowering::initializeObject(clang::QualType type,
-                                   clang::Expr *initializer,
-                                   mlir::Value storage,
-                                   llvm::ArrayRef<mlir::Value> indices)
-    -> bool {
+auto ObjectInitialization::emit(clang::QualType type, clang::Expr *initializer,
+                                mlir::Value storage,
+                                llvm::ArrayRef<mlir::Value> indices) -> bool {
   auto &builder = context.builder();
   auto sourceLoc =
       initializer ? initializer->getExprLoc() : clang::SourceLocation{};
@@ -21,11 +17,11 @@ auto ASTLowering::initializeObject(clang::QualType type,
   if (initializer) {
     initializer = initializer->IgnoreParens();
     if (auto *cleanup = llvm::dyn_cast<clang::ExprWithCleanups>(initializer)) {
-      return initializeObject(type, cleanup->getSubExpr(), storage, indices);
+      return emit(type, cleanup->getSubExpr(), storage, indices);
     }
     if (auto *defaultInit =
             llvm::dyn_cast<clang::CXXDefaultInitExpr>(initializer)) {
-      return initializeObject(type, defaultInit->getExpr(), storage, indices);
+      return emit(type, defaultInit->getExpr(), storage, indices);
     }
     if (llvm::isa<clang::ImplicitValueInitExpr, clang::CXXScalarValueInitExpr>(
             initializer)) {
@@ -71,8 +67,7 @@ auto ASTLowering::initializeObject(clang::QualType type,
             builder, loc, storage.getType(), layout, storage,
             llvm::ArrayRef<mlir::LLVM::GEPArg>{0, static_cast<int32_t>(i)});
       }
-      if (!initializeObject(elementType, element, elementStorage,
-                            elementIndices)) {
+      if (!emit(elementType, element, elementStorage, elementIndices)) {
         return false;
       }
     }
@@ -91,7 +86,7 @@ auto ASTLowering::initializeObject(clang::QualType type,
       auto pointer = mlir::LLVM::GEPOp::create(
           builder, loc, storage.getType(), layout, storage,
           llvm::ArrayRef<mlir::LLVM::GEPArg>{0, static_cast<int32_t>(index)});
-      if (!initializeObject(field->getType(), element, pointer)) {
+      if (!emit(field->getType(), element, pointer)) {
         return false;
       }
       ++index;
@@ -100,17 +95,23 @@ auto ASTLowering::initializeObject(clang::QualType type,
   }
 
   if (list) {
-    return initializeObject(type,
-                            list->getNumInits() ? list->getInit(0) : nullptr,
-                            storage, indices);
+    return emit(type, list->getNumInits() ? list->getInit(0) : nullptr, storage,
+                indices);
   }
   auto element = types.convertStorageType(type);
+  if (auto memref = mlir::dyn_cast<mlir::MemRefType>(storage.getType())) {
+    element = memref.getElementType();
+  }
   if (!element) {
     return false;
   }
   mlir::Value value;
   if (initializer) {
-    value = generateExpr(initializer);
+    auto emitted = expressions.emitValue(*initializer);
+    if (mlir::failed(emitted)) {
+      return false;
+    }
+    value = *emitted;
     value = clang_mlir::toValue(
         builder, loc, value, element,
         initializer->getType()->isSignedIntegerOrEnumerationType());

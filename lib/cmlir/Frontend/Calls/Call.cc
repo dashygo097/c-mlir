@@ -1,4 +1,4 @@
-#include "../Lowering.h"
+#include "../Expressions/ExpressionLowering.h"
 #include "CallLowering.h"
 #include "clang-mlir/FloatingPoint.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -6,19 +6,20 @@
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
+auto ExpressionLowering::generateCallExpr(clang::CallExpr *expr)
+    -> mlir::FailureOr<mlir::Value> {
   const auto *callee = expr->getDirectCallee();
   if (!callee) {
     context.source().error(expr->getExprLoc(),
                            "indirect calls are unsupported");
-    return {};
+    return mlir::failure();
   }
   if (auto *method = llvm::dyn_cast<clang::CXXMethodDecl>(callee)) {
     if (method->isVirtual() || llvm::isa<clang::CXXDestructorDecl>(method)) {
       context.source().error(
           expr->getExprLoc(),
           "virtual calls and destructor calls are unsupported");
-      return {};
+      return mlir::failure();
     }
   }
 
@@ -27,9 +28,9 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
     auto *object = memberCall->getImplicitObjectArgument();
     mlir::Value value;
     if (object->isGLValue() && !object->getType()->isPointerType()) {
-      auto address = emitAddress(object);
+      auto address = addressOf(object);
       if (mlir::failed(address)) {
-        return {};
+        return mlir::failure();
       }
       value = address->materialize(
           context.builder(), context.source().location(expr->getExprLoc()));
@@ -37,7 +38,7 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
       value = generateExpr(object);
     }
     if (!value) {
-      return {};
+      return mlir::failure();
     }
     // Materialize a record value only when the implicit object is an rvalue.
     // Addressable objects already carry their storage pointer.
@@ -48,10 +49,22 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
     }
     arguments.push_back({value, object->getType()});
   }
-  for (auto *argument : expr->arguments()) {
-    auto value = generateExpr(argument);
+  for (unsigned i = 0; i < expr->getNumArgs(); ++i) {
+    auto *argument = expr->getArg(i);
+    mlir::Value value;
+    if (i < callee->getNumParams() &&
+        callee->getParamDecl(i)->getType()->isReferenceType()) {
+      auto address = addressOf(argument);
+      if (mlir::failed(address)) {
+        return mlir::failure();
+      }
+      value = address->materialize(
+          context.builder(), context.source().location(argument->getExprLoc()));
+    } else {
+      value = generateExpr(argument);
+    }
     if (!value) {
-      return {};
+      return mlir::failure();
     }
     arguments.push_back({value, argument->getType()});
   }
@@ -61,7 +74,7 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
       context.source().error(expr->getExprLoc(),
                              "function call lowering failed");
     }
-    return {};
+    return mlir::failure();
   }
   if (*result) {
     if (auto operation =
@@ -74,7 +87,7 @@ auto ASTLowering::generateCallExpr(clang::CallExpr *expr) -> mlir::Value {
           mlir::arith::FastMathFlagsAttr::get(&context.ir(), flags));
     }
   }
-  return *result;
+  return result;
 }
 
 } // namespace cmlir::frontend

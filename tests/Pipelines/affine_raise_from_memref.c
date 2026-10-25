@@ -13,7 +13,7 @@ void mlp(float output[2], const float input[2]) {
   }
 }
 
-// CHECK: func.func @mlp(%arg0: memref<?xf32>, %arg1: memref<?xf32>)
+// CHECK: func.func @mlp(%arg0: memref<?xf32, strided<[1], offset: ?>>, %arg1: memref<?xf32, strided<[1], offset: ?>>)
 // CHECK-DAG: %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG: %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG: %[[c2:.+]] = arith.constant 2 : index
@@ -31,13 +31,13 @@ void mlp(float output[2], const float input[2]) {
 // CHECK: affine.store %[[cst_0]], %[[alloca_3]][1] : memref<2xf32>
 // CHECK: scf.for %[[arg2:.+]] = %[[c0]] to %[[c2]] step %[[c1]] {
 // CHECK:   %[[V0:.+]] = memref.load %[[alloca_3]][%[[arg2]]] : memref<2xf32>
-// CHECK:   memref.store %[[V0]], %arg0[%[[arg2]]] : memref<?xf32>
+// CHECK:   memref.store %[[V0]], %arg0[%[[arg2]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK:   scf.for %[[arg3:.+]] = %[[c0]] to %[[c2]] step %[[c1]] {
 // CHECK:     %[[V1:.+]] = memref.load %[[alloca]][%[[arg2]], %[[arg3]]] : memref<2x2xf32>
-// CHECK:     %[[V2:.+]] = memref.load %arg1[%[[arg3]]] : memref<?xf32>
+// CHECK:     %[[V2:.+]] = memref.load %arg1[%[[arg3]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK:     %[[V3:.+]] = arith.mulf %[[V1]], %[[V2]] : f32
-// CHECK:     %[[V4:.+]] = memref.load %arg0[%[[arg2]]] : memref<?xf32>
+// CHECK:     %[[V4:.+]] = memref.load %arg0[%[[arg2]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK:     %[[V5:.+]] = arith.addf %[[V4]], %[[V3]] : f32
-// CHECK:     memref.store %[[V5]], %arg0[%[[arg2]]] : memref<?xf32>
+// CHECK:     memref.store %[[V5]], %arg0[%[[arg2]]] : memref<?xf32, strided<[1], offset: ?>>
 // CHECK:   }
 // CHECK: }

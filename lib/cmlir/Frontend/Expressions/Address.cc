@@ -1,70 +1,50 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
-#include "clang-mlir/FloatingPoint.h"
-#include "clang-mlir/Numerics.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::emitAddress(clang::Expr *expr)
+auto ExpressionLowering::emitStorageAddress(clang::Expr *expr)
     -> mlir::FailureOr<clang_mlir::Address> {
-  expr = expr->IgnoreParens();
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getExprLoc());
-  if (auto *cast = llvm::dyn_cast<clang::CastExpr>(expr)) {
-    if (cast->getCastKind() == clang::CK_NoOp) {
-      return emitAddress(cast->getSubExpr());
-    }
-  }
   if (auto *temporary = llvm::dyn_cast<clang::MaterializeTemporaryExpr>(expr)) {
     auto value = generateExpr(temporary->getSubExpr());
-    auto storage = clang_mlir::createLocalSlot(builder, loc, value);
-    return clang_mlir::Address::get(storage,
-                                    types.convertStorageType(expr->getType()));
-  }
-  if (auto *binary = llvm::dyn_cast<clang::BinaryOperator>(expr)) {
-    if (binary->isAssignmentOp()) {
-      return emitAssignmentAddress(binary);
+    if (!value) {
+      return mlir::failure();
     }
+    if (expr->getType()->isArrayType()) {
+      if (auto memref = mlir::dyn_cast<mlir::MemRefType>(value.getType())) {
+        return clang_mlir::Address::get(value, memref.getElementType());
+      }
+    }
+    if (expr->getType()->isPointerType() &&
+        mlir::isa<mlir::MemRefType>(value.getType())) {
+      value = clang_mlir::toValue(builder, loc, value,
+                                  types.convertType(expr->getType()));
+      if (!value) {
+        return mlir::failure();
+      }
+    }
+    auto storage = clang_mlir::createLocalSlot(builder, loc, value);
+    return clang_mlir::Address::get(storage, value.getType());
   }
   if (auto *array = llvm::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
     return emitArrayAddress(array);
   }
-  if (auto *conditional = llvm::dyn_cast<clang::ConditionalOperator>(expr)) {
-    auto condition =
-        clang_mlir::toBool(builder, loc, generateExpr(conditional->getCond()));
-    if (!condition) {
-      return mlir::failure();
-    }
-    auto pointerType = mlir::LLVM::LLVMPointerType::get(builder.getContext());
-    auto selection =
-        mlir::scf::IfOp::create(builder, loc, pointerType, condition, true);
-    for (auto [block, arm] :
-         {std::pair{selection.thenBlock(), conditional->getTrueExpr()},
-          std::pair{selection.elseBlock(), conditional->getFalseExpr()}}) {
-      mlir::OpBuilder::InsertionGuard guard(builder);
-      builder.setInsertionPointToStart(block);
-      auto address = emitAddress(arm);
-      if (mlir::failed(address)) {
-        return mlir::failure();
-      }
-      auto pointer = clang_mlir::toPointer(
-          builder, loc, address->materialize(builder, loc), pointerType);
-      if (!pointer) {
-        return mlir::failure();
-      }
-      mlir::scf::YieldOp::create(builder, loc, pointer);
-    }
-    builder.setInsertionPointAfter(selection);
-    return clang_mlir::Address::get(selection.getResult(0),
-                                    types.convertStorageType(expr->getType()));
-  }
   mlir::Value base;
   llvm::SmallVector<mlir::Value, 4> indices;
-  if (auto *decl = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
+  if (auto *call = llvm::dyn_cast<clang::CallExpr>(expr)) {
+    auto result = generateCallExpr(call);
+    if (mlir::failed(result)) {
+      return mlir::failure();
+    }
+    base = *result;
+  } else if (auto *literal = llvm::dyn_cast<clang::StringLiteral>(expr)) {
+    base = generateStringLiteral(literal);
+  } else if (auto *decl = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
     if (auto *var = llvm::dyn_cast<clang::VarDecl>(decl->getDecl())) {
       auto it = function.locals.find(var);
       if (it != function.locals.end()) {
@@ -78,22 +58,6 @@ auto ASTLowering::emitAddress(clang::Expr *expr)
   } else if (auto *member = llvm::dyn_cast<clang::MemberExpr>(expr)) {
     return emitMemberAddress(member);
   } else if (auto *unary = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
-    if (unary->isIncrementDecrementOp() && unary->isPrefix()) {
-      auto address = emitAddress(unary->getSubExpr());
-      if (mlir::failed(address)) {
-        return mlir::failure();
-      }
-      auto old = address->load(builder, loc);
-      auto flags =
-          clang_mlir::getFastMathFlags(*unary, context.ast().getLangOpts());
-      auto value = unary->isIncrementOp()
-                       ? clang_mlir::inc(builder, loc, old, flags)
-                       : clang_mlir::dec(builder, loc, old, flags);
-      if (!value || mlir::failed(address->store(builder, loc, value))) {
-        return mlir::failure();
-      }
-      return address;
-    }
     if (unary->getOpcode() == clang::UO_Deref) {
       base = generateExpr(unary->getSubExpr());
       if (base) {
@@ -106,6 +70,11 @@ auto ASTLowering::emitAddress(clang::Expr *expr)
     }
   }
   mlir::Type element = types.convertStorageType(expr->getType());
+  if (base) {
+    if (auto memref = mlir::dyn_cast<mlir::MemRefType>(base.getType())) {
+      element = memref.getElementType();
+    }
+  }
   auto address = clang_mlir::Address::get(base, element, indices);
   if (mlir::failed(address)) {
     context.source().error(expr->getExprLoc(),
@@ -114,26 +83,55 @@ auto ASTLowering::emitAddress(clang::Expr *expr)
   return address;
 }
 
-auto ASTLowering::loadLValue(clang::Expr *expr) -> mlir::Value {
-  expr = expr->IgnoreParens();
-  if (auto *conditional = llvm::dyn_cast<clang::ConditionalOperator>(expr)) {
-    return generateConditionalOperator(conditional);
+auto ExpressionLowering::addressOf(clang::Expr *expr)
+    -> mlir::FailureOr<clang_mlir::Address> {
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  auto target =
+      types.convertType(context.ast().getLValueReferenceType(expr->getType()));
+  if (!target) {
+    return mlir::failure();
   }
-  if (auto *ref = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-    if (auto *param = llvm::dyn_cast<clang::ParmVarDecl>(ref->getDecl())) {
-      if (function.parameters.count(param)) {
-        return function.parameters[param];
-      }
-    }
+  auto emitted = emitLValue(
+      expr, target,
+      [&](const LValueResult &result) -> mlir::FailureOr<mlir::Value> {
+        const auto *object = std::get_if<ObjectResult>(&result);
+        if (!object) {
+          context.source().error(expr->getExprLoc(),
+                                 "object has no addressable storage");
+          return mlir::failure();
+        }
+        return object->address.materialize(builder, loc);
+      });
+  if (mlir::failed(emitted)) {
+    return mlir::failure();
   }
-  if (auto *member = llvm::dyn_cast<clang::MemberExpr>(expr)) {
-    return generateMemberExpr(member);
-  }
-  auto address = emitAddress(expr);
-  return mlir::succeeded(address)
-             ? address->load(context.builder(),
-                             context.source().location(expr->getExprLoc()))
-             : mlir::Value{};
+  auto base = *emitted;
+  auto memref = base ? mlir::dyn_cast<mlir::MemRefType>(base.getType())
+                     : mlir::MemRefType{};
+  return clang_mlir::Address::get(
+      base, memref ? memref.getElementType()
+                   : types.convertStorageType(expr->getType()));
+}
+
+auto ExpressionLowering::loadLValue(clang::Expr *expr) -> mlir::Value {
+  auto &builder = context.builder();
+  auto loc = context.source().location(expr->getExprLoc());
+  auto emitted = emitLValue(
+      expr, types.convertType(expr->getType()),
+      [&](const LValueResult &result) -> mlir::FailureOr<mlir::Value> {
+        if (const auto *value = std::get_if<mlir::Value>(&result)) {
+          return *value;
+        }
+        const auto &object = std::get<ObjectResult>(result);
+        auto value = object.computed ? object.computed
+                                     : object.address.load(builder, loc);
+        if (!value) {
+          return mlir::failure();
+        }
+        return value;
+      });
+  return mlir::succeeded(emitted) ? *emitted : mlir::Value{};
 }
 
 } // namespace cmlir::frontend

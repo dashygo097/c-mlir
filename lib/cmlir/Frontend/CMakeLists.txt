@@ -26,6 +26,7 @@ add_library(CMLIRFrontend STATIC
   Expressions/Dispatch.cc
   Expressions/InitList.cc
   Expressions/Literals.cc
+  Expressions/LValue.cc
   Expressions/Logical.cc
   Expressions/Member.cc
   Expressions/Paren.cc

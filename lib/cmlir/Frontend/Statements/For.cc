@@ -132,7 +132,11 @@ auto ASTLowering::emitFor(clang::ForStmt *stmt) -> bool {
     return false;
   }
   auto init = clang_mlir::toIndex(builder, loc, address->load(builder, loc));
-  auto bound = clang_mlir::toIndex(builder, loc, generateExpr(plan->bound));
+  auto value = expressions.emitValue(*plan->bound);
+  if (mlir::failed(value)) {
+    return false;
+  }
+  auto bound = clang_mlir::toIndex(builder, loc, *value);
   if (!init || !bound) {
     return false;
   }

@@ -44,6 +44,17 @@ int main() {
   *(wide + 0) = 1.5;
   *(wide + 1) = 6.25;
   printf("scaling %.2f %.2f\n", *wide, wide[1]);
+  // Heap pointers retain the existing native representation. Updates share
+  // the same offset implementation as descriptor-backed local pointers.
+  heap[3] = 11;
+  heap += 2;
+  int old = *heap--;
+  int before = *--heap;
+  heap -= -2;
+  int after = *++heap;
+  *heap = 23;
+  printf("updates %d %d %d %d\n", old, before, after, *heap);
+  heap -= 3;
   int local[5] = {0, 0, 0, 0, 0};
   int result = view(local, 2);
   printf("memref %d %d\n", result, local[2]);
@@ -56,4 +67,5 @@ int main() {
 // CHECK: offsets 7 77 7
 // CHECK: evaluation 1 9
 // CHECK: scaling 1.50 6.25
+// CHECK: updates 2 0 11 23
 // CHECK: memref 17 17

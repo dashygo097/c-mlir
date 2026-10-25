@@ -1,4 +1,4 @@
-#include "../../Lowering.h"
+#include "../ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
 #include "clang-mlir/FloatingPoint.h"
@@ -11,7 +11,7 @@
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
+auto ExpressionLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
     -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = context.source().location(unOp->getExprLoc());
@@ -57,7 +57,7 @@ auto ASTLowering::generateUnaryOperator(clang::UnaryOperator *unOp)
   }
 
   case CUO::UO_Deref: {
-    auto address = emitAddress(unOp);
+    auto address = addressOf(unOp);
     if (mlir::failed(address)) {
       return {};
     }

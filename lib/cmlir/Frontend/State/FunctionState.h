@@ -17,6 +17,7 @@ struct FunctionState {
   llvm::DenseMap<const clang::VarDecl *, mlir::Value> locals;
   llvm::DenseMap<const clang::ParmVarDecl *, mlir::Value> parameters;
   mlir::func::FuncOp operation;
+  const clang::FunctionDecl *declaration = nullptr;
   mlir::Value thisValue;
   llvm::SmallVector<LoopContext, 4> controls;
 };

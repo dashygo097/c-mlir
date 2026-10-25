@@ -1,4 +1,4 @@
-#include "../../Lowering.h"
+#include "../ExpressionLowering.h"
 #include "../PointerArithmetic.h"
 #include "clang-mlir/Casts.h"
 #include "clang-mlir/Constants.h"
@@ -11,9 +11,8 @@
 
 namespace cmlir::frontend {
 
-// Handle pure value-producing binary expressions (no side effects on LHS).
-auto ASTLowering::generatePureBinaryOperator(clang::BinaryOperator *binOp)
-    -> mlir::Value {
+auto ExpressionLowering::generatePureBinaryOperator(
+    clang::BinaryOperator *binOp) -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = context.source().location(binOp->getExprLoc());
 

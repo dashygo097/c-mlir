@@ -21,7 +21,7 @@ float sum3(const float *a, int n, float initial) {
 // VEC-LABEL: func.func @sum3(
 // VEC: scf.for
 // VEC: vector.create_mask {{.*}} : vector<3xi1>
-// VEC: vector.transfer_read {{.*}} : memref<?xf32>, vector<3xf32>
+// VEC: vector.transfer_read {{.*}} : memref<?xf32, strided<[1], offset: ?>>, vector<3xf32>
 // VEC: arith.addf {{.*}} fastmath<fast> : vector<3xf32>
 // VEC: vector.reduction <add>
 // VEC: return

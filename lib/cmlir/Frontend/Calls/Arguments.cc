@@ -12,6 +12,14 @@ auto prepareCallArgument(mlir::OpBuilder &builder, mlir::Location loc,
     mlir::emitError(loc, "missing function call argument");
     return {};
   }
+  if (auto memref = mlir::dyn_cast<mlir::MemRefType>(value.getType());
+      memref && mlir::isa<mlir::LLVM::LLVMPointerType>(target) &&
+      mlir::isa<mlir::BaseMemRefType>(memref.getElementType())) {
+    mlir::emitError(
+        loc,
+        "native pointer arguments cannot address memref descriptor storage");
+    return {};
+  }
   if (auto converted = clang_mlir::toValue(
           builder, loc, value, target,
           !argument.clangType->isUnsignedIntegerOrEnumerationType())) {

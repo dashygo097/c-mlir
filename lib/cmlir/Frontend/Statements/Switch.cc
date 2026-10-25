@@ -16,7 +16,11 @@ auto ASTLowering::emitSwitch(clang::SwitchStmt *stmt) -> bool {
   }
   auto &builder = context.builder();
   auto loc = context.source().location(stmt->getSwitchLoc());
-  auto value = generateExpr(stmt->getCond());
+  auto emitted = expressions.emitValue(*stmt->getCond());
+  if (mlir::failed(emitted)) {
+    return false;
+  }
+  auto value = *emitted;
   if (!value || !mlir::isa<mlir::IntegerType>(value.getType())) {
     return false;
   }

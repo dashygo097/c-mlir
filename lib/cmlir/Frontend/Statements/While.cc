@@ -14,7 +14,11 @@ auto ASTLowering::emitWhile(clang::WhileStmt *stmt) -> bool {
   auto loop = mlir::scf::WhileOp::create(builder, loc, mlir::TypeRange{},
                                          mlir::ValueRange{});
   builder.createBlock(&loop.getBefore());
-  auto cond = clang_mlir::toBool(builder, loc, generateExpr(stmt->getCond()));
+  auto value = expressions.emitValue(*stmt->getCond());
+  if (mlir::failed(value)) {
+    return false;
+  }
+  auto cond = clang_mlir::toBool(builder, loc, *value);
   if (!cond) {
     return false;
   }

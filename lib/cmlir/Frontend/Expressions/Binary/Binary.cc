@@ -1,8 +1,8 @@
-#include "../../Lowering.h"
+#include "../ExpressionLowering.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateBinaryOperator(clang::BinaryOperator *binOp)
+auto ExpressionLowering::generateBinaryOperator(clang::BinaryOperator *binOp)
     -> mlir::Value {
   if (binOp->isAssignmentOp()) {
     return generateAssignmentBinaryOperator(binOp);

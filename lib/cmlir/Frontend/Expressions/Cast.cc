@@ -1,9 +1,10 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Casts.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateCastExpr(clang::CastExpr *expr) -> mlir::Value {
+auto ExpressionLowering::generateCastExpr(clang::CastExpr *expr)
+    -> mlir::Value {
   auto &builder = context.builder();
   auto loc = context.source().location(expr->getExprLoc());
   auto *operand = expr->getSubExpr();
@@ -16,7 +17,7 @@ auto ASTLowering::generateCastExpr(clang::CastExpr *expr) -> mlir::Value {
   case CK::CK_FunctionToPointerDecay:
     return generateExpr(operand);
   case CK::CK_ToVoid:
-    generateExpr(operand);
+    (void)emitDiscarded(*operand);
     return {};
   default:
     break;

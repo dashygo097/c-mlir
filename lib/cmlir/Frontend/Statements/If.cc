@@ -16,8 +16,11 @@ auto ASTLowering::emitIf(clang::IfStmt *stmt) -> bool {
   }
   auto &builder = context.builder();
   auto loc = context.source().location(stmt->getIfLoc());
-  auto condition =
-      clang_mlir::toBool(builder, loc, generateExpr(stmt->getCond()));
+  auto value = expressions.emitValue(*stmt->getCond());
+  if (mlir::failed(value)) {
+    return false;
+  }
+  auto condition = clang_mlir::toBool(builder, loc, *value);
   if (!condition) {
     return false;
   }

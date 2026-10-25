@@ -21,9 +21,7 @@ auto ASTLowering::emitStatement(clang::Stmt *stmt) -> bool {
   clang_mlir::Source::TraceScope frame(
       context.source(), stmt->getStmtClassName(), stmt->getBeginLoc(), trace);
   if (auto *expr = llvm::dyn_cast<clang::Expr>(stmt)) {
-    auto value = generateExpr(expr);
-    return !context.source().failed() &&
-           (value || expr->getType()->isVoidType());
+    return mlir::succeeded(expressions.emitDiscarded(*expr));
   }
   switch (stmt->getStmtClass()) {
   case clang::Stmt::NullStmtClass:

@@ -1,11 +1,11 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "clang-mlir/Constants.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
-    -> mlir::Value {
+auto ExpressionLowering::generateCXXBoolLiteralExpr(
+    clang::CXXBoolLiteralExpr *boolLit) -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -14,7 +14,7 @@ auto ASTLowering::generateCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *boolLit)
   return clang_mlir::boolConst(builder, loc, value);
 }
 
-auto ASTLowering::generateIntegerLiteral(clang::IntegerLiteral *intLit)
+auto ExpressionLowering::generateIntegerLiteral(clang::IntegerLiteral *intLit)
     -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = builder.getUnknownLoc();
@@ -25,8 +25,8 @@ auto ASTLowering::generateIntegerLiteral(clang::IntegerLiteral *intLit)
   return clang_mlir::intConst(builder, loc, type, value);
 }
 
-auto ASTLowering::generateFloatingLiteral(clang::FloatingLiteral *floatLit)
-    -> mlir::Value {
+auto ExpressionLowering::generateFloatingLiteral(
+    clang::FloatingLiteral *floatLit) -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -36,8 +36,8 @@ auto ASTLowering::generateFloatingLiteral(clang::FloatingLiteral *floatLit)
   return clang_mlir::floatConst(builder, loc, type, value);
 }
 
-auto ASTLowering::generateCharacterLiteral(clang::CharacterLiteral *charLit)
-    -> mlir::Value {
+auto ExpressionLowering::generateCharacterLiteral(
+    clang::CharacterLiteral *charLit) -> mlir::Value {
   mlir::OpBuilder &builder = context.builder();
   mlir::Location loc = builder.getUnknownLoc();
 
@@ -47,7 +47,7 @@ auto ASTLowering::generateCharacterLiteral(clang::CharacterLiteral *charLit)
   return clang_mlir::intConst(builder, loc, type, value);
 }
 
-auto ASTLowering::generateStringLiteral(clang::StringLiteral *strLit)
+auto ExpressionLowering::generateStringLiteral(clang::StringLiteral *strLit)
     -> mlir::Value {
   auto &builder = context.builder();
   auto loc = builder.getUnknownLoc();

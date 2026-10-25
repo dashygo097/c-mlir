@@ -1,14 +1,16 @@
-#include "../Lowering.h"
+#include "../Initialization.h"
+#include "ExpressionLowering.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateInitListExpr(clang::InitListExpr *list)
+auto ExpressionLowering::generateInitListExpr(clang::InitListExpr *list)
     -> mlir::Value {
   auto type = types.convertObjectType(list->getType());
   auto &builder = context.builder();
   auto loc = context.source().location(list->getExprLoc());
   auto storage = clang_mlir::createLocalStorage(builder, loc, type);
-  if (!storage || !initializeObject(list->getType(), list, storage)) {
+  if (!storage || !ObjectInitialization(context, types, *this)
+                       .emit(list->getType(), list, storage)) {
     return {};
   }
   if (list->getType()->isArrayType()) {

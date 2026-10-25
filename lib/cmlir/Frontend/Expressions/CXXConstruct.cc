@@ -1,9 +1,9 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateCXXConstructExpr(clang::CXXConstructExpr *expr)
+auto ExpressionLowering::generateCXXConstructExpr(clang::CXXConstructExpr *expr)
     -> mlir::Value {
   auto *constructor = expr->getConstructor();
   if (!constructor->isTrivial()) {

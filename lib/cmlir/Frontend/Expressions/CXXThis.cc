@@ -1,9 +1,9 @@
-#include "../Lowering.h"
+#include "ExpressionLowering.h"
 #include "llvm/Support/WithColor.h"
 
 namespace cmlir::frontend {
 
-auto ASTLowering::generateCXXThisExpr(clang::CXXThisExpr *thisExpr)
+auto ExpressionLowering::generateCXXThisExpr(clang::CXXThisExpr *thisExpr)
     -> mlir::Value {
   if (!function.thisValue) {
     llvm::WithColor::error()
